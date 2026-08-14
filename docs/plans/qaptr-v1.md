@@ -61,7 +61,10 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 - OpenRouter is built in as a bring-your-own-key option with a minimal key-entry experience.
 - Qaptr detects compatible installed agent CLIs where feasible.
-- Target integrations include Codex, Hermes, OpenClaw, Claude, OpenCode, and Jcode.
+- CLI integrations follow a Multica-style runtime model: detect a compatible installed and already authenticated tool, verify its version and capabilities, invoke it locally, and never receive or store that tool's login tokens.
+- Required v1 providers are OpenRouter, Claude CLI, Codex CLI, and Jcode CLI.
+- Codex uses the person's existing CLI/OAuth login, including ChatGPT-backed Codex access where available; Qaptr does not request a separate OpenAI API key.
+- Hermes, OpenClaw, and OpenCode remain capability-gated follow-up adapters until their non-interactive isolation contracts are proven.
 - Provider capability differences must be hidden behind a stable adapter boundary.
 - Unsupported or incompatible detected tools must never appear as working choices.
 - Provider output is normalized into Qaptr's observation, canonical Workflow, and purpose-specific Markdown export formats.
