@@ -20,6 +20,5 @@
 /docs/plans/*.pdf
 /IMG_1409.png
 
-# Knowledge graph: the report is committed, everything derived is rebuilt locally
-/graphify-out/*
-!/graphify-out/GRAPH_REPORT.md
+# Knowledge graph: generated locally, rebuilt by the post-commit hook
+/graphify-out/

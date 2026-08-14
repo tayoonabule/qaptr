@@ -37,7 +37,6 @@ graphify explain "PrivacyGate"
 graphify affected "ContextSnapshot" --depth 2
 ```
 
-[`graphify-out/GRAPH_REPORT.md`](graphify-out/GRAPH_REPORT.md) is the committed
-architecture summary; the rest of `graphify-out/` is a local build artifact that
-a `post-commit` hook keeps current. See [`AGENTS.md`](AGENTS.md) for the
-conventions automated contributors follow.
+`graphify-out/` is generated, gitignored, and kept current by a `post-commit`
+hook; `graphify-out/GRAPH_REPORT.md` inside it is the architecture summary. See
+[`AGENTS.md`](AGENTS.md) for the conventions automated contributors follow.

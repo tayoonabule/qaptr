@@ -26,15 +26,15 @@ Rules:
   (`ProviderError`, `CliRuntimeError`, `Vault`, `CredentialKey`, `CliOutput`,
   `ContextSnapshot`) ripple across crates.
 - Read `graphify-out/GRAPH_REPORT.md` for architecture review, not for
-  targeted lookups. It is the only graph artifact committed to git.
+  targeted lookups.
 - Fall back to `rg` only when the graph misses (string literals, config values,
   comments, or files the extractor skipped).
 - Run `graphify update .` after editing code. It is AST-only, takes a few
   seconds, and costs nothing. A `post-commit` hook also rebuilds in the
   background.
 
-Everything else under `graphify-out/` (`graph.json`, `graph.html`, caches) is a
-local build artifact and is gitignored. Rebuild it with:
+`graphify-out/` is generated and gitignored, so every contributor builds it
+locally:
 
 ```sh
 uv tool install graphifyy   # once
@@ -55,8 +55,8 @@ map. Each agent should:
 4. Cite `file:line` from graph output when reporting findings, so a reviewer
    can audit the path rather than re-deriving it.
 
-Never commit `graphify-out/graph.json`. Parallel workers each rebuild it
-locally, which avoids merge conflicts on a large generated file.
+`graphify-out/` is gitignored precisely so parallel workers never conflict on a
+large generated file. Each one rebuilds it in seconds.
 
 ## Quality gates
 
