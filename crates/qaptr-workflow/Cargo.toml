@@ -8,6 +8,10 @@ description = "Pure canonical workflow documents and audience-specific Markdown 
 
 [dependencies]
 qaptr-domain = { path = "../qaptr-domain" }
+qaptr-privacy = { path = "../qaptr-privacy" }
+qaptr-provider = { path = "../qaptr-provider" }
+qaptr-store = { path = "../qaptr-store" }
+qaptr-vault = { path = "../qaptr-vault" }
 thiserror.workspace = true
 
 [lints]

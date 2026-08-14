@@ -18,3 +18,26 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
 ```
+
+## Codebase map
+
+The workspace is indexed as a knowledge graph so navigation does not depend on
+grepping. Install the indexer once and build the graph:
+
+```sh
+uv tool install graphifyy
+graphify update .
+```
+
+Then query it instead of reading files at random:
+
+```sh
+graphify query "how does the privacy gate enforce redaction?"
+graphify explain "PrivacyGate"
+graphify affected "ContextSnapshot" --depth 2
+```
+
+[`graphify-out/GRAPH_REPORT.md`](graphify-out/GRAPH_REPORT.md) is the committed
+architecture summary; the rest of `graphify-out/` is a local build artifact that
+a `post-commit` hook keeps current. See [`AGENTS.md`](AGENTS.md) for the
+conventions automated contributors follow.
