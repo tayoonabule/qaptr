@@ -1,0 +1,21 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Rust
+/target/
+
+# JavaScript and website
+/node_modules/
+/dist/
+/.next/
+/.turbo/
+
+# Tauri and Apple build output
+/src-tauri/target/
+/DerivedData/
+
+# Local planning exports and reference captures
+/docs/plans/*.pdf
+/IMG_1409.png
