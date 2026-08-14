@@ -12,8 +12,9 @@ use qaptr_domain::ports::vision::{VisionFinding, VisionKind, VisionPort, VisionR
 use qaptr_domain::ports::{ContextSnapshot, PortOutcome};
 use qaptr_domain::{CaptureId, DomainError, NormalizedRect};
 use qaptr_privacy::{
-    ExclusionReason, FULL_PREPARATION_BUDGET, Image, ImageOrientation, PreparationInput,
-    PreparationStage, PrivacyGate, SensitiveClass, measure_recall,
+    DetectionKind, ExclusionReason, FULL_PREPARATION_BUDGET, Image, ImageOrientation,
+    MappedDetection, PreparationInput, PreparationStage, PrivacyGate, SensitiveClass,
+    map_normalized_rect, measure_recall,
 };
 
 struct CompleteOcr;
@@ -104,6 +105,19 @@ fn capture(name: &str) -> CaptureId {
 
 fn recall() -> qaptr_privacy::RecallReport {
     measure_recall(&[], &[]).expect("empty disclosure corpus is valid")
+}
+
+fn honest_recall() -> qaptr_privacy::RecallReport {
+    let ground_truth: Vec<_> = (0..6)
+        .map(|index| {
+            let geometry =
+                NormalizedRect::new(index as f32 * 0.1, 0.1, 0.08, 0.08).expect("test geometry");
+            let rect = map_normalized_rect(geometry, 100, 100, ImageOrientation::Up)
+                .expect("test mapping");
+            MappedDetection::new(DetectionKind::Text, rect)
+        })
+        .collect();
+    measure_recall(&ground_truth, &ground_truth[..5]).expect("known miss is valid")
 }
 
 fn safe_context() -> ContextSnapshot {
@@ -208,7 +222,7 @@ fn passing_payload_contains_sanitization_and_coverage_proof() {
             ImageOrientation::Up,
         )
         .allow_image();
-    let payload = PrivacyGate::new(recall())
+    let payload = PrivacyGate::new(honest_recall())
         .prepare(input, &CompleteOcr, &CompleteVision)
         .expect("complete local pipeline should pass");
 
@@ -244,6 +258,10 @@ fn passing_payload_contains_sanitization_and_coverage_proof() {
             .map(|image| image.proof().detected_region_count()),
         Some(2)
     );
+    assert_eq!(payload.proof().recall().ground_truth_count(), 6);
+    assert_eq!(payload.proof().recall().matched_count(), 5);
+    assert_eq!(payload.proof().recall().missed_indices(), &[5]);
+    assert!((payload.proof().recall().recall() - (5.0 / 6.0)).abs() < f64::EPSILON);
 }
 
 #[test]
