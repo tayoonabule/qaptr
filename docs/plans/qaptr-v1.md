@@ -323,7 +323,7 @@ Every budget in this plan is a number produced by a stated procedure, so a regre
 - **Opened-app budget (R-C7).** Median under 150 MB and peak under 180 MB over a 10-minute scripted review session: open, analyze a 24-capture fixture session, open three observations, generate one workflow, export all four formats.
 - **Reference machine.** Apple silicon, 16 GB, one 5K display attached, recorded by model and macOS build in `docs/release.md`. Budgets are asserted only on the reference configuration; other hardware is informational.
 - **Fixture session.** A committed synthetic session of 24 captures at the production downscaled size, used by every budget and latency test so runs are comparable.
-- **Latency budgets.** Capture tick under 400 ms median. OCR plus mask plus sanitize under 900 ms median per capture. Cold launch to first meaningful paint under 1200 ms median. Website Largest Contentful Paint under 1800 ms and total transferred bytes under 250 KB on a throttled mobile profile. Each recorded in its bench file.
+- **Latency budgets.** Capture tick under 400 ms median. Recognition alone under 500 ms median per capture, asserted in U9. Full preparation — recognition plus masking plus sanitization — under 900 ms median per capture, asserted in U12 where all three exist. Cold launch to first meaningful paint under 1200 ms median, measured as the time from process start to the first frame containing observation content, instrumented in the review app. Website Largest Contentful Paint under 1800 ms and total transferred bytes under 250 KB on a Lighthouse mobile profile with its default network and CPU throttling. Each recorded in its bench file.
 - **Regression rule.** A budget test fails if the median exceeds its number, or if peak exceeds its number, on three consecutive runs. Single-run noise does not fail the suite.
 
 ### Assumptions
@@ -374,7 +374,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Files:** `apps/review/`, `packaging/signing/entitlements.plist`, `bench/review_memory.md`, `docs/plans/qaptr-v1.md`.
 - **Approach:** Build a minimal signed outer app with a nested Tauri 2 review app that renders a representative Observation Sheet with real typography and motion. Measure aggregate process-tree resident memory, cold launch, and appearance fidelity. Verify screen-recording consent persists across rebuilds of the same identity.
 - **Execution note:** This is a spike. Land the measurements and the decision, not production UI.
-- **Test scenarios:** Aggregate `phys_footprint` meets the R-C7 budget under the Measurement protocol with the fixture session loaded. Cold launch to first meaningful paint meets its 1200 ms median budget. Light and dark appearance match system settings. Consent survives a rebuild and relaunch. Keyboard traversal and focus order work in the webview shell.
+- **Test scenarios:** Aggregate `phys_footprint` meets the R-C7 budget under the Measurement protocol with the fixture session loaded. Cold launch to first meaningful paint meets its 1200 ms median budget, measured from process start to the first frame containing observation content. Light and dark appearance match system settings. Consent survives a rebuild and relaunch. Keyboard traversal and focus order work in the webview shell.
 - **Verification:** A recorded decision in this plan: proceed with Tauri, or switch the review shell to SwiftUI with the core untouched.
 
 ### U4. Prototype gate: capture cost on high-resolution displays
@@ -446,7 +446,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U2, U5.
 - **Files:** `crates/qaptr-macos/src/ocr.rs`, `crates/qaptr-macos/src/vision.rs`, `crates/qaptr-privacy/src/recognize.rs`, `crates/qaptr-macos/tests/ocr_integration.rs`, `bench/ocr_cost.md`.
 - **Approach:** Recognized text regions carry normalized geometry and confidence; faces and barcodes carry geometry. Geometry is mapped to the downscaled image's pixel space once, in one tested function, so masking cannot drift from detection.
-- **Test scenarios:** Known fixture images yield expected region counts and text. Coordinate mapping is correct at several scale factors and orientations, verified against hand-computed expectations. Empty and single-color images produce no regions and no error. OCR failure surfaces as a domain error, not a panic. Per-image OCR plus mask plus sanitize cost meets the 900 ms median budget from the Measurement protocol.
+- **Test scenarios:** Known fixture images yield expected region counts and text. Coordinate mapping is correct at several scale factors and orientations, verified against hand-computed expectations. Empty and single-color images produce no regions and no error. OCR failure surfaces as a domain error, not a panic. Recognition cost alone meets its 500 ms median share of the preparation budget; the full preparation budget is asserted in U12 once masking and sanitization exist.
 - **Verification:** Coordinate mapping tests pass at every supported scale.
 
 ### U10. Masking and coverage proof
@@ -474,9 +474,9 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Goal:** One decision point that decides whether a capture may reach a provider, and the only place a payload can be built.
 - **Requirements:** R-P5, R-P6, R-P7; AE3, AE4.
 - **Dependencies:** U10, U11.
-- **Files:** `crates/qaptr-privacy/src/gate.rs`, `crates/qaptr-privacy/src/payload.rs`, `crates/qaptr-privacy/tests/gate.rs`.
+- **Files:** `crates/qaptr-privacy/src/gate.rs`, `crates/qaptr-privacy/src/payload.rs`, `crates/qaptr-privacy/tests/gate.rs`, `bench/preparation_cost.md`.
 - **Approach:** The gate composes recognition, masking, coverage, and sanitization into a single `PreparedPayload` or an exclusion with a reason. Text context is the default payload; masked images are opt-in and still gated. No caller can construct a payload without the gate.
-- **Test scenarios:** OCR failure excludes the capture. Coverage failure excludes the capture. Residual sanitizer finding excludes the capture. Timeout excludes the capture. One excluded capture among five leaves four analyzable and produces exactly one quiet notice. Payload cannot be constructed outside the gate, asserted by visibility and a compile-fail test. Image payload without opt-in is never produced. A prepared payload records which sensitive classes were detected and replaced, so AE3 is checkable on the artifact rather than by inspection.
+- **Test scenarios:** OCR failure excludes the capture. Coverage failure excludes the capture. Residual sanitizer finding excludes the capture. Timeout excludes the capture. One excluded capture among five leaves four analyzable and produces exactly one quiet notice. Payload cannot be constructed outside the gate, asserted by visibility and a compile-fail test. Image payload without opt-in is never produced. A prepared payload records which sensitive classes were detected and replaced, so AE3 is checkable on the artifact rather than by inspection. Full preparation cost meets the 900 ms median budget from the Measurement protocol.
 - **Verification:** AE3 and AE4 pass.
 
 ### U13. Provider adapter contract and capability gate
