@@ -11,6 +11,10 @@ mod units;
 pub mod clock;
 pub mod error;
 pub mod ids;
+pub mod ports;
+
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 
 pub use clock::{Clock, FixedClock, SystemClock};
 pub use error::{DomainError, Result};
