@@ -66,7 +66,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 - R-P1. Screenshots are temporary processing material, not durable history.
 - R-P2. The person chooses a simple cache lifetime.
-- R-P3. Expired screenshots are permanently deleted. This covers every Qaptr-managed copy of the image and its derived artifacts; Qaptr does not claim forensic erasure of underlying storage media.
+- R-P3. Expired screenshots are permanently deleted: their encryption keys are destroyed and their files unlinked, making the content unrecoverable through any Qaptr path. Qaptr does not claim secure physical overwrite of storage media.
 - R-P4. Durable history contains only compact workflow summaries and observations, never screenshot thumbnails.
 - R-P5. OCR and PII redaction occur locally before any provider receives an image or extracted context.
 - R-P6. Images that cannot be confidently redacted fail closed and are excluded from provider requests.
@@ -127,10 +127,10 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 - AE1. Given sparse mode on a 5K display, when the helper runs for 12 hours, then every scheduled capture is written and helper resident memory stays below 50 MB.
 - AE2. Given a cache of recent captures, when the person opens Qaptr, then analysis begins without the helper having performed OCR or provider work.
-- AE3. Given a capture containing an email address, an API key, and a face, when the capture is prepared for a provider, then all recognized text is masked in the image, the structured context is sanitized, and no unmasked sensitive value leaves the device.
+- AE3. Given a capture containing an email address, an API key, and a face, when the capture is prepared for a provider, then the structured context is sanitized with no unmasked sensitive value, and any image payload has every recognized region masked with its measured recall floor disclosed.
 - AE4. Given one capture whose redaction confidence gate fails, when analysis runs, then that capture is excluded, the remaining captures are analyzed, and the person sees a quiet one-line exclusion notice.
 - AE5. Given an observation, when the person chooses **Qaptr in more detail** and accepts the recommended profile, then detailed capture becomes visibly active in the menu bar and continues until manually stopped.
-- AE6. Given a 24-hour cache lifetime, when a capture passes 24 hours, then its raw and derived image material is permanently deleted while its summaries remain.
+- AE6. Given a 24-hour cache lifetime, when a capture passes 24 hours, then its encryption keys are destroyed and its image and derived files unlinked, while its summaries remain available.
 - AE7. Given OpenRouter configured and one proven CLI installed, when analysis runs, then either provider completes the full observation flow and produces identical normalized output shapes.
 - AE8. Given an analyzed session, when the person exports a Workflow, then Qaptr writes a canonical document and four purpose-specific Markdown exports without launching any tool.
 - AE9. Given a fresh macOS user, when onboarding runs, then Screen Recording is requested with clear rationale, optional context permissions are separately explained, and no provider request occurs before explicit consent.
@@ -144,11 +144,11 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 Qaptr is a small native shell around a Rust core. The core owns all domain logic; the platform owns only what the platform must.
 
-1. **One product, three process roles.** A tiny always-resident capture helper, an on-demand review app, and a short-lived analysis worker. The helper never links OCR, provider, or UI code.
+1. **One product, two processes.** A tiny always-resident capture helper and an on-demand review app that hosts analysis in-process (KTD5a). The helper never links OCR, provider, storage, or UI code.
 2. **Rust-first domain.** Scheduling policy, retention, redaction policy, provider orchestration, workflow synthesis, and export live in Rust crates with no macOS types in their signatures.
 3. **Ports and adapters at every OS boundary.** Capture, OCR, vision redaction, accessibility context, credential storage, permission state, and login-item registration are traits in the core with a single macOS implementation each.
 4. **Deny by default.** Providers, permissions, and provider payloads start unavailable and become available only by passing an explicit gate.
-5. **Fail closed on privacy.** Any error in OCR, redaction, masking, or sanitization excludes the capture. There is no lower-safety override.
+5. **Fail closed on privacy.** Any error in OCR, redaction, masking, or sanitization excludes the capture. There is no lower-safety override. Residual recognizer recall is measured and disclosed rather than assumed away.
 6. **Small surfaces.** Cross-boundary contracts are coarse and few. The Swift/Rust bridge is a handful of calls, not a mirror of the domain.
 7. **Measured, not assumed.** Memory, capture latency, and OCR cost are asserted by tests against budgets, not reasoned about.
 
@@ -172,13 +172,13 @@ This is a release gate. Every unit satisfies it.
 - **KTD1 — Native Swift capture helper, not Tauri.** The helper is an `LSUIElement` Swift target using ScreenCaptureKit's one-shot screenshot API and `SMAppService` for login-item registration. A resident webview cannot meet the 50 MB budget (R-C6), and one-shot capture avoids maintaining a live stream. Rejected: Tauri helper (memory), `CGWindowListCreateImage` (deprecated path, worse privacy posture), a persistent `SCStream` (idle cost).
 - **KTD2 — Pre-scaled, sequential, single-frame capture.** Capture requests specify the downscaled output size directly, displays are captured one at a time, and buffer depth is held at one. This keeps peak memory bounded on 5K/6K panels where a full-resolution frame alone is tens of megabytes. Satisfies R-C4, R-C6.
 - **KTD3 — Separate Tauri 2 review app nested in the outer bundle.** The opened experience is a Tauri 2 app shipped as a nested helper application, launched on demand and terminated when closed. It carries the 150 MB budget (R-C7) alone, so the helper's budget is never polluted by WebKit. Rejected: single-process app (helper memory), full AppKit/SwiftUI review UI (slower to reach the required design quality). U3 is the gate that can overturn this.
-- **KTD4 — Coarse Rust static library with a C ABI.** The Rust core builds as a `staticlib` exposing a small C ABI consumed by both the Swift helper and the Tauri app. One core, two hosts, no duplicated domain logic. Rejected: dynamic library (signing and load complexity), Swift reimplementation of policy (drift).
-- **KTD5 — SQLite WAL with a single writer, owned by the review app.** Durable history is SQLite in WAL mode. The review app process is the only writer; the analysis worker runs in-process inside it. The helper never opens the database — it records capture metadata inside the sealed bundle, and the review app ingests those bundles on open. This removes multi-process write contention entirely. Requires a bundled SQLite at or above the version carrying the 2026 WAL-reset fix rather than trusting the system library.
+- **KTD4 — Rust core as crates, with a narrow C ABI only for Swift.** The review app is Rust and depends on the core crates directly, keeping full type safety. `qaptr-ffi` exposes a small C ABI used solely by the Swift helper. One core, no duplicated domain logic, and no needless erasure of types at the Rust-to-Rust boundary. Rejected: routing the Tauri backend through the C ABI (loses type safety for no benefit), Swift reimplementation of policy (drift).
+- **KTD5 — SQLite WAL with a single writer, owned by the review app.** Durable history is SQLite in WAL mode. The review app process is the only writer; analysis runs as an in-process task inside it, not a separate executable. The helper never opens the database — it records capture metadata inside the sealed bundle, and the review app ingests those bundles on open. This removes multi-process write contention entirely. Requires a bundled SQLite at or above the version carrying the 2026 WAL-reset fix rather than trusting the system library.
 - **KTD5a — Explicit process ownership and IPC.** The helper owns capture and the vault write path. The review app owns storage, privacy, providers, workflow, and analysis. The only helper-to-app channel is the vault plus a small state file; the only app-to-helper channel is a signed profile request the helper polls at tick time. There is no socket, no shared database handle, and no live RPC between the two processes.
-- **KTD6 — Encrypted ephemeral capture bundles.** A capture is a directory containing the downscaled image, sampled context, and derived artifacts, encrypted with a per-bundle key wrapped by a Keychain-held generation key, excluded from backup and Spotlight. Deleting the generation key renders every bundle of that generation unreadable, which makes retention enforcement cheap and verifiable. Satisfies R-P1, R-P3, R-P9.
-- **KTD7 — Mask all recognized text, faces, and barcodes in provider-bound images, verified by re-recognition.** Selective PII masking cannot be honestly guaranteed from OCR, so images sent to providers have every recognized text region, detected face, and detected barcode masked. The guarantee is scoped to what Apple's recognizers detect at the configured settings, verified by re-running recognition on the masked output and requiring zero detections. Meaning travels in separately sanitized structured context, not in readable pixels. Qaptr does not claim to mask information no recognizer reports; that limit is stated in onboarding copy. Satisfies R-P5, R-P6, AE3.
+- **KTD6 — Encrypted ephemeral capture bundles with cryptographic erasure.** A capture is a directory containing the downscaled image, sampled context, and derived artifacts, encrypted with a per-bundle key wrapped by a Keychain-held generation key, excluded from backup and Spotlight. Expiry performs cryptographic erasure — the key material is destroyed and the files are unlinked — which renders the data unrecoverable through any Qaptr path. Qaptr does not claim secure physical overwrite, which APFS and SSD wear-levelling make unguaranteeable; onboarding says so plainly. Satisfies R-P1, R-P3, R-P9.
+- **KTD7 — Mask all recognized text, faces, and barcodes in provider-bound images, with disclosed residual risk.** Selective PII masking cannot be honestly guaranteed from OCR, so images sent to providers have every recognized text region, detected face, and detected barcode masked. Two independent checks apply: re-running the same recognizers on the masked output must find nothing, and a labeled corpus measures recall against ground truth that the recognizers did not produce. Because no recognizer has perfect recall, image payloads are off by default (KTD8), the measured recall floor is published in `docs/release.md`, and onboarding discloses that image sending carries residual risk. Satisfies R-P5, R-P6, AE3.
 - **KTD8 — Text-context-first provider payloads.** The default payload is sanitized structured context only. Fully masked images are an explicit opt-in that still requires the image gate to pass. This minimizes what leaves the device and keeps provider cost low.
-- **KTD9 — Deny-by-default provider capability gate, with all four providers release-gating.** An adapter is selectable only after proving: resolved absolute executable, minimum version, authenticated state, non-interactive invocation, tools disabled, isolated empty working directory, minimized environment, bounded output and time, cancellable process tree, and schema-valid output. All four required providers (R-PR4) must pass this gate to ship: OpenRouter, Claude CLI, Codex CLI, and Jcode CLI. If any one cannot pass, that is a release blocker to be surfaced under the Goal Capsule stop conditions, not a quietly disabled adapter. Detected-but-incompatible tools outside the required four are shown with a plain reason and are never selectable (R-PR8).
+- **KTD9 — Deny-by-default provider capability gate, with all four providers release-gating.** Every adapter must prove: authenticated state, non-interactive invocation, bounded output and time, cancellability, and schema-valid output. CLI adapters must additionally prove a resolved absolute executable, minimum version, tools disabled, an isolated empty working directory, and a minimized environment; the HTTP adapter proves reachability and key presence in place of those process-specific steps. All four required providers (R-PR4) must pass to ship: OpenRouter, Claude CLI, Codex CLI, and Jcode CLI. If any one cannot pass, that is a release blocker surfaced under the Goal Capsule stop conditions, not a quietly disabled adapter. Detected-but-incompatible tools outside the required four are shown with a plain reason and are never selectable (R-PR8).
 - **KTD9a — Enforced isolation via a sandboxed child.** CLI adapters run inside `sandbox-exec` with a deny-by-default profile permitting only the isolated working directory, the resolved executable and its own support paths, and network egress. Filesystem denial is therefore enforced by the OS, not by convention. An adapter whose CLI cannot function under that profile fails its gate.
 - **KTD10 — Just-in-time provider consent.** Local preparation may start on open, but the first provider request of a session requires explicit consent showing provider, payload kinds, capture count, and exclusions. Satisfies R-P8, AE9.
 - **KTD11 — Hostname-only browser context by default.** Sampled URLs are reduced to scheme and host with path, query, and fragment stripped unless the person opts into full paths. Satisfies the spirit of R-P5 at the metadata layer.
@@ -280,7 +280,7 @@ qaptr/
     qaptr-provider-openrouter/
     qaptr-provider-cli/             # shared isolated-subprocess runtime + adapters
     qaptr-workflow/                 # synthesis + Markdown exports
-    qaptr-ffi/                      # staticlib C ABI for Swift and Tauri
+    qaptr-ffi/                      # narrow C ABI staticlib, consumed only by the Swift helper
     qaptr-macos/                    # macOS adapter impls behind core ports
   apps/
     helper/                         # Swift LSUIElement capture helper
@@ -292,6 +292,25 @@ qaptr/
   docs/plans/
 ```
 
+### Ownership table
+
+| Concern | Owner | Never touches it |
+|---|---|---|
+| Capture tick, ScreenCaptureKit call, context sample | Capture helper | Review app |
+| Vault writes (sealing new bundles) | Capture helper | — |
+| Vault reads, decryption, retention reaping | Review app | Capture helper |
+| OCR, masking, sanitizing, privacy gate | Review app | Capture helper |
+| Provider adapters and requests | Review app | Capture helper |
+| SQLite history (sole writer) | Review app | Capture helper never opens it |
+| Analysis task | In-process task inside the review app | — |
+| Workflow synthesis and export | Review app | Capture helper |
+| Keychain credentials | Review app | Capture helper |
+| Login-item registration | Review app on first launch | — |
+| Permission requests | Review app during onboarding | Helper only reads state |
+| Active capture profile | Review app writes the request, helper reads at tick | — |
+
+The only two channels between the processes are the vault directory plus a small state file (helper to app), and a signed profile-request file the helper reads at tick time (app to helper). No socket, no shared database handle, no live RPC.
+
 ### Measurement protocol
 
 Every budget in this plan is a number produced by a stated procedure, so a regression is detectable rather than arguable.
@@ -301,7 +320,7 @@ Every budget in this plan is a number produced by a stated procedure, so a regre
 - **Opened-app budget (R-C7).** Median under 150 MB and peak under 180 MB over a 10-minute scripted review session: open, analyze a 24-capture fixture session, open three observations, generate one workflow, export all four formats.
 - **Reference machine.** Apple silicon, 16 GB, one 5K display attached, recorded by model and macOS build in `docs/release.md`. Budgets are asserted only on the reference configuration; other hardware is informational.
 - **Fixture session.** A committed synthetic session of 24 captures at the production downscaled size, used by every budget and latency test so runs are comparable.
-- **Latency budgets.** Capture tick under 400 ms median. OCR plus mask plus sanitize under 900 ms median per capture. Cold launch to first meaningful paint under 1200 ms median. Each recorded in its bench file.
+- **Latency budgets.** Capture tick under 400 ms median. OCR plus mask plus sanitize under 900 ms median per capture. Cold launch to first meaningful paint under 1200 ms median. Website Largest Contentful Paint under 1800 ms and total transferred bytes under 250 KB on a throttled mobile profile. Each recorded in its bench file.
 - **Regression rule.** A budget test fails if the median exceeds its number, or if peak exceeds its number, on three consecutive runs. Single-run noise does not fail the suite.
 
 ### Assumptions
@@ -352,7 +371,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Files:** `apps/review/`, `packaging/signing/entitlements.plist`, `bench/review_memory.md`, `docs/plans/qaptr-v1.md`.
 - **Approach:** Build a minimal signed outer app with a nested Tauri 2 review app that renders a representative Observation Sheet with real typography and motion. Measure aggregate process-tree resident memory, cold launch, and appearance fidelity. Verify screen-recording consent persists across rebuilds of the same identity.
 - **Execution note:** This is a spike. Land the measurements and the decision, not production UI.
-- **Test scenarios:** Aggregate resident memory stays under 150 MB with a representative session loaded. Cold launch to first meaningful paint stays within the stated budget. Light and dark appearance match system settings. Consent survives a rebuild and relaunch. Keyboard traversal and focus order work in the webview shell.
+- **Test scenarios:** Aggregate `phys_footprint` meets the R-C7 budget under the Measurement protocol with the fixture session loaded. Cold launch to first meaningful paint meets its 1200 ms median budget. Light and dark appearance match system settings. Consent survives a rebuild and relaunch. Keyboard traversal and focus order work in the webview shell.
 - **Verification:** A recorded decision in this plan: proceed with Tauri, or switch the review shell to SwiftUI with the core untouched.
 
 ### U4. Prototype gate: capture cost on high-resolution displays
@@ -363,7 +382,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Files:** `apps/helper/`, `bench/capture_memory.md`, `bench/scripts/capture_soak.sh`.
 - **Approach:** A throwaway helper that performs one-shot pre-scaled captures of one and multiple displays, sequentially, with depth one. Measure peak and steady resident memory, per-capture latency, and behavior across display attach/detach, sleep/wake, lock, and resolution change.
 - **Execution note:** Spike. Measurements and the decision are the deliverable.
-- **Test scenarios:** Steady resident memory stays under 50 MB across a multi-hour soak. Peak during a 6K capture stays within budget. Attaching a display does not add it to the selection and does not crash. Sleep/wake produces no catch-up burst. Locked screen is skipped.
+- **Test scenarios:** `phys_footprint` median and peak meet the R-C6 budget across a multi-hour soak under the Measurement protocol. Peak during a 6K capture stays within that same budget. Capture tick meets its 400 ms median budget. Attaching a display does not add it to the selection and does not crash. Sleep/wake produces no catch-up burst. Locked screen is skipped.
 - **Verification:** Recorded capture strategy: in-process pre-scaled capture, or a short-lived capture child process.
 
 ### U5. Encrypted capture vault with key generations
@@ -384,7 +403,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U1.
 - **Files:** `crates/qaptr-store/src/lib.rs`, `crates/qaptr-store/src/schema.rs`, `crates/qaptr-store/src/migrations/`, `crates/qaptr-store/src/history.rs`, `crates/qaptr-store/tests/store.rs`.
 - **Approach:** Bundled SQLite in WAL mode with a single writer in the review-app process (KTD5) and a narrow repository API. The schema has no blob columns and no thumbnail table; a schema test asserts this. Migrations are forward-only and tested from empty.
-- **Test scenarios:** Migration from empty produces the expected schema. A schema test fails if any blob column or image-like table is added. Concurrent readers see consistent snapshots during a write. A crash mid-write leaves a recoverable database. Retention deletion cascades to summaries but preserves exported documents.
+- **Test scenarios:** Migration from empty produces the expected schema. A schema test fails if any blob column or image-like table is added. Concurrent readers see consistent snapshots during a write. A crash mid-write leaves a recoverable database. Deleting a capture's vault record leaves its observations and workflows intact, matching AE6.
 - **Verification:** Schema guard test is present and fails on a deliberate blob column.
 
 ### U6a. macOS credential, permission, and login-item adapters
@@ -404,7 +423,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U2, U4, U5, U6a.
 - **Files:** `apps/helper/Sources/QaptrHelper/`, `crates/qaptr-macos/src/capture.rs`, `crates/qaptr-macos/src/context.rs`, `crates/qaptr-policy/src/cadence.rs`, `crates/qaptr-policy/src/displays.rs`, `crates/qaptr-ffi/src/lib.rs`, `apps/helper/Tests/`, `crates/qaptr-policy/tests/cadence.rs`.
 - **Approach:** Swift owns only the timer, the ScreenCaptureKit call, the context sample, and the menu-bar item; every decision comes from the core through the C ABI. Context sampling is a single instantaneous read with URLs reduced to hostname by default. Capture metadata is written into the sealed bundle, never to the database (KTD5a). No OCR, no provider, no analysis, and no storage code is linked into this target.
-- **Test scenarios:** Cadence policy schedules on the sparse interval (R-C1) and does not fire while locked, asleep, or after sustained idle. Capture and context sampling occur only at the tick, asserted by counting port calls between ticks (R-C5). Captured images are downscaled to the configured size before sealing, asserted on the written bundle (R-C4). Attaching or detaching a display is handled without user interruption and without adding the new display to the selection (R-C2). The display selector accepts one or several displays and rejects an empty selection (R-C3). No catch-up burst after wake. Menu-bar state legibly distinguishes idle, sparse, and detailed capture. Helper never links OCR, provider, or SQLite symbols, asserted by a link-audit test. Disk quota exhaustion pauses capture with a quiet notice rather than failing silently. Capture tick median stays within the latency budget.
+- **Test scenarios:** Cadence policy schedules on the sparse interval (R-C1) and does not fire while locked, asleep, or after sustained idle. Capture and context sampling occur only at the tick, asserted by counting port calls between ticks (R-C5). Captured images are downscaled to the configured size before sealing, asserted on the written bundle (R-C4). Attaching or detaching a display is handled without user interruption and without adding the new display to the selection (R-C2). Display-selection policy accepts one or several displays and rejects an empty selection; its UI lives in U20 (R-C3). No catch-up burst after wake. Menu-bar state legibly distinguishes idle, sparse, and detailed capture. Helper never links OCR, provider, or SQLite symbols, asserted by a link-audit test. Disk quota exhaustion pauses capture with a quiet notice rather than failing silently. Capture tick median stays within the latency budget.
 - **Verification:** Soak run meets AE1 and the link audit passes.
 
 ### U8. Retention enforcement and quiet exclusion notices
@@ -414,7 +433,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U5, U6.
 - **Files:** `crates/qaptr-policy/src/retention.rs`, `crates/qaptr-vault/src/reaper.rs`, `crates/qaptr-store/src/notices.rs`, `crates/qaptr-policy/tests/retention.rs`.
 - **Approach:** Retention is a pure policy over bundle metadata plus a reaper that executes it. Notices are compact rows with counts and reasons, never payloads.
-- **Test scenarios:** A bundle past its lifetime has its image and derived material permanently deleted while its summaries remain. Changing the lifetime shortens existing bundles' remaining life. Reaper is idempotent and safe to interrupt. Notice text is a count and a reason with no capture content. A retention run under low disk still completes. Deletion is scoped to Qaptr-managed copies; the plan makes no forensic-erasure claim.
+- **Test scenarios:** A bundle past its lifetime has its keys destroyed and its image and derived files unlinked, while its summaries remain. Changing the lifetime shortens existing bundles' remaining life. Reaper is idempotent and safe to interrupt. Notice text is a count and a reason with no capture content. A retention run under low disk still completes. A reaped bundle cannot be decrypted afterwards, asserted directly.
 - **Verification:** AE6 passes end to end.
 
 ### U9. Local OCR and vision detection
@@ -424,17 +443,17 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U2, U5.
 - **Files:** `crates/qaptr-macos/src/ocr.rs`, `crates/qaptr-macos/src/vision.rs`, `crates/qaptr-privacy/src/recognize.rs`, `crates/qaptr-macos/tests/ocr_integration.rs`, `bench/ocr_cost.md`.
 - **Approach:** Recognized text regions carry normalized geometry and confidence; faces and barcodes carry geometry. Geometry is mapped to the downscaled image's pixel space once, in one tested function, so masking cannot drift from detection.
-- **Test scenarios:** Known fixture images yield expected region counts and text. Coordinate mapping is correct at several scale factors and orientations, verified against hand-computed expectations. Empty and single-color images produce no regions and no error. OCR failure surfaces as a domain error, not a panic. Per-image cost stays within the budget recorded in the bench file.
+- **Test scenarios:** Known fixture images yield expected region counts and text. Coordinate mapping is correct at several scale factors and orientations, verified against hand-computed expectations. Empty and single-color images produce no regions and no error. OCR failure surfaces as a domain error, not a panic. Per-image OCR plus mask plus sanitize cost meets the 900 ms median budget from the Measurement protocol.
 - **Verification:** Coordinate mapping tests pass at every supported scale.
 
 ### U10. Masking and coverage proof
 
 - **Goal:** Provider-bound images with every recognized text region, face, and barcode masked, plus a machine-checkable coverage proof.
-- **Requirements:** R-P5, R-P6; KTD7; AE3.
+- **Requirements:** R-P5, R-P6; KTD7, KTD8; AE3.
 - **Dependencies:** U9.
-- **Files:** `crates/qaptr-privacy/src/mask.rs`, `crates/qaptr-privacy/src/coverage.rs`, `crates/qaptr-privacy/tests/mask.rs`, `fixtures/privacy/`.
-- **Approach:** Mask by opaque fill with a small dilation, then re-run recognition over the masked image and require that no text, face, or barcode remains. Coverage is the proof object the gate consumes.
-- **Test scenarios:** A fixture with dense text yields zero recognized text after masking. Rotated and low-contrast text is masked. A face fixture yields no detection after masking. Masking an image with no detections is a no-op that still produces a valid proof. A deliberately broken masker fails the re-recognition check rather than passing.
+- **Files:** `crates/qaptr-privacy/src/mask.rs`, `crates/qaptr-privacy/src/coverage.rs`, `crates/qaptr-privacy/src/recall.rs`, `crates/qaptr-privacy/tests/mask.rs`, `crates/qaptr-privacy/tests/recall.rs`, `fixtures/privacy/images/`, `fixtures/privacy/ground_truth/`.
+- **Approach:** Mask by opaque fill with a small dilation, then re-run recognition over the masked image and require that no text, face, or barcode remains. A separate labeled corpus with human-authored ground truth measures recall, so the plan knows what the recognizers miss rather than assuming they miss nothing. Coverage is the proof object the gate consumes; the measured recall floor is published.
+- **Test scenarios:** A fixture with dense text yields zero recognized text after masking. Rotated and low-contrast text is masked. A face fixture yields no detection after masking. Masking an image with no detections is a no-op that still produces a valid proof. A deliberately broken masker fails the re-recognition check rather than passing. Recall against the human-labeled ground-truth corpus is computed and must meet the published floor; a corpus item the recognizers miss is recorded as a known limitation rather than silently passing.
 - **Verification:** Re-recognition on the labeled corpus finds nothing on every masked output.
 
 ### U11. Context sanitization
@@ -494,7 +513,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U14, U15.
 - **Files:** `crates/qaptr-provider-cli/src/adapters/codex.rs`, `crates/qaptr-provider-cli/src/adapters/jcode.rs`, `crates/qaptr-provider-cli/tests/codex.rs`, `crates/qaptr-provider-cli/tests/jcode.rs`, `docs/release.md`.
 - **Approach:** Use each CLI's documented non-interactive mode with its strictest no-tools, ephemeral-session, and ignore-user-config options, its own existing authentication, and the KTD9a sandbox profile. Codex uses `codex exec` with tools disabled, ephemeral sessions, and user config ignored. Jcode uses `jcode run --json` with the no-tools profile and base tools disabled. Both are release-gating: a failure to pass is a blocker, not a silent disable.
-- **Test scenarios:** Each adapter passes the shared contract suite. A signed-out CLI reports unavailable with the auth reason. Ephemeral invocation leaves no session artifacts, asserted by a filesystem diff of the sandbox and the CLI's own state directory. An adversarial prompt fixture instructing file writes produces no write, enforced by the sandbox. Output exceeding the cap terminates the run. Cancellation leaves no orphan process. Version below the documented minimum reports unavailable.
+- **Test scenarios:** Each adapter passes the shared contract suite. A signed-out CLI reports unavailable with the auth reason and a machine-readable reason code. Ephemeral invocation leaves no session artifacts, asserted by a filesystem diff of the sandbox and the CLI's own state directory. An adversarial prompt fixture instructing file writes produces no write, enforced by the sandbox. Output exceeding the cap terminates the run. Cancellation leaves no orphan process. Version below the documented minimum reports unavailable. Reason codes are asserted at the adapter level; U20 asserts that the settings surface renders them.
 - **Verification:** Both adapters pass the shared contract suite; any failure is surfaced as a release blocker with its exact gate step.
 
 ### U17. Analysis orchestration and observations
@@ -503,7 +522,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Requirements:** R-D2, R-D3, R-P7, R-C7; AE2, AE4, KTD10.
 - **Dependencies:** U12, U15, U6.
 - **Files:** `crates/qaptr-workflow/src/analyze.rs`, `crates/qaptr-workflow/src/observation.rs`, `crates/qaptr-workflow/src/consent.rs`, `crates/qaptr-workflow/tests/analyze.rs`.
-- **Approach:** A short-lived worker inside the review-app process (KTD5a) prepares bundles, requests just-in-time consent before the first provider call, then produces a small ranked set of observations combining chronology, repetition, and candidate workflows. Preparation is cancellable and streams progress.
+- **Approach:** A short-lived in-process analysis task inside the review app (KTD5a) prepares bundles, requests just-in-time consent before the first provider call, then produces a small ranked set of observations combining chronology, repetition, and candidate workflows. Preparation is cancellable and streams progress. There is no separate worker executable.
 - **Test scenarios:** Analysis begins without any helper-side OCR, asserted by helper-side call counters. No provider request occurs before consent. Declining consent leaves local preparation results and no network call. Cancellation mid-analysis leaves no partial observation rows. Exclusions from U12 produce exactly one aggregated notice. Observation count stays small even with many captures.
 - **Verification:** AE2 and AE9's consent clause pass.
 
@@ -544,7 +563,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U1.
 - **Files:** `web/astro.config.mjs`, `web/package.json`, `web/src/pages/index.astro`, `web/src/pages/api/waitlist.ts`, `web/src/lib/validate.ts`, `web/migrations/0001_waitlist.sql`, `web/wrangler.toml`, `web/src/styles/`, `web/public/_headers`, `web/tests/`, `docs/design/website.md`.
 - **Approach:** Static Astro with one Cloudflare Worker endpoint and a D1 table (KTD12), server-side validation, and minimal client JavaScript. Composition is editorial and near-monochrome (R-W3), with no card grids, gradients, or glassmorphism (R-W4). Before building, study <https://shopify.design/> and record in `docs/design/website.md` the specific compositional and typographic decisions being matched, without copying its layout or content.
-- **Test scenarios:** Valid submission is stored in D1 and confirmed. Invalid addresses are rejected with clear messages and a duplicate is idempotent rather than an error. Submission works without client JavaScript. Rate limiting blocks abuse without blocking a normal visitor. Axe scan reports no violations on the landing page. Reduced-motion preference is respected. Performance budget met on a mobile profile. No secret is exposed to the client bundle. A design review confirms no card grid, gradient, or glassmorphism pattern is present. The recorded rationale cites <https://shopify.design/> and names what was matched and what was deliberately not copied.
+- **Test scenarios:** Valid submission is stored in D1 and confirmed. Invalid addresses are rejected with clear messages and a duplicate is idempotent rather than an error. Submission works without client JavaScript. Rate limiting blocks abuse without blocking a normal visitor. Axe scan reports no violations on the landing page. Reduced-motion preference is respected. Largest Contentful Paint and transferred bytes meet the website budgets in the Measurement protocol. No secret is exposed to the client bundle. Stored records contain only email, timestamp, and a coarse source tag. A design review confirms no card grid, gradient, or glassmorphism pattern is present. The recorded rationale cites <https://shopify.design/> and names what was matched and what was deliberately not copied.
 - **Verification:** AE10 passes and the accessibility and performance budgets hold.
 
 ### U22. Packaging, signing, and notarization
@@ -579,7 +598,7 @@ Commands are run from the repository root unless a directory is named. Each comm
 | Lint | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | all Rust units | no warnings |
 | Unit and integration tests | `cargo test --workspace` | all Rust units | all pass |
 | macOS OS-integration tests | `cargo test -p qaptr-macos -- --ignored` | U6a, U9 | all pass on the reference machine |
-| Docs | `cargo doc --workspace --no-deps` | core crates | no warnings |
+| Docs | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | core crates | no warnings |
 | Helper tests | `swift test --package-path apps/helper` | U7, U18 | all pass |
 | Helper link audit | `bash bench/scripts/link_audit.sh` | U7 | no OCR, provider, or SQLite symbols |
 | Capture soak | `bash bench/scripts/capture_soak.sh --hours 12` | U4, U7, U23 | median and peak under 50 MB, zero missed captures |
@@ -601,7 +620,7 @@ Global:
 1. Every unit's tests exist and pass, and all Verification Contract gates are green.
 2. The Code Quality Contract holds: no warnings, no `unwrap` in library code, documented invariants, justified dependencies.
 3. The helper and the opened app both meet their budgets under the Measurement protocol on the reference machine, with medians, peaks, and machine identity recorded in `docs/release.md`.
-4. No provider payload can be produced except through the fail-closed gate, and the privacy corpus reports zero residual findings.
+4. No provider payload can be produced except through the fail-closed gate; the privacy corpus reports zero residual findings and its measured recall floor is published in `docs/release.md`.
 5. All four required providers — OpenRouter, Claude CLI, Codex CLI, and Jcode CLI — pass the capability gate and complete the end-to-end observation flow. A provider that cannot pass is a release blocker, not a disabled feature.
 6. The canonical Workflow and all four Markdown exports work, and Qaptr launches nothing.
 7. Onboarding takes a fresh user through permissions, displays, capture explanation, provider selection, and privacy consent, with no provider request before consent.
@@ -618,8 +637,8 @@ Per-unit: a unit is done when its stated test scenarios pass, its verification s
 ### Open questions
 
 - Q1 (deferred). Minimum supported macOS version, decided by U3 and U4 measurements rather than assumption.
-- Q2 (deferred). Whether masked images are worth offering at all, decided after U17 shows how much they improve observations over sanitized context alone.
-- Q3 (deferred). Waitlist storage provider details, decided in U21 within the single-endpoint constraint.
+- Q2 (deferred). Whether masked images are worth offering at all, decided after U17 shows how much they improve observations over sanitized context alone and after U10 publishes the recall floor. Images are off by default either way.
+- Q3 (resolved). Waitlist storage is a Cloudflare D1 table behind one Worker endpoint (KTD12), with schema and migration in U21.
 
 ### Sources and research
 
