@@ -5,25 +5,25 @@
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2296 nodes · 4902 edges · 152 communities (124 shown, 28 thin omitted)
+- 2300 nodes · 4907 edges · 152 communities (125 shown, 27 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 94 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `fde1e7f2`
+- Built from commit: `36b257c5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - Self
 - tests/analyze.rs
-- .try_from
+- Duration
 - DetailedCaptureProfile
 - classes.rs
 - qaptr-provider-openrouter/tests/contract.rs
 - src/analyze.rs
 - scripts
-- ProviderError
+- CodexAdapter
 - fs.rs
 - Vault
 - GenerationId
@@ -32,7 +32,7 @@
 - RustVaultAPI
 - BundleMetadata
 - LoginItemState
-- Image
+- MappedDetection
 - Self
 - CapabilityDescriptor
 - ObservationRecord
@@ -40,10 +40,10 @@
 - swiftui-shell/main.swift
 - CliInvocation
 - PortOutcome
-- measure_recall
+- RecallReport
 - .prepare
 - .capture
-- src/sanitize.rs
+- MacosError
 - CliRuntimeError
 - PreparationProof
 - .new
@@ -67,9 +67,9 @@
 - CaptureSample
 - seal_if_allowed
 - ClaudeAdapter
-- JcodeAdapter
+- ProviderError
 - .new
-- MacosError
+- src/permissions.rs
 - .new
 - NoticeRecord
 - qaptr-store/src/lib.rs
@@ -80,7 +80,7 @@
 - map_normalized_rect
 - waitlist.test.ts
 - HelperApplication
-- CredentialKey
+- .read_value
 - FakeExecutor
 - .new
 - tests/retention.rs
@@ -94,13 +94,13 @@
 - qaptr-domain
 - CapturedFrame
 - FakeHttp
-- CredentialValue
+- CredentialKey
 - Planning Contract
 - sign.sh
 - ContextSampler.swift
 - U4 capture-cost prototype gate
 - capture_soak.sh
-- qaptr-ffi/src/lib.rs
+- VisionResult
 - mask_image
 - RuntimeLimits
 - qaptr-store/src/schema.rs
@@ -120,7 +120,7 @@
 - migrations/mod.rs
 - Qaptr capture helper
 - release.sh
-- MappedDetection
+- MacOcr
 - dmg.sh
 - notarize.sh
 - reproducibility.sh
@@ -132,18 +132,18 @@
 - Decoder
 - .run
 - Confidence
-- AGENTS.md
+- Working in this repository
 - runtime
-- sanitize_text
-- RecallReport
-- Reaper
+- PermissionState
+- NormalizedRect
+- RecognitionResult
 - Harness
 - 0001_initial.sql
 - 0001_waitlist.sql
 - 0002_notices.sql
-- Duration
+- ProviderDetection
 - Error
-- SanitizedContext
+- PortResult
 - TempRoot
 - .into_result
 - C
@@ -166,8 +166,8 @@
 3. `CliOutput` - 29 edges
 4. `Vault` - 28 edges
 5. `MacosError` - 27 edges
-6. `CredentialValue` - 27 edges
-7. `CredentialKey` - 27 edges
+6. `CredentialKey` - 27 edges
+7. `CredentialValue` - 27 edges
 8. `Duration` - 26 edges
 9. `Implementation Units` - 25 edges
 10. `ConfidenceAssessment` - 24 edges
@@ -175,19 +175,19 @@
 ## Surprising Connections (you probably didn't know these)
 - `empty_detection_set_is_a_valid_honest_proof()` --calls--> `mask_image()`  [INFERRED]
   crates/qaptr-privacy/src/coverage.rs → crates/qaptr-privacy/src/mask.rs
-- `sampled_context_is_sanitized_as_structured_fields()` --calls--> `sanitize_context()`  [INFERRED]
-  crates/qaptr-privacy/tests/sanitize.rs → crates/qaptr-privacy/src/sanitize.rs
-- `home_path_is_generalized_without_the_username()` --calls--> `sanitize_path()`  [INFERRED]
-  crates/qaptr-privacy/tests/sanitize.rs → crates/qaptr-privacy/src/sanitize.rs
-- `embedded_url_credentials_and_query_tokens_are_removed()` --calls--> `sanitize_url()`  [INFERRED]
-  crates/qaptr-privacy/tests/sanitize.rs → crates/qaptr-privacy/src/sanitize.rs
+- `QaptrSwiftUIShellProbe` --implements--> `App`  [EXTRACTED]
+  bench/probes/swiftui-shell/main.swift → web/src/env.d.ts
+- `HelperApplication` --calls--> `PointInTimeContextSampler`  [INFERRED]
+  apps/helper/Sources/QaptrHelper/main.swift → apps/helper/Sources/QaptrHelper/ContextSampler.swift
 - `recall()` --calls--> `measure_recall()`  [INFERRED]
   crates/qaptr-workflow/tests/analyze.rs → crates/qaptr-privacy/src/recall.rs
+- `map_recognized_detections()` --calls--> `map_normalized_rect()`  [INFERRED]
+  crates/qaptr-privacy/src/mask.rs → crates/qaptr-privacy/src/recognize.rs
 
 ## Import Cycles
 - 2-file cycle: `crates/qaptr-domain/src/testing/doubles.rs -> crates/qaptr-domain/src/testing/mod.rs -> crates/qaptr-domain/src/testing/doubles.rs`
 
-## Communities (152 total, 28 thin omitted)
+## Communities (152 total, 27 thin omitted)
 
 ### Community 0 - "Self"
 Cohesion: 0.05
@@ -197,17 +197,17 @@ Nodes (54): Artifact, ConfidenceAssessment, DecisionAlternative, DecisionPoint, 
 Cohesion: 0.28
 Nodes (21): ContextSnapshot, declined_consent_keeps_preparation_local(), failure(), fixed_clock_makes_observation_creation_deterministic(), interruption_discards_staged_observations_for_a_clean_resume(), observations_are_scalar_summaries_with_provider_confidence_unchanged(), opened_bundle_is_consumed_before_gate_preparation(), privacy_gate_refusal_skips_provider_entirely() (+13 more)
 
-### Community 2 - ".try_from"
-Cohesion: 0.18
-Nodes (4): ByteSize, Error, Result, Self
+### Community 2 - "Duration"
+Cohesion: 0.15
+Nodes (6): ByteSize, Duration, Error, Result, Self, StdDuration
 
 ### Community 3 - "DetailedCaptureProfile"
 Cohesion: 0.20
 Nodes (9): CaptureProfileLifecycle, CaptureProfileState, DetailedCaptureProfile, ProfileError, C, Option, Result, Self (+1 more)
 
 ### Community 4 - "classes.rs"
-Cohesion: 0.13
-Nodes (23): assignment_finding(), classes_from_findings(), detect_findings(), finding_order(), is_placeholder(), is_token_edge(), looks_like_address(), looks_like_api_key() (+15 more)
+Cohesion: 0.07
+Nodes (53): assignment_finding(), classes_from_findings(), detect_findings(), finding_order(), is_placeholder(), is_token_edge(), looks_like_address(), looks_like_api_key() (+45 more)
 
 ### Community 5 - "qaptr-provider-openrouter/tests/contract.rs"
 Cohesion: 0.19
@@ -221,17 +221,17 @@ Nodes (50): C, CaptureRecord, AnalysisError, AnalysisReport, AnalysisRunner, Ana
 Cohesion: 0.05
 Nodes (38): astro, @astrojs/check, @astrojs/cloudflare, @axe-core/playwright, @cloudflare/workers-types, tsx, typescript, dependencies (+30 more)
 
-### Community 8 - "ProviderError"
-Cohesion: 0.16
-Nodes (13): CodexAdapter, Arc, CliRuntime, Option, PathBuf, Result, Self, malformed_output() (+5 more)
+### Community 8 - "CodexAdapter"
+Cohesion: 0.13
+Nodes (16): CodexAdapter, Arc, CliRuntime, Option, PathBuf, Self, add_support_path(), CliExecutor (+8 more)
 
 ### Community 9 - "fs.rs"
-Cohesion: 0.13
-Nodes (31): Path, Result, tree_contains(), barcode_fixture_yields_a_geometry_bearing_barcode_finding(), capture(), fixture_root(), human_labeled_corpus_reports_recall_and_misses_honestly(), known_text_fixture_yields_text_and_geometry() (+23 more)
+Cohesion: 0.09
+Nodes (45): copy_string(), fail(), invalid_seal_leaves_no_readable_partial_bundle(), public_key_lookup_does_not_require_private_material(), qaptr_vault_create(), qaptr_vault_destroy(), qaptr_vault_last_error(), qaptr_vault_public_key() (+37 more)
 
 ### Community 10 - "Vault"
-Cohesion: 0.22
-Nodes (10): encrypt_member(), generation_credential_key(), C, CaptureId, Into, PathBuf, Recipient, Result (+2 more)
+Cohesion: 0.17
+Nodes (14): decrypt_member(), encrypt_member(), generation_credential_key(), C, CaptureId, Identity, Into, Path (+6 more)
 
 ### Community 11 - "GenerationId"
 Cohesion: 0.13
@@ -257,13 +257,13 @@ Nodes (15): BundleInput, BundleMetadata, OpenedBundle, PrivacyImage, CaptureId, 
 Cohesion: 0.12
 Nodes (11): LoginItemPort, LoginItemState, InMemoryLoginItem, desired_state(), MacLoginItem, native_status(), PortResult, Result (+3 more)
 
-### Community 17 - "Image"
-Cohesion: 0.20
-Nodes (11): expected_byte_len(), Image, MaskedImage, MaskError, pixel_offset(), Option, Result, Self (+3 more)
+### Community 17 - "MappedDetection"
+Cohesion: 0.16
+Nodes (17): detection_kind(), DetectionKind, expected_byte_len(), Image, image_rejects_wrong_buffer_size(), map_recognized_detections(), MappedDetection, MaskError (+9 more)
 
 ### Community 18 - "Self"
-Cohesion: 0.16
-Nodes (7): OcrResult, InMemoryOcr, InMemoryVision, CaptureId, PortResult, Self, Response
+Cohesion: 0.13
+Nodes (7): AccessibilityContextPort, InMemoryAccessibilityContext, InMemoryCapture, InMemoryOcr, InMemoryVision, Self, Response
 
 ### Community 19 - "CapabilityDescriptor"
 Cohesion: 0.11
@@ -289,36 +289,36 @@ Nodes (16): AtomicBool, Child, Command, CliInvocation, configure_process_group()
 Cohesion: 0.24
 Nodes (10): PortOutcome, OcrPort, VisionPort, CompleteOcr, CompleteVision, MissingGeometryOcr, PartialOcr, CaptureId (+2 more)
 
-### Community 25 - "measure_recall"
-Cohesion: 0.27
-Nodes (12): detection(), empty_corpus_has_perfect_vacuous_recall(), invalid_threshold_is_rejected(), iou(), measure_recall(), measure_recall_with_threshold(), recall_reports_known_missed_regions_instead_of_hiding_them(), RecallError (+4 more)
+### Community 25 - "RecallReport"
+Cohesion: 0.15
+Nodes (14): detection(), empty_corpus_has_perfect_vacuous_recall(), invalid_threshold_is_rejected(), iou(), measure_recall(), measure_recall_with_threshold(), recall_reports_known_missed_regions_instead_of_hiding_them(), RecallError (+6 more)
 
 ### Community 26 - ".prepare"
-Cohesion: 0.17
-Nodes (11): ExclusionReason, PreparationInput, PreparationStage, PrivacyExclusion, CaptureId, O, Option, Result (+3 more)
+Cohesion: 0.16
+Nodes (12): ExclusionReason, PreparationInput, PreparationStage, PrivacyExclusion, PrivacyGate, CaptureId, O, Option (+4 more)
 
 ### Community 27 - ".capture"
 Cohesion: 0.16
 Nodes (17): CallbackResult, ScreenCaptureError, .description, displayUnavailable, encodingFailed, framework, timedOut, Data (+9 more)
 
-### Community 28 - "src/sanitize.rs"
-Cohesion: 0.26
-Nodes (19): ContextField, generalize_home_path(), home_rest(), is_url_token(), normalize_embedded_urls(), replace_findings(), BTreeSet, Result (+11 more)
+### Community 28 - "MacosError"
+Cohesion: 0.24
+Nodes (18): MacosError, String, map_error(), bounded_message(), decode_base64(), decode_base64_bytes(), image_path(), parse_number() (+10 more)
 
 ### Community 29 - "CliRuntimeError"
 Cohesion: 0.24
 Nodes (18): ChildStdin, append_allow_literal(), append_allow_subpath(), append_deny_subpath(), append_path_rule(), CliRuntimeError, ensure_executable(), escape_profile_string() (+10 more)
 
 ### Community 30 - "PreparationProof"
-Cohesion: 0.17
-Nodes (10): PreparationProof, PreparedPayload, BTreeSet, CaptureId, Debug, Formatter, Option, Result (+2 more)
+Cohesion: 0.16
+Nodes (11): MaskedImage, PreparationProof, PreparedPayload, BTreeSet, CaptureId, Debug, Formatter, Option (+3 more)
 
 ### Community 31 - ".new"
 Cohesion: 0.17
 Nodes (18): adapter_with_outputs(), claude_normalizes_through_the_same_gate_response_shape(), executable_discovery(), FakeExecutor, image_request_cannot_bypass_the_gate(), malformed_provider_output_is_a_typed_runtime_failure(), missing_cli_is_a_typed_not_installed_error(), old_cli_is_refused_by_the_shared_gate() (+10 more)
 
 ### Community 32 - "CoverageProof"
-Cohesion: 0.15
+Cohesion: 0.13
 Nodes (9): CoverageEntry, CoverageError, CoverageProof, empty_detection_set_is_a_valid_honest_proof(), proof_matches_mapped_detection_and_pixels(), Result, Self, Vec (+1 more)
 
 ### Community 33 - "ConsentRequest"
@@ -330,12 +330,12 @@ Cohesion: 0.13
 Nodes (18): CaptureEvent, refusedOverlap, sealed, skippedCapture, skippedNoDisplays, skippedPermission, skippedSealing, SampledContext (+10 more)
 
 ### Community 35 - "ContextSnapshot"
-Cohesion: 0.17
-Nodes (8): AccessibilityContextPort, ContextRequest, ContextSnapshot, CaptureId, Option, Self, String, InMemoryAccessibilityContext
+Cohesion: 0.25
+Nodes (6): ContextRequest, ContextSnapshot, CaptureId, Option, Self, String
 
 ### Community 36 - "ProviderVersion"
-Cohesion: 0.16
-Nodes (9): parse_version(), FromStr, Result, Self, VersionProbe, VersionProbeError, ProviderVersion, Display (+1 more)
+Cohesion: 0.17
+Nodes (8): parse_version(), FromStr, Result, Self, VersionProbe, VersionProbeError, ProviderVersion, Err
 
 ### Community 37 - "CliOutput"
 Cohesion: 0.24
@@ -350,15 +350,15 @@ Cohesion: 0.22
 Nodes (16): concurrent_seal_and_delete_leave_only_complete_or_absent_bundles(), destroying_generation_key_makes_all_generation_bundles_unreadable(), input(), keypair(), MemoryCredentials, partially_written_bundle_is_rejected_without_repair(), public_key_alone_cannot_open_a_bundle(), HashMap (+8 more)
 
 ### Community 40 - "ProviderDescriptor"
-Cohesion: 0.09
-Nodes (15): AuthenticationMode, AuthenticationStatus, ProviderDescriptor, ProviderDetection, ProviderGate, ProviderGate<A>, ProviderInvocation, ProviderInvocation<'a> (+7 more)
+Cohesion: 0.12
+Nodes (10): AuthenticationMode, ProviderDescriptor, ProviderEndpoint, ProviderGate, ProviderGate<A>, ProviderInvocation<'a>, ProviderLocation, A (+2 more)
 
 ### Community 41 - "RawProviderResponse"
 Cohesion: 0.07
-Nodes (44): find_response(), is_response_object(), raw_observation(), raw_response(), raw_workflow(), Option, Value, invalid_type() (+36 more)
+Nodes (43): find_response(), is_response_object(), raw_observation(), raw_response(), raw_workflow(), Option, Value, invalid_type() (+35 more)
 
 ### Community 42 - "enforce_retention"
-Cohesion: 0.21
+Cohesion: 0.19
 Nodes (12): enforce_retention(), RetentionBundle, RetentionError, RetentionPolicy, RetentionReport, C, CaptureId, K (+4 more)
 
 ### Community 43 - "ExecutablePath"
@@ -366,16 +366,16 @@ Cohesion: 0.16
 Nodes (13): DiscoveryError, ExecutableDiscovery, is_executable(), Arc, Error, IntoIterator, Item, PathBuf (+5 more)
 
 ### Community 44 - "ProviderRequestError"
-Cohesion: 0.32
-Nodes (8): non_empty_context(), ProviderEndpoint, ProviderRequestError, Formatter, Into, Result, Self, String
+Cohesion: 0.24
+Nodes (10): non_empty_context(), ProviderPayloadKind, ProviderRequest, ProviderRequestError, Formatter, Into, Result, Self (+2 more)
 
 ### Community 45 - "FakeProvider"
 Cohesion: 0.19
 Nodes (13): ProviderAdapter, each_handshake_failure_is_a_distinct_typed_error(), endpoint_and_existing_session_are_supported_without_cli_special_cases(), FakeProvider, handshake_accepts_authenticated_new_enough_provider(), image_capability_is_checked_during_handshake_when_requested(), image_work_is_refused_before_adapter_invocation(), malformed_output_is_a_typed_runtime_failure() (+5 more)
 
 ### Community 46 - "qaptr-vault/src/lib.rs"
-Cohesion: 0.14
-Nodes (12): decrypt_member(), FileLock, Drop, Error, Identity, Path, String, Vec (+4 more)
+Cohesion: 0.12
+Nodes (14): FileLock, Drop, Error, String, VaultError, Reaper, Reaper<'vault, 'credentials, C>, ReapReport (+6 more)
 
 ### Community 47 - "QaptrHelper/main.swift"
 Cohesion: 0.16
@@ -386,8 +386,8 @@ Cohesion: 0.11
 Nodes (17): app, security, windows, withGlobalTauri, build, frontendDist, bundle, active (+9 more)
 
 ### Community 49 - "CaptureSample"
-Cohesion: 0.12
-Nodes (11): CapturePort, CaptureRequest, CaptureSample, DisplayId, CaptureId, Into, Result, Self (+3 more)
+Cohesion: 0.15
+Nodes (9): CapturePort, CaptureRequest, CaptureSample, DisplayId, CaptureId, Into, Result, Self (+1 more)
 
 ### Community 50 - "seal_if_allowed"
 Cohesion: 0.18
@@ -397,17 +397,17 @@ Nodes (11): CaptureDecision, ExclusionReason, ExclusionRules, PolicyError, BTree
 Cohesion: 0.24
 Nodes (9): ClaudeAdapter, parse_auth_status(), Arc, CliRuntime, Error, Option, PathBuf, Result (+1 more)
 
-### Community 52 - "JcodeAdapter"
-Cohesion: 0.13
-Nodes (19): JcodeAdapter, Arc, CliRuntime, Option, PathBuf, Result, Self, add_support_path() (+11 more)
+### Community 52 - "ProviderError"
+Cohesion: 0.12
+Nodes (18): Result, JcodeAdapter, Arc, CliRuntime, Option, PathBuf, Result, Self (+10 more)
 
 ### Community 53 - ".new"
 Cohesion: 0.24
 Nodes (14): adapter(), executable_directory(), FakeExecutor, image_request_is_refused_before_jcode_executor_runs(), installed_jcode_passes_real_detection(), malformed_jcode_output_is_a_typed_runtime_failure(), missing_jcode_is_typed_not_installed(), old_jcode_is_refused_by_the_shared_gate() (+6 more)
 
-### Community 54 - "MacosError"
-Cohesion: 0.07
-Nodes (46): Permission, PermissionPort, PermissionState, InMemoryPermissions, MacosError, String, MacOcr, map_error() (+38 more)
+### Community 54 - "src/permissions.rs"
+Cohesion: 0.15
+Nodes (18): Permission, accessibility_preflight(), auth_value_to_state(), MacPermissions, query_tcc_state(), request_accessibility(), request_screen_capture(), Into (+10 more)
 
 ### Community 55 - ".new"
 Cohesion: 0.32
@@ -434,12 +434,12 @@ Cohesion: 0.12
 Nodes (15): a11y/**/*.ts, e2e/**/*.ts, helpers/**/*.ts, node, unit/**/*.ts, compilerOptions, allowImportingTsExtensions, module (+7 more)
 
 ### Community 61 - "ports.rs"
-Cohesion: 0.22
-Nodes (5): capture_double_simulates_complete_partial_denied_and_timeout(), capture_id(), capture_request(), processing_and_context_doubles_simulate_partial_results(), CaptureId
+Cohesion: 0.20
+Nodes (6): capture_double_simulates_complete_partial_denied_and_timeout(), capture_id(), capture_request(), capture_sample(), processing_and_context_doubles_simulate_partial_results(), CaptureId
 
 ### Community 62 - "map_normalized_rect"
-Cohesion: 0.14
-Nodes (10): ImageOrientation, map_normalized_rect(), PixelRect, RecognitionResult, recognize(), CaptureId, O, Result (+2 more)
+Cohesion: 0.23
+Nodes (5): ImageOrientation, map_normalized_rect(), PixelRect, rect(), transform_point()
 
 ### Community 63 - "waitlist.test.ts"
 Cohesion: 0.21
@@ -449,9 +449,9 @@ Nodes (7): RFC-5737, main(), PAGES_TO_SCAN, DevServer, startDevServer(), webRoot
 Cohesion: 0.27
 Nodes (4): HelperApplication, Notification, ScreenCaptureAdapter, DispatchSourceTimer
 
-### Community 65 - "CredentialKey"
-Cohesion: 0.20
-Nodes (10): CredentialKey, keychain_error(), MacCredentials, options_for(), Option, PortResult, Result, Self (+2 more)
+### Community 65 - ".read_value"
+Cohesion: 0.22
+Nodes (9): keychain_error(), MacCredentials, options_for(), Option, PortResult, Result, Self, PasswordOptions (+1 more)
 
 ### Community 66 - "FakeExecutor"
 Cohesion: 0.24
@@ -474,8 +474,8 @@ Cohesion: 0.17
 Nodes (11): 1. Open the source, 2. Review exceptions, Decision table, Exceptions and variations, Expected outputs, Observed tools, Procedure, Purpose and scope (+3 more)
 
 ### Community 71 - "Qaptr v1"
-Cohesion: 0.17
-Nodes (10): Appendix, Definition of Done, Goal Capsule, Open questions, Qaptr v1, Sources and research, Verification Contract, Development (+2 more)
+Cohesion: 0.29
+Nodes (7): Appendix, Definition of Done, Goal Capsule, Open questions, Qaptr v1, Sources and research, Verification Contract
 
 ### Community 72 - "ScreenCapture.swift"
 Cohesion: 0.20
@@ -505,9 +505,9 @@ Nodes (5): CapturedFrame, Data, Int, Int, String
 Cohesion: 0.21
 Nodes (11): Agent, HttpResponse, HttpTransport, OpenRouterHttpClient, Result, Self, String, TransportError (+3 more)
 
-### Community 79 - "CredentialValue"
+### Community 79 - "CredentialKey"
 Cohesion: 0.17
-Nodes (11): CredentialPort, CredentialValue, Debug, InMemoryCredentials, Option, MemoryCredentials, HashMap, Mutex (+3 more)
+Nodes (12): CredentialKey, CredentialPort, CredentialValue, Debug, InMemoryCredentials, Option, MemoryCredentials, HashMap (+4 more)
 
 ### Community 80 - "Planning Contract"
 Cohesion: 0.20
@@ -529,9 +529,9 @@ Nodes (8): Decision, Environment-change observations, Measurement protocol, Prot
 Cohesion: 0.31
 Nodes (4): sample_footprint(), capture_soak.sh script, stop_helper(), usage()
 
-### Community 86 - "qaptr-ffi/src/lib.rs"
-Cohesion: 0.33
-Nodes (14): copy_string(), fail(), invalid_seal_leaves_no_readable_partial_bundle(), public_key_lookup_does_not_require_private_material(), qaptr_vault_create(), qaptr_vault_destroy(), qaptr_vault_last_error(), qaptr_vault_public_key() (+6 more)
+### Community 86 - "VisionResult"
+Cohesion: 0.29
+Nodes (6): Option, Self, Vec, VisionFinding, VisionKind, VisionResult
 
 ### Community 87 - "mask_image"
 Cohesion: 0.29
@@ -601,29 +601,37 @@ Nodes (3): apply(), Connection, Result
 Cohesion: 0.50
 Nodes (3): Build, Qaptr capture helper, Security and ownership invariants
 
-### Community 107 - "MappedDetection"
-Cohesion: 0.32
-Nodes (7): detection_kind(), DetectionKind, image_rejects_wrong_buffer_size(), map_recognized_detections(), MappedDetection, Display, Formatter
+### Community 107 - "MacOcr"
+Cohesion: 0.31
+Nodes (7): MacOcr, CaptureId, Into, PathBuf, PortResult, Result, Self
 
 ### Community 121 - "Decoder"
 Cohesion: 0.22
 Nodes (8): Cell, CaptureDecoder, CancelAfterPreparation, Decoder, String, HashMap, OpenedBundle, PreparationInput
 
 ### Community 124 - "Confidence"
-Cohesion: 0.08
-Nodes (18): NormalizedRect, Result, Self, Into, Option, Self, String, Vec (+10 more)
+Cohesion: 0.16
+Nodes (9): OcrResult, Into, Option, Self, String, Vec, TextRegion, Confidence (+1 more)
+
+### Community 125 - "Working in this repository"
+Cohesion: 0.18
+Nodes (8): Knowledge graph first, Parallel agents, Quality gates, Working in this repository, Codebase map, Development, Qaptr, Status
 
 ### Community 126 - "runtime"
 Cohesion: 0.44
 Nodes (10): environment_is_cleared_before_allowlisted_values_are_added(), executable(), metacharacters_are_passed_as_literal_arguments_without_shell_interpretation(), nonexistent_binary_maps_to_not_installed(), oversized_output_is_refused_without_retaining_unbounded_bytes(), prompt_is_sent_over_stdin_without_becoming_an_argument(), CliRuntime, runtime() (+2 more)
 
-### Community 127 - "sanitize_text"
-Cohesion: 0.27
-Nodes (8): sanitize_text(), embedded_url_credentials_and_query_tokens_are_removed(), embedded_url_query_is_removed_from_a_window_title(), home_path_is_generalized_without_the_username(), labeled_fixture_corpus_retains_no_known_secret(), sampled_context_is_sanitized_as_structured_fields(), sanitization_is_deterministic(), sanitization_is_idempotent()
+### Community 127 - "PermissionState"
+Cohesion: 0.31
+Nodes (3): PermissionPort, PermissionState, InMemoryPermissions
 
-### Community 129 - "Reaper"
-Cohesion: 0.25
-Nodes (6): Reaper, Reaper<'vault, 'credentials, C>, ReapReport, C, Result, Self
+### Community 128 - "NormalizedRect"
+Cohesion: 0.22
+Nodes (3): NormalizedRect, Result, Self
+
+### Community 129 - "RecognitionResult"
+Cohesion: 0.29
+Nodes (6): RecognitionResult, recognize(), CaptureId, O, Result, V
 
 ### Community 130 - "Harness"
 Cohesion: 0.22
@@ -633,17 +641,13 @@ Nodes (9): FakeOcr, FakeVision, Harness, PrivacyGate, Store, Vault, FixedClock, 
 Cohesion: 0.67
 Nodes (3): captures, observations, workflows
 
-### Community 134 - "Duration"
-Cohesion: 0.36
-Nodes (3): Duration, PrivacyGate, StdDuration
+### Community 134 - "ProviderDetection"
+Cohesion: 0.39
+Nodes (3): AuthenticationStatus, ProviderDetection, Option
 
 ### Community 135 - "Error"
 Cohesion: 0.38
 Nodes (4): DomainError, String, WorkflowError, Error
-
-### Community 136 - "SanitizedContext"
-Cohesion: 0.33
-Nodes (3): Option, Vec, SanitizedContext
 
 ### Community 137 - "TempRoot"
 Cohesion: 0.33
@@ -654,24 +658,24 @@ Cohesion: 0.50
 Nodes (3): Response<T>, Result, T
 
 ## Knowledge Gaps
-- **215 isolated node(s):** `RateLimitOptions`, `RateLimitResult`, `ValidationResult`, `Env`, `Acceptance examples` (+210 more)
+- **218 isolated node(s):** `Knowledge graph first`, `Parallel agents`, `Quality gates`, `Status`, `Development` (+213 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **28 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **27 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Confidence` connect `Confidence` to `Self`, `.try_from`, `RawProviderResponse`, `ObservationRecord`, `MacosError`?**
-  _High betweenness centrality (0.086) - this node is a cross-community bridge._
-- **Why does `Duration` connect `Duration` to `.try_from`, `DetailedCaptureProfile`, `MacVision`, `enforce_retention`, `MacosError`, `RuntimeLimits`, `.prepare`, `CliRuntimeError`, `runtime`?**
-  _High betweenness centrality (0.073) - this node is a cross-community bridge._
-- **Why does `HelperError` connect `QaptrHelper/main.swift` to `Error`?**
-  _High betweenness centrality (0.066) - this node is a cross-community bridge._
-- **What connects `RateLimitOptions`, `RateLimitResult`, `ValidationResult` to the rest of the system?**
-  _215 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `Duration` connect `Duration` to `DetailedCaptureProfile`, `MacVision`, `enforce_retention`, `MacOcr`, `RuntimeLimits`, `.prepare`, `MacosError`, `CliRuntimeError`, `runtime`?**
+  _High betweenness centrality (0.080) - this node is a cross-community bridge._
+- **Why does `CliRuntimeError` connect `CliRuntimeError` to `FakeExecutor`, `CliOutput`, `ProviderError`, `.new`, `CliInvocation`, `.run`, `.new`?**
+  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+- **Why does `Confidence` connect `Confidence` to `Self`, `Duration`, `RawProviderResponse`, `ObservationRecord`, `VisionResult`, `MacosError`?**
+  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+- **What connects `Knowledge graph first`, `Parallel agents`, `Quality gates` to the rest of the system?**
+  _218 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Self` be split into smaller, more focused modules?**
   _Cohesion score 0.054690204222914506 - nodes in this community are weakly interconnected._
 - **Should `classes.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.12643678160919541 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06915113871635611 - nodes in this community are weakly interconnected._
 - **Should `src/analyze.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.056051587301587304 - nodes in this community are weakly interconnected._
