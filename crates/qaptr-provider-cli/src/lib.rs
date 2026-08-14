@@ -20,6 +20,7 @@
 //! * The runtime owns an empty temporary working directory and removes it
 //!   after each invocation.
 
+pub mod adapters;
 mod discovery;
 mod probe;
 mod runtime;

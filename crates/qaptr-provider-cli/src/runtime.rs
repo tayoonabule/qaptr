@@ -146,6 +146,14 @@ pub struct CliOutput {
 }
 
 impl CliOutput {
+    /// Creates captured output for an in-process adapter executor or test fake.
+    pub fn new(stdout: impl Into<Vec<u8>>, stderr: impl Into<Vec<u8>>) -> Self {
+        Self {
+            stdout: stdout.into(),
+            stderr: stderr.into(),
+        }
+    }
+
     /// Returns captured standard output.
     pub fn stdout(&self) -> &[u8] {
         &self.stdout
@@ -213,6 +221,8 @@ pub enum CliRuntimeError {
     NonZeroExit {
         /// Portable exit code, when one was provided by the operating system.
         code: Option<i32>,
+        /// Bounded standard output captured before returning the failure.
+        stdout: Vec<u8>,
         /// Bounded standard error captured before returning the failure.
         stderr: Vec<u8>,
     },
@@ -240,7 +250,8 @@ pub enum CliRuntimeError {
 }
 
 impl CliRuntimeError {
-    fn into_provider_error(self, provider: &ProviderId) -> ProviderError {
+    /// Maps the runtime error onto U13's typed provider taxonomy.
+    pub fn into_provider_error(self, provider: &ProviderId) -> ProviderError {
         let kind = match self {
             Self::NotInstalled { .. } => {
                 return ProviderError::NotInstalled {
@@ -385,6 +396,7 @@ impl CliRuntime {
         if !status.success() {
             return Err(CliRuntimeError::NonZeroExit {
                 code: status.code(),
+                stdout,
                 stderr,
             });
         }
@@ -516,7 +528,6 @@ fn sandbox_profile(
     working_directory: &Path,
     support_paths: &[PathBuf],
 ) -> Result<String, CliRuntimeError> {
-    let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut profile = String::from(
         "(version 1)\n\
 (deny default)\n\
@@ -530,9 +541,10 @@ fn sandbox_profile(
     append_allow_subpath(&mut profile, "file-read*", working_directory)?;
     append_allow_subpath(&mut profile, "file-write*", working_directory)?;
     append_allow_literal(&mut profile, "file-read*", executable)?;
-    if let Some(home) = home.as_deref() {
-        append_deny_subpath(&mut profile, "file-read*", home)?;
-        append_deny_subpath(&mut profile, "file-write*", home)?;
+    append_allow_literal(&mut profile, "file-map-executable", executable)?;
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        append_deny_subpath(&mut profile, "file-read*", &home)?;
+        append_deny_subpath(&mut profile, "file-write*", &home)?;
     }
     append_deny_subpath(&mut profile, "file-read*", Path::new("/Volumes"))?;
     append_deny_subpath(&mut profile, "file-write*", Path::new("/Volumes"))?;
@@ -541,6 +553,7 @@ fn sandbox_profile(
             return Err(CliRuntimeError::InvalidSandboxPath { path: path.clone() });
         }
         append_allow_subpath(&mut profile, "file-read*", path)?;
+        append_allow_subpath(&mut profile, "file-map-executable", path)?;
     }
     Ok(profile)
 }
