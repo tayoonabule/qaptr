@@ -1,0 +1,30 @@
+---
+import Base from "./Base.astro";
+
+export interface Props {
+  title: string;
+  heading: string;
+  tone: "success" | "error";
+  body: string;
+}
+
+const { title, heading, tone, body } = Astro.props;
+---
+
+<Base title={`${title} — Qaptr`} description={body}>
+  <header class="site-header wrap">
+    <a class="wordmark" href="/">Qaptr</a>
+  </header>
+
+  <main id="main" class="wrap confirmation">
+    <p class="mono-label" data-tone={tone}>{tone === "success" ? "Waitlist" : "Waitlist — not saved"}</p>
+    <h1 class="confirmation-heading">{heading}</h1>
+    <p class="confirmation-body">{body}</p>
+    <a class="cta-pill" href="/#join">Back to Qaptr</a>
+  </main>
+
+  <footer class="site-footer wrap">
+    <span>Qaptr — built to be forgotten while it works.</span>
+    <span>© 2026 Qaptr. No data is sold, ever.</span>
+  </footer>
+</Base>

@@ -1,0 +1,20 @@
+name = "qaptr-web"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "./dist"
+
+# Cloudflare D1 database backing the waitlist endpoint (KTD12, R-W1).
+# database_id is a placeholder: real deployment fills this in via
+# `wrangler d1 create qaptr-waitlist` and the id is never a secret, but the
+# real production id is not checked into this template. See
+# docs/design/website.md for the storage rationale.
+#
+# The database holds two tables (migrations/0001_waitlist.sql):
+#   - waitlist: email, created_at, source only (R-W1 storage scope).
+#   - rate_limit_bucket: a separate, non-PII sliding-window counter keyed
+#     by a hashed client identifier, used only to throttle POST volume.
+#     It never stores an email address or an unhashed IP.
+[[d1_databases]]
+binding = "WAITLIST_DB"
+database_name = "qaptr-waitlist"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"

@@ -1,0 +1,35 @@
+{
+  "name": "qaptr-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.14.1"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check && tsc --noEmit -p tests/tsconfig.json",
+    "test": "node --import tsx --test tests/unit/**/*.test.ts",
+    "test:a11y": "node --import tsx tests/a11y/run.mjs",
+    "test:e2e": "node --import tsx --test --test-timeout=30000 tests/e2e/**/*.test.ts",
+    "test:perf": "node --import tsx tests/perf/measure.mjs",
+    "wrangler:dev": "wrangler pages dev dist",
+    "db:migrate:local": "wrangler d1 migrations apply qaptr-waitlist --local",
+    "db:migrate:remote": "wrangler d1 migrations apply qaptr-waitlist --remote"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "11.2.0",
+    "astro": "4.16.19"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.4",
+    "@axe-core/playwright": "4.10.1",
+    "@cloudflare/workers-types": "4.20250109.0",
+    "playwright": "1.49.1",
+    "tsx": "4.23.12",
+    "typescript": "5.7.3",
+    "wrangler": "3.99.0"
+  }
+}
