@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/qaptr-domain", "crates/qaptr-vault", "crates/qaptr-store"]
+members = ["crates/qaptr-domain", "crates/qaptr-provider", "crates/qaptr-vault", "crates/qaptr-store"]
 resolver = "3"
 
 [workspace.package]
@@ -12,6 +12,7 @@ publish = false
 rusqlite = { version = "0.40.2", default-features = false, features = ["bundled"] }
 age = "0.11.1"
 fs2 = "0.4.3"
+qaptr-domain = { path = "crates/qaptr-domain" }
 thiserror = "2.0"
 xattr = "1.3.0"
 
