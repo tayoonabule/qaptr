@@ -1,0 +1,14 @@
+[package]
+name = "qaptr-workflow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Pure canonical workflow documents and audience-specific Markdown exports"
+
+[dependencies]
+qaptr-domain = { path = "../qaptr-domain" }
+thiserror.workspace = true
+
+[lints]
+workspace = true

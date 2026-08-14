@@ -897,6 +897,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qaptr-workflow"
+version = "0.1.0"
+dependencies = [
+ "qaptr-domain",
+ "thiserror 2.0.20",
+]
+
+
+[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/qaptr-domain", "crates/qaptr-provider", "crates/qaptr-vault", "crates/qaptr-store", "crates/qaptr-macos"]
+members = ["crates/qaptr-domain", "crates/qaptr-provider", "crates/qaptr-vault", "crates/qaptr-store", "crates/qaptr-macos", "crates/qaptr-workflow"]
 resolver = "3"
 
 [workspace.package]
