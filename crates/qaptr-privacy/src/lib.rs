@@ -1,13 +1,19 @@
-//! Privacy-boundary building blocks for local recognition.
+//! Privacy-boundary building blocks for local recognition and context safety.
 //!
-//! This crate never makes network calls, stores image bytes, masks pixels, or
-//! sanitizes context. It only combines the U2 OCR and Vision ports and maps
-//! their normalized geometry into the production image's pixel space. The
-//! macOS Vision implementation lives in `qaptr-macos`; this crate remains
-//! platform-independent so U10 and U12 can use the same mapping on every OS.
+//! This crate never makes network calls, stores image bytes, or constructs a
+//! provider payload. Recognition and context sanitization are platform-
+//! independent, deterministic stages. Pixel masking remains a separate stage;
+//! the macOS Vision implementation lives in `qaptr-macos`.
 
+pub mod classes;
 pub mod recognize;
+pub mod sanitize;
 
+pub use classes::{SensitiveClass, SensitiveFinding, detect_findings};
 pub use recognize::{
     ImageOrientation, PixelRect, RecognitionResult, map_normalized_rect, recognize,
+};
+pub use sanitize::{
+    ContextField, SanitizationError, SanitizedContext, SanitizedValue, sanitize_context,
+    sanitize_field, sanitize_path, sanitize_text, sanitize_text_field, sanitize_url,
 };

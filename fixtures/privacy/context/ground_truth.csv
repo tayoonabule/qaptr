@@ -1,0 +1,8 @@
+email|fixture.email@example.test|Meeting with fixture.email@example.test
+phone|+1-415-555-0134|Call +1-415-555-0134
+credential|fixture-password-123|password=fixture-password-123
+api_key|sk_test_fixture_1234567890|sk_test_fixture_1234567890
+payment_card|4111-1111-1111-1111|card 4111-1111-1111-1111
+national_id|123-45-6789|id 123-45-6789
+address|123 Main Street|ship to 123 Main Street
+token|AbCdEfGhIjKlMnOpQrStUvWxYz123|token AbCdEfGhIjKlMnOpQrStUvWxYz123
