@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/qaptr-domain", "crates/qaptr-vault"]
+members = ["crates/qaptr-domain", "crates/qaptr-vault", "crates/qaptr-store"]
 resolver = "3"
 
 [workspace.package]
@@ -9,6 +9,7 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+rusqlite = { version = "0.40.2", default-features = false, features = ["bundled"] }
 age = "0.11.1"
 fs2 = "0.4.3"
 thiserror = "2.0"
