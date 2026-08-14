@@ -22,7 +22,7 @@ platform: Apple-silicon macOS
 - **Quality authority:** The Code Quality Contract in the Planning Contract is a release gate, not advice. A unit is not done if it violates it.
 - **Stop conditions:** Stop and surface a blocker when a prototype gate fails its stated budget, when a privacy guarantee cannot be honored as written, or when a provider adapter cannot satisfy the isolation contract.
 - **Tail ownership:** Every unit lands with its tests, and each phase ends by re-running the Verification Contract gates that apply to it.
-- **Product Contract preservation:** Product Contract unchanged. Planning resolved the provider-scope tension between R-PR3 and AC7 as a release-gating rule rather than a scope change (see KTD9).
+- **Product Contract preservation:** Product Contract unchanged. All four required providers in R-PR4 are release-gating (see KTD9).
 
 ---
 
@@ -66,7 +66,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 - R-P1. Screenshots are temporary processing material, not durable history.
 - R-P2. The person chooses a simple cache lifetime.
-- R-P3. Expired screenshots are permanently deleted.
+- R-P3. Expired screenshots are permanently deleted. This covers every Qaptr-managed copy of the image and its derived artifacts; Qaptr does not claim forensic erasure of underlying storage media.
 - R-P4. Durable history contains only compact workflow summaries and observations, never screenshot thumbnails.
 - R-P5. OCR and PII redaction occur locally before any provider receives an image or extracted context.
 - R-P6. Images that cannot be confidently redacted fail closed and are excluded from provider requests.
@@ -173,14 +173,16 @@ This is a release gate. Every unit satisfies it.
 - **KTD2 — Pre-scaled, sequential, single-frame capture.** Capture requests specify the downscaled output size directly, displays are captured one at a time, and buffer depth is held at one. This keeps peak memory bounded on 5K/6K panels where a full-resolution frame alone is tens of megabytes. Satisfies R-C4, R-C6.
 - **KTD3 — Separate Tauri 2 review app nested in the outer bundle.** The opened experience is a Tauri 2 app shipped as a nested helper application, launched on demand and terminated when closed. It carries the 150 MB budget (R-C7) alone, so the helper's budget is never polluted by WebKit. Rejected: single-process app (helper memory), full AppKit/SwiftUI review UI (slower to reach the required design quality). U3 is the gate that can overturn this.
 - **KTD4 — Coarse Rust static library with a C ABI.** The Rust core builds as a `staticlib` exposing a small C ABI consumed by both the Swift helper and the Tauri app. One core, two hosts, no duplicated domain logic. Rejected: dynamic library (signing and load complexity), Swift reimplementation of policy (drift).
-- **KTD5 — SQLite WAL with a single writer.** Durable history is SQLite in WAL mode. The analysis worker is the only writer; the helper writes only capture-index rows through the same core, serialized by a lock. Requires a bundled SQLite at or above the version carrying the 2026 WAL-reset fix rather than trusting the system library.
+- **KTD5 — SQLite WAL with a single writer, owned by the review app.** Durable history is SQLite in WAL mode. The review app process is the only writer; the analysis worker runs in-process inside it. The helper never opens the database — it records capture metadata inside the sealed bundle, and the review app ingests those bundles on open. This removes multi-process write contention entirely. Requires a bundled SQLite at or above the version carrying the 2026 WAL-reset fix rather than trusting the system library.
+- **KTD5a — Explicit process ownership and IPC.** The helper owns capture and the vault write path. The review app owns storage, privacy, providers, workflow, and analysis. The only helper-to-app channel is the vault plus a small state file; the only app-to-helper channel is a signed profile request the helper polls at tick time. There is no socket, no shared database handle, and no live RPC between the two processes.
 - **KTD6 — Encrypted ephemeral capture bundles.** A capture is a directory containing the downscaled image, sampled context, and derived artifacts, encrypted with a per-bundle key wrapped by a Keychain-held generation key, excluded from backup and Spotlight. Deleting the generation key renders every bundle of that generation unreadable, which makes retention enforcement cheap and verifiable. Satisfies R-P1, R-P3, R-P9.
-- **KTD7 — Mask all recognized text, faces, and barcodes in provider-bound images.** Selective PII masking cannot be honestly guaranteed from OCR, so images sent to providers have every recognized text region, detected face, and detected barcode masked. Meaning travels in separately sanitized structured context, not in readable pixels. Satisfies R-P5, R-P6, AE3.
+- **KTD7 — Mask all recognized text, faces, and barcodes in provider-bound images, verified by re-recognition.** Selective PII masking cannot be honestly guaranteed from OCR, so images sent to providers have every recognized text region, detected face, and detected barcode masked. The guarantee is scoped to what Apple's recognizers detect at the configured settings, verified by re-running recognition on the masked output and requiring zero detections. Meaning travels in separately sanitized structured context, not in readable pixels. Qaptr does not claim to mask information no recognizer reports; that limit is stated in onboarding copy. Satisfies R-P5, R-P6, AE3.
 - **KTD8 — Text-context-first provider payloads.** The default payload is sanitized structured context only. Fully masked images are an explicit opt-in that still requires the image gate to pass. This minimizes what leaves the device and keeps provider cost low.
-- **KTD9 — Deny-by-default provider capability gate.** An adapter is selectable only after proving: resolved absolute executable, minimum version, authenticated state, non-interactive invocation, tools disabled, isolated empty working directory, minimized environment, bounded output and time, cancellable process tree, and schema-valid output. OpenRouter and Claude CLI are the release-gating pair for AE7; Codex and Jcode ship as adapters that appear only when their gate passes, with a plain reason shown when it does not. This honors R-PR4 without letting an unproven adapter look usable (R-PR8).
+- **KTD9 — Deny-by-default provider capability gate, with all four providers release-gating.** An adapter is selectable only after proving: resolved absolute executable, minimum version, authenticated state, non-interactive invocation, tools disabled, isolated empty working directory, minimized environment, bounded output and time, cancellable process tree, and schema-valid output. All four required providers (R-PR4) must pass this gate to ship: OpenRouter, Claude CLI, Codex CLI, and Jcode CLI. If any one cannot pass, that is a release blocker to be surfaced under the Goal Capsule stop conditions, not a quietly disabled adapter. Detected-but-incompatible tools outside the required four are shown with a plain reason and are never selectable (R-PR8).
+- **KTD9a — Enforced isolation via a sandboxed child.** CLI adapters run inside `sandbox-exec` with a deny-by-default profile permitting only the isolated working directory, the resolved executable and its own support paths, and network egress. Filesystem denial is therefore enforced by the OS, not by convention. An adapter whose CLI cannot function under that profile fails its gate.
 - **KTD10 — Just-in-time provider consent.** Local preparation may start on open, but the first provider request of a session requires explicit consent showing provider, payload kinds, capture count, and exclusions. Satisfies R-P8, AE9.
 - **KTD11 — Hostname-only browser context by default.** Sampled URLs are reduced to scheme and host with path, query, and fragment stripped unless the person opts into full paths. Satisfies the spirit of R-P5 at the metadata layer.
-- **KTD12 — Astro static site with one server endpoint on Cloudflare.** The website is static Astro with a single server-rendered waitlist endpoint and durable storage, keeping the surface tiny and fast. Design work references <https://shopify.design/> directly for editorial composition and typographic craft. Satisfies R-W1, R-W2, R-W5, AE10.
+- **KTD12 — Astro static site with one Cloudflare Worker endpoint and D1 storage.** The website is static Astro deployed to Cloudflare, with a single server-rendered waitlist endpoint backed by a Cloudflare D1 table holding email, timestamp, and a coarse source tag. Design work references <https://shopify.design/> directly for editorial composition and typographic craft. Rejected: third-party form service (extra processor, weaker privacy story), KV (no uniqueness constraint). Satisfies R-W1, R-W2, R-W5, AE10.
 - **KTD13 — Deepest-first Developer ID signing and notarization.** The nested review app and any embedded binaries are signed before the outer bundle, then the whole app is notarized and shipped as a DMG. Mac App Store distribution is out of scope for v1.
 
 ### High-level technical design
@@ -204,7 +206,7 @@ flowchart TB
     store["SQLite WAL history"]
   end
 
-  subgraph review["Review app (Tauri 2, on demand, < 150 MB)"]
+  subgraph review["Review app (Tauri 2, on demand, < 150 MB) — owns storage and analysis"]
     obs["Observation Sheet"]
     detail["Qaptr in more detail"]
     exp["Export"]
@@ -219,7 +221,7 @@ flowchart TB
   prov --> wf --> store
   review --- core
   store --> obs
-  obs --> detail --> policy
+  obs --> detail -->|"signed profile request"| sched
   wf --> exp
 ```
 
@@ -290,6 +292,18 @@ qaptr/
   docs/plans/
 ```
 
+### Measurement protocol
+
+Every budget in this plan is a number produced by a stated procedure, so a regression is detectable rather than arguable.
+
+- **Metric.** Resident memory is the sum of `phys_footprint` across the process tree under test, sampled once per second, reported as median and peak over the window. Not RSS, which double-counts shared pages.
+- **Helper budget (R-C6).** Median and peak both under 50 MB over a 12-hour soak with sparse cadence on the reference machine.
+- **Opened-app budget (R-C7).** Median under 150 MB and peak under 180 MB over a 10-minute scripted review session: open, analyze a 24-capture fixture session, open three observations, generate one workflow, export all four formats.
+- **Reference machine.** Apple silicon, 16 GB, one 5K display attached, recorded by model and macOS build in `docs/release.md`. Budgets are asserted only on the reference configuration; other hardware is informational.
+- **Fixture session.** A committed synthetic session of 24 captures at the production downscaled size, used by every budget and latency test so runs are comparable.
+- **Latency budgets.** Capture tick under 400 ms median. OCR plus mask plus sanitize under 900 ms median per capture. Cold launch to first meaningful paint under 1200 ms median. Each recorded in its bench file.
+- **Regression rule.** A budget test fails if the median exceeds its number, or if peak exceeds its number, on three consecutive runs. Single-run noise does not fail the suite.
+
 ### Assumptions
 
 - A1. Apple's one-shot screenshot API can deliver a pre-scaled image without materializing a full-resolution frame in Qaptr's address space. U4 measures this; if false, capture moves to a short-lived child process that exits after each tick.
@@ -300,7 +314,9 @@ qaptr/
 
 ### Sequencing
 
-Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4) runs the two prototype gates that can still change KTD3 and KTD2. Phase 2 (U5–U8) builds capture, vault, storage, and retention. Phase 3 (U9–U12) builds the privacy pipeline and its corpus. Phase 4 (U13–U16) builds providers. Phase 5 (U17–U20) builds workflow, exports, and the review experience. Phase 6 (U21–U23) delivers the website, packaging, and release validation.
+Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4) runs the two prototype gates that can still change KTD3 and KTD2. Phase 2 (U5–U8, including U6a) builds the macOS adapters, capture, vault, storage, and retention. Phase 3 (U9–U12) builds the privacy pipeline and its corpus. Phase 4 (U13–U16) builds providers. Phase 5 (U17–U20) builds workflow, exports, and the review experience. Phase 6 (U21–U23) delivers the website, packaging, and release validation.
+
+The website (U21) depends only on U1 and may be built in parallel with any macOS phase.
 
 ---
 
@@ -367,18 +383,28 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Requirements:** R-P4, R-C7; KTD5.
 - **Dependencies:** U1.
 - **Files:** `crates/qaptr-store/src/lib.rs`, `crates/qaptr-store/src/schema.rs`, `crates/qaptr-store/src/migrations/`, `crates/qaptr-store/src/history.rs`, `crates/qaptr-store/tests/store.rs`.
-- **Approach:** Bundled SQLite in WAL mode with a single writer and a narrow repository API. The schema has no blob columns and no thumbnail table; a schema test asserts this. Migrations are forward-only and tested from empty.
+- **Approach:** Bundled SQLite in WAL mode with a single writer in the review-app process (KTD5) and a narrow repository API. The schema has no blob columns and no thumbnail table; a schema test asserts this. Migrations are forward-only and tested from empty.
 - **Test scenarios:** Migration from empty produces the expected schema. A schema test fails if any blob column or image-like table is added. Concurrent readers see consistent snapshots during a write. A crash mid-write leaves a recoverable database. Retention deletion cascades to summaries but preserves exported documents.
 - **Verification:** Schema guard test is present and fails on a deliberate blob column.
+
+### U6a. macOS credential, permission, and login-item adapters
+
+- **Goal:** The remaining macOS adapter implementations behind the U2 ports, so no later unit has to invent them.
+- **Requirements:** R-P9, R-X4, R-D7.
+- **Dependencies:** U2.
+- **Files:** `crates/qaptr-macos/src/credentials.rs`, `crates/qaptr-macos/src/permissions.rs`, `crates/qaptr-macos/src/login_item.rs`, `crates/qaptr-macos/tests/credentials_integration.rs`, `crates/qaptr-macos/tests/permissions_integration.rs`.
+- **Approach:** Keychain-backed credential storage with items scoped to the app and marked non-syncing. Permission state is read-only reporting for screen recording and accessibility, with a separate explicit request path. Login-item registration wraps `SMAppService` and reports its true state rather than assuming success.
+- **Test scenarios:** A stored secret round-trips and is absent from any file the app writes, asserted by a filesystem scan. Deleting a credential makes reads fail with a typed absence error, not an empty string. Permission reporting distinguishes not-determined, denied, and granted. A denied permission never reports granted. Login-item registration reports the real state and a second registration is idempotent.
+- **Verification:** Integration tests pass against the real OS and no secret appears on disk outside the Keychain.
 
 ### U7. Capture helper: schedule, sample, seal
 
 - **Goal:** The production helper that captures on schedule, samples point-in-time context, and seals bundles, within budget.
-- **Requirements:** R-C1 through R-C6, R-D1, R-P1; KTD1, KTD2, KTD11.
-- **Dependencies:** U2, U4, U5.
+- **Requirements:** R-C1 through R-C6, R-D1, R-P1; KTD1, KTD2, KTD5a, KTD11.
+- **Dependencies:** U2, U4, U5, U6a.
 - **Files:** `apps/helper/Sources/QaptrHelper/`, `crates/qaptr-macos/src/capture.rs`, `crates/qaptr-macos/src/context.rs`, `crates/qaptr-policy/src/cadence.rs`, `crates/qaptr-policy/src/displays.rs`, `crates/qaptr-ffi/src/lib.rs`, `apps/helper/Tests/`, `crates/qaptr-policy/tests/cadence.rs`.
-- **Approach:** Swift owns only the timer, the ScreenCaptureKit call, the context sample, and the menu-bar item; every decision comes from the core through the C ABI. Context sampling is a single instantaneous read with URLs reduced to hostname by default. No OCR, no provider, no analysis code is linked into this target.
-- **Test scenarios:** Cadence policy schedules on the sparse interval and does not fire while locked, asleep, or after sustained idle. No catch-up burst after wake. New displays are never auto-selected. Menu-bar state legibly distinguishes idle, sparse, and detailed capture. Helper never links OCR or provider symbols, asserted by a link-audit test. Disk quota exhaustion pauses capture with a quiet notice rather than failing silently.
+- **Approach:** Swift owns only the timer, the ScreenCaptureKit call, the context sample, and the menu-bar item; every decision comes from the core through the C ABI. Context sampling is a single instantaneous read with URLs reduced to hostname by default. Capture metadata is written into the sealed bundle, never to the database (KTD5a). No OCR, no provider, no analysis, and no storage code is linked into this target.
+- **Test scenarios:** Cadence policy schedules on the sparse interval (R-C1) and does not fire while locked, asleep, or after sustained idle. Capture and context sampling occur only at the tick, asserted by counting port calls between ticks (R-C5). Captured images are downscaled to the configured size before sealing, asserted on the written bundle (R-C4). Attaching or detaching a display is handled without user interruption and without adding the new display to the selection (R-C2). The display selector accepts one or several displays and rejects an empty selection (R-C3). No catch-up burst after wake. Menu-bar state legibly distinguishes idle, sparse, and detailed capture. Helper never links OCR, provider, or SQLite symbols, asserted by a link-audit test. Disk quota exhaustion pauses capture with a quiet notice rather than failing silently. Capture tick median stays within the latency budget.
 - **Verification:** Soak run meets AE1 and the link audit passes.
 
 ### U8. Retention enforcement and quiet exclusion notices
@@ -388,7 +414,7 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Dependencies:** U5, U6.
 - **Files:** `crates/qaptr-policy/src/retention.rs`, `crates/qaptr-vault/src/reaper.rs`, `crates/qaptr-store/src/notices.rs`, `crates/qaptr-policy/tests/retention.rs`.
 - **Approach:** Retention is a pure policy over bundle metadata plus a reaper that executes it. Notices are compact rows with counts and reasons, never payloads.
-- **Test scenarios:** A bundle past its lifetime is deleted and its summaries remain. Changing the lifetime shortens existing bundles' remaining life. Reaper is idempotent and safe to interrupt. Notice text is a count and a reason with no capture content. A retention run under low disk still completes.
+- **Test scenarios:** A bundle past its lifetime has its image and derived material permanently deleted while its summaries remain. Changing the lifetime shortens existing bundles' remaining life. Reaper is idempotent and safe to interrupt. Notice text is a count and a reason with no capture content. A retention run under low disk still completes. Deletion is scoped to Qaptr-managed copies; the plan makes no forensic-erasure claim.
 - **Verification:** AE6 passes end to end.
 
 ### U9. Local OCR and vision detection
@@ -437,7 +463,7 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Requirements:** R-PR3, R-PR7, R-PR8, R-PR9; KTD9.
 - **Dependencies:** U1, U12.
 - **Files:** `crates/qaptr-provider/src/lib.rs`, `crates/qaptr-provider/src/adapter.rs`, `crates/qaptr-provider/src/capability.rs`, `crates/qaptr-provider/src/normalize.rs`, `crates/qaptr-provider/src/schema.rs`, `crates/qaptr-provider/tests/contract.rs`.
-- **Approach:** One trait, one gate, one normalized response schema. Every adapter must pass the same shared contract-test suite to be considered supported. Unavailable adapters carry a plain human reason.
+- **Approach:** One trait, one gate, one normalized response schema. Every adapter must pass the same shared contract-test suite to be considered supported. Adapters outside the required four, including Hermes, OpenClaw, and OpenCode, are explicitly out of v1 scope (R-PR6) and are not implemented here; the trait is shaped so adding one later needs no change to callers. Unavailable detected tools carry a plain human reason.
 - **Test scenarios:** A stub adapter failing any single gate step becomes unavailable with the right reason. A gate-passing stub becomes selectable. Malformed provider output is rejected by schema validation rather than partially parsed. Provider failure never falls back to a different provider. Normalized output shape is identical across two different stub adapters.
 - **Verification:** The shared contract suite exists and every adapter target runs it.
 
@@ -447,13 +473,13 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Requirements:** R-PR2, R-PR3, R-PR5, R-PR8; KTD9.
 - **Dependencies:** U13.
 - **Files:** `crates/qaptr-provider-cli/src/runtime.rs`, `crates/qaptr-provider-cli/src/discovery.rs`, `crates/qaptr-provider-cli/src/probe.rs`, `crates/qaptr-provider-cli/tests/runtime.rs`.
-- **Approach:** Absolute-path execution with no shell, a minimized environment, an empty app-owned temporary working directory, prompt over stdin, tools disabled, bounded output size and wall time, and process-tree cancellation. GUI-launched PATH differences are handled by explicit discovery rather than inheriting a login shell.
-- **Test scenarios:** A command is never interpreted by a shell, verified with adversarial argument fixtures. Output beyond the cap terminates the run. Wall-clock overrun terminates the whole process tree. Cancellation leaves no orphan. The child cannot read the vault or the user's home in the isolated directory test. Environment contains only the allowlisted variables. Prompt-injection fixtures in context cannot cause tool use because tools are disabled at invocation.
+- **Approach:** Absolute-path execution with no shell, a minimized environment, an empty app-owned temporary working directory inside a `sandbox-exec` deny-by-default profile (KTD9a), prompt over stdin, tools disabled, bounded output size and wall time, and process-tree cancellation. GUI-launched PATH differences are handled by explicit discovery rather than inheriting a login shell.
+- **Test scenarios:** A command is never interpreted by a shell, verified with adversarial argument fixtures. Output beyond the cap terminates the run. Wall-clock overrun terminates the whole process tree. Cancellation leaves no orphan. A child attempting to read the vault or the user's home is denied by the sandbox profile, asserted by an integration test that expects the denial. Environment contains only the allowlisted variables. Prompt-injection fixtures in context cannot cause tool use because tools are disabled at invocation and writes are sandbox-denied.
 - **Verification:** Adversarial suite passes with no shell interpretation and no orphaned processes.
 
 ### U15. OpenRouter and Claude CLI adapters
 
-- **Goal:** The two release-gating providers, both passing the shared contract.
+- **Goal:** The two first providers, both passing the shared contract.
 - **Requirements:** R-PR1, R-PR3, R-PR9; AE7.
 - **Dependencies:** U13, U14.
 - **Files:** `crates/qaptr-provider-openrouter/src/lib.rs`, `crates/qaptr-provider-openrouter/src/client.rs`, `crates/qaptr-provider-cli/src/adapters/claude.rs`, `crates/qaptr-provider-openrouter/tests/`, `crates/qaptr-provider-cli/tests/claude.rs`.
@@ -463,13 +489,13 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 
 ### U16. Codex and Jcode adapters behind the gate
 
-- **Goal:** Both required CLIs implemented, each selectable only if it proves isolation.
-- **Requirements:** R-PR4, R-PR5, R-PR8; KTD9.
+- **Goal:** Both remaining required CLIs passing the same gate, under OS-enforced isolation.
+- **Requirements:** R-PR4, R-PR5, R-PR8; KTD9, KTD9a.
 - **Dependencies:** U14, U15.
-- **Files:** `crates/qaptr-provider-cli/src/adapters/codex.rs`, `crates/qaptr-provider-cli/src/adapters/jcode.rs`, `crates/qaptr-provider-cli/tests/codex.rs`, `crates/qaptr-provider-cli/tests/jcode.rs`, `docs/plans/qaptr-v1.md`.
-- **Approach:** Use each CLI's documented non-interactive mode with its strictest available no-tools, ephemeral-session, and ignore-user-config options, and its own existing authentication. Where a strict-enough contract cannot be demonstrated, the adapter ships permanently unavailable with a plain reason rather than a weakened gate.
-- **Test scenarios:** Each adapter passes or fails the shared contract suite deterministically. A signed-out CLI reports unavailable with the auth reason. Ephemeral invocation leaves no session artifacts, asserted by a filesystem diff. Tool invocation is impossible in the configured mode, asserted by an adversarial prompt fixture. The settings surface shows the exact reason for any unavailable adapter.
-- **Verification:** Recorded per-adapter outcome in this plan, with no adapter selectable without a passing gate.
+- **Files:** `crates/qaptr-provider-cli/src/adapters/codex.rs`, `crates/qaptr-provider-cli/src/adapters/jcode.rs`, `crates/qaptr-provider-cli/tests/codex.rs`, `crates/qaptr-provider-cli/tests/jcode.rs`, `docs/release.md`.
+- **Approach:** Use each CLI's documented non-interactive mode with its strictest no-tools, ephemeral-session, and ignore-user-config options, its own existing authentication, and the KTD9a sandbox profile. Codex uses `codex exec` with tools disabled, ephemeral sessions, and user config ignored. Jcode uses `jcode run --json` with the no-tools profile and base tools disabled. Both are release-gating: a failure to pass is a blocker, not a silent disable.
+- **Test scenarios:** Each adapter passes the shared contract suite. A signed-out CLI reports unavailable with the auth reason. Ephemeral invocation leaves no session artifacts, asserted by a filesystem diff of the sandbox and the CLI's own state directory. An adversarial prompt fixture instructing file writes produces no write, enforced by the sandbox. Output exceeding the cap terminates the run. Cancellation leaves no orphan process. Version below the documented minimum reports unavailable.
+- **Verification:** Both adapters pass the shared contract suite; any failure is surfaced as a release blocker with its exact gate step.
 
 ### U17. Analysis orchestration and observations
 
@@ -477,7 +503,7 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Requirements:** R-D2, R-D3, R-P7, R-C7; AE2, AE4, KTD10.
 - **Dependencies:** U12, U15, U6.
 - **Files:** `crates/qaptr-workflow/src/analyze.rs`, `crates/qaptr-workflow/src/observation.rs`, `crates/qaptr-workflow/src/consent.rs`, `crates/qaptr-workflow/tests/analyze.rs`.
-- **Approach:** A short-lived worker prepares bundles, requests just-in-time consent before the first provider call, then produces a small ranked set of observations combining chronology, repetition, and candidate workflows. Preparation is cancellable and streams progress.
+- **Approach:** A short-lived worker inside the review-app process (KTD5a) prepares bundles, requests just-in-time consent before the first provider call, then produces a small ranked set of observations combining chronology, repetition, and candidate workflows. Preparation is cancellable and streams progress.
 - **Test scenarios:** Analysis begins without any helper-side OCR, asserted by helper-side call counters. No provider request occurs before consent. Declining consent leaves local preparation results and no network call. Cancellation mid-analysis leaves no partial observation rows. Exclusions from U12 produce exactly one aggregated notice. Observation count stays small even with many captures.
 - **Verification:** AE2 and AE9's consent clause pass.
 
@@ -504,11 +530,11 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 ### U20. Review experience: Observation Sheet, settings, onboarding
 
 - **Goal:** The opened app at the intended design quality, within budget.
-- **Requirements:** R-D2 through R-D7, R-C7; AE9.
-- **Dependencies:** U3, U17, U18, U19.
-- **Files:** `apps/review/src/`, `apps/review/src-tauri/src/`, `apps/review/src-tauri/capabilities/`, `apps/review/tests/`.
-- **Approach:** A spare Observation Sheet as the core surface, small settings, and staged onboarding for permissions, displays, capture explanation, provider selection, and privacy consent. Tauri capabilities are minimal and explicit; the webview gets no filesystem or shell breadth.
-- **Test scenarios:** Opened app stays under 150 MB with a representative session. Light and dark appearance follow the system. Full keyboard traversal with visible focus. Reduced-motion preference disables non-essential motion. Loading, empty, permission-denied, provider-failure, and exclusion states all render deliberately. Onboarding requests Screen Recording with rationale and keeps optional context permissions separate. Capability audit shows no broad filesystem or shell permission.
+- **Requirements:** R-D2 through R-D7, R-C7, R-W2; AE9.
+- **Dependencies:** U3, U16, U17, U18, U19.
+- **Files:** `apps/review/src/`, `apps/review/src-tauri/src/`, `apps/review/src-tauri/capabilities/`, `apps/review/tests/`, `docs/design/app.md`.
+- **Approach:** A spare Observation Sheet as the core surface, small settings, and staged onboarding for permissions, displays, capture explanation, provider selection, and privacy consent. Production-level attention to typography, spacing, motion, icons, and every loading, empty, permission, and failure state (R-D5), specified in `docs/design/app.md` before implementation. Tauri capabilities are minimal and explicit; the webview gets no filesystem or shell breadth.
+- **Test scenarios:** Opened app meets the R-C7 budget under the measurement protocol. Light and dark appearance follow the system. Full keyboard traversal with visible focus. Reduced-motion preference disables non-essential motion. Loading, empty, permission-denied, provider-failure, and exclusion states all render deliberately. Typography, spacing, and iconography match the recorded design specification, reviewed against <https://shopify.design/> craft level. Settings expose exactly cadence/profile, displays, cache duration, provider, and privacy/permission status and nothing else. Onboarding requests Screen Recording with rationale and keeps optional context permissions separate. Capability audit shows no broad filesystem or shell permission.
 - **Verification:** AE9 passes and the capability audit is clean.
 
 ### U21. Waitlist website
@@ -516,9 +542,9 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Goal:** An editorial, near-monochrome, fast waitlist site with a working production endpoint.
 - **Requirements:** R-W1 through R-W5; AE10.
 - **Dependencies:** U1.
-- **Files:** `web/astro.config.mjs`, `web/src/pages/index.astro`, `web/src/pages/api/waitlist.ts`, `web/src/styles/`, `web/public/_headers`, `web/tests/`.
-- **Approach:** Static Astro with one server endpoint for the waitlist, server-side validation, durable storage, and minimal client JavaScript. Typography and composition carry the design rather than effects. Before building, study <https://shopify.design/> and record the specific compositional and typographic decisions being matched, without copying its layout or content.
-- **Test scenarios:** Valid submission is stored and confirmed. Invalid and duplicate addresses are rejected with clear messages. Submission works without client JavaScript. Rate limiting blocks abuse without blocking a normal visitor. Axe scan reports no violations on the landing page. Reduced-motion preference is respected. Performance budget met on a mobile profile. No secret is exposed to the client bundle. A recorded design rationale cites <https://shopify.design/> and names what was matched and what was deliberately not copied.
+- **Files:** `web/astro.config.mjs`, `web/package.json`, `web/src/pages/index.astro`, `web/src/pages/api/waitlist.ts`, `web/src/lib/validate.ts`, `web/migrations/0001_waitlist.sql`, `web/wrangler.toml`, `web/src/styles/`, `web/public/_headers`, `web/tests/`, `docs/design/website.md`.
+- **Approach:** Static Astro with one Cloudflare Worker endpoint and a D1 table (KTD12), server-side validation, and minimal client JavaScript. Composition is editorial and near-monochrome (R-W3), with no card grids, gradients, or glassmorphism (R-W4). Before building, study <https://shopify.design/> and record in `docs/design/website.md` the specific compositional and typographic decisions being matched, without copying its layout or content.
+- **Test scenarios:** Valid submission is stored in D1 and confirmed. Invalid addresses are rejected with clear messages and a duplicate is idempotent rather than an error. Submission works without client JavaScript. Rate limiting blocks abuse without blocking a normal visitor. Axe scan reports no violations on the landing page. Reduced-motion preference is respected. Performance budget met on a mobile profile. No secret is exposed to the client bundle. A design review confirms no card grid, gradient, or glassmorphism pattern is present. The recorded rationale cites <https://shopify.design/> and names what was matched and what was deliberately not copied.
 - **Verification:** AE10 passes and the accessibility and performance budgets hold.
 
 ### U22. Packaging, signing, and notarization
@@ -526,7 +552,7 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Goal:** A signed, notarized Developer ID DMG containing the outer app, nested review app, and helper.
 - **Requirements:** R-X1; KTD13.
 - **Dependencies:** U7, U20.
-- **Files:** `packaging/sign.sh`, `packaging/notarize.sh`, `packaging/dmg.sh`, `packaging/signing/entitlements.plist`, `.github/workflows/release.yml`, `docs/release.md`.
+- **Files:** `packaging/release.sh`, `packaging/sign.sh`, `packaging/notarize.sh`, `packaging/dmg.sh`, `packaging/signing/entitlements.plist`, `.github/workflows/release.yml`, `docs/release.md`.
 - **Approach:** Deepest-first signing of nested binaries and the nested app, then the outer bundle, then notarization and stapling, then DMG creation. Login-item registration is verified on a clean machine profile.
 - **Test scenarios:** Signature verification passes on every nested binary and the outer bundle. Notarization succeeds and the ticket staples. Gatekeeper assessment passes on a fresh profile. First launch registers the login item and the helper survives logout and login. An unsigned nested binary fails the pipeline rather than shipping.
 - **Verification:** A clean-machine install runs and the helper persists across a reboot.
@@ -536,31 +562,35 @@ Phase 0 (U1–U2) establishes the workspace and quality gates. Phase 1 (U3–U4)
 - **Goal:** One repeatable suite that proves the release-gating claims.
 - **Requirements:** R-C6, R-C7, R-P6, R-PR8; AE1 through AE10.
 - **Dependencies:** U8, U12, U15, U16, U19, U20, U21, U22.
-- **Files:** `bench/README.md`, `bench/soak.rs`, `bench/memory_budget.rs`, `fixtures/privacy/README.md`, `docs/release.md`.
-- **Approach:** A documented harness that runs the helper soak, the opened-app budget check, the privacy corpus, the provider contract suites, export snapshots, and the website checks, and reports pass or fail against stated numbers.
-- **Test scenarios:** Helper soak reports steady memory under 50 MB and no missed captures. Opened-app check reports under 150 MB. Privacy corpus reports zero residual findings and zero unsafe payloads. Provider suites report the selectable set with reasons for the rest. Export snapshots match. Website checks pass. A deliberately regressed budget fails the suite.
+- **Files:** `bench/README.md`, `bench/scripts/release_validate.sh`, `bench/scripts/capture_soak.sh`, `bench/scripts/review_budget.sh`, `bench/scripts/link_audit.sh`, `fixtures/session/`, `fixtures/privacy/README.md`, `docs/release.md`.
+- **Approach:** One entry-point script that runs every Verification Contract gate in order, applies the measurement protocol including the three-run regression rule, and writes the resulting numbers and the reference-machine identity into `docs/release.md`. Failures report which gate failed and its measured value.
+- **Test scenarios:** Helper soak reports median and peak under 50 MB with no missed captures. Opened-app check reports median under 150 MB and peak under 180 MB. Privacy corpus reports zero residual findings and zero unsafe payloads. Provider suites report all four required adapters passing. Export snapshots match. Website checks pass. A deliberately regressed budget fails the suite on the third consecutive run and not on transient noise.
 - **Verification:** The suite is green and its numbers are recorded in `docs/release.md`.
 
 ---
 
 ## Verification Contract
 
+Commands are run from the repository root unless a directory is named. Each command must exist and be runnable by the unit that introduces it; a gate referencing a missing target is itself a failure.
+
 | Gate | Command | Applies to | Done signal |
 |---|---|---|---|
-| Format | `cargo fmt --check` | all Rust units | no diff |
-| Lint | `cargo clippy --all-targets --all-features -- -D warnings` | all Rust units | no warnings |
+| Format | `cargo fmt --all --check` | all Rust units | no diff |
+| Lint | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | all Rust units | no warnings |
 | Unit and integration tests | `cargo test --workspace` | all Rust units | all pass |
+| macOS OS-integration tests | `cargo test -p qaptr-macos -- --ignored` | U6a, U9 | all pass on the reference machine |
 | Docs | `cargo doc --workspace --no-deps` | core crates | no warnings |
-| Helper tests | `swift test` in `apps/helper` | U7, U18 | all pass |
-| Helper link audit | `bench/scripts/link_audit.sh` | U7 | no OCR or provider symbols |
-| Capture soak | `bench/scripts/capture_soak.sh` | U4, U7, U23 | steady RSS under 50 MB, no missed captures |
-| Opened-app budget | `cargo test -p qaptr-bench memory_budget` | U3, U20, U23 | aggregate RSS under 150 MB |
-| Privacy corpus | `cargo test -p qaptr-privacy -- --include-ignored` | U10, U11, U12, U23 | zero residual findings |
-| Provider contract | `cargo test -p qaptr-provider --features contract` | U13, U15, U16 | every adapter reports a definite verdict |
-| Export snapshots | `cargo test -p qaptr-workflow snapshots` | U19 | snapshots match |
-| Web checks | `bun run check && bun run test && bun run build` in `web` | U21 | pass with budgets met |
-| Accessibility | `bun run test:a11y` in `web` | U21 | no violations |
-| Packaging | `packaging/sign.sh && packaging/notarize.sh` | U22 | verification and stapling succeed |
+| Helper tests | `swift test --package-path apps/helper` | U7, U18 | all pass |
+| Helper link audit | `bash bench/scripts/link_audit.sh` | U7 | no OCR, provider, or SQLite symbols |
+| Capture soak | `bash bench/scripts/capture_soak.sh --hours 12` | U4, U7, U23 | median and peak under 50 MB, zero missed captures |
+| Opened-app budget | `bash bench/scripts/review_budget.sh` | U3, U20, U23 | median under 150 MB, peak under 180 MB |
+| Privacy corpus | `cargo test -p qaptr-privacy --features corpus -- --include-ignored` | U10, U11, U12, U23 | zero residual findings |
+| Provider contract | `cargo test -p qaptr-provider --features contract` and `cargo test -p qaptr-provider-cli --features contract -- --include-ignored` | U13, U15, U16 | all four required adapters pass |
+| Export snapshots | `cargo insta test --package qaptr-workflow` | U19 | snapshots match |
+| Web checks | `npm run check && npm run test && npm run build` in `web` | U21 | pass with budgets met |
+| Accessibility | `npm run test:a11y` in `web` | U21 | no violations |
+| Packaging | `bash packaging/release.sh --dry-run` | U22 | signing and notarization steps verify |
+| Full release suite | `bash bench/scripts/release_validate.sh` | U23 | all gates green, numbers written to `docs/release.md` |
 
 ---
 
@@ -570,9 +600,9 @@ Global:
 
 1. Every unit's tests exist and pass, and all Verification Contract gates are green.
 2. The Code Quality Contract holds: no warnings, no `unwrap` in library code, documented invariants, justified dependencies.
-3. The helper stays under 50 MB in the soak and the opened app stays under 150 MB in the budget check, with numbers recorded in `docs/release.md`.
+3. The helper and the opened app both meet their budgets under the Measurement protocol on the reference machine, with medians, peaks, and machine identity recorded in `docs/release.md`.
 4. No provider payload can be produced except through the fail-closed gate, and the privacy corpus reports zero residual findings.
-5. OpenRouter and Claude CLI both complete the end-to-end observation flow; Codex and Jcode are implemented and either pass their gate or appear unavailable with a plain reason.
+5. All four required providers — OpenRouter, Claude CLI, Codex CLI, and Jcode CLI — pass the capability gate and complete the end-to-end observation flow. A provider that cannot pass is a release blocker, not a disabled feature.
 6. The canonical Workflow and all four Markdown exports work, and Qaptr launches nothing.
 7. Onboarding takes a fresh user through permissions, displays, capture explanation, provider selection, and privacy consent, with no provider request before consent.
 8. The website is live-ready, accessible, fast, respects reduced motion, and stores waitlist signups durably.
