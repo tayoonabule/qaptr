@@ -1,0 +1,13 @@
+[package]
+name = "qaptr-privacy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Local recognition orchestration and geometry for Qaptr privacy gates"
+
+[dependencies]
+qaptr-domain.workspace = true
+
+[lints]
+workspace = true

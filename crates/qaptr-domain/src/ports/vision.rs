@@ -1,6 +1,6 @@
 //! The local visual-detection port.
 
-use crate::{CaptureId, Confidence};
+use crate::{CaptureId, Confidence, NormalizedRect};
 
 use super::PortResult;
 
@@ -18,12 +18,30 @@ pub enum VisionKind {
 pub struct VisionFinding {
     kind: VisionKind,
     confidence: Confidence,
+    geometry: Option<NormalizedRect>,
 }
 
 impl VisionFinding {
     /// Creates a visual finding.
     pub const fn new(kind: VisionKind, confidence: Confidence) -> Self {
-        Self { kind, confidence }
+        Self {
+            kind,
+            confidence,
+            geometry: None,
+        }
+    }
+
+    /// Creates a visual finding with Vision-normalized geometry.
+    pub const fn with_geometry(
+        kind: VisionKind,
+        confidence: Confidence,
+        geometry: NormalizedRect,
+    ) -> Self {
+        Self {
+            kind,
+            confidence,
+            geometry: Some(geometry),
+        }
     }
 
     /// Returns the finding kind.
@@ -34,6 +52,11 @@ impl VisionFinding {
     /// Returns the detector confidence.
     pub const fn confidence(&self) -> Confidence {
         self.confidence
+    }
+
+    /// Returns the normalized geometry when supplied by a native detector.
+    pub const fn geometry(&self) -> Option<NormalizedRect> {
+        self.geometry
     }
 }
 

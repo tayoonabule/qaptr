@@ -38,6 +38,20 @@ pub enum MacosError {
         /// The ServiceManagement error code.
         code: i64,
     },
+    /// A local recognition helper could not be started or completed.
+    #[error("{operation} helper failed: {message}")]
+    Recognition {
+        /// The local operation that failed.
+        operation: &'static str,
+        /// A bounded diagnostic from the helper.
+        message: String,
+    },
+    /// A local recognition helper exceeded its caller-provided deadline.
+    #[error("{operation} recognition timed out")]
+    RecognitionTimeout {
+        /// The local operation that timed out.
+        operation: &'static str,
+    },
     /// The current target is not macOS.
     #[error("qaptr-macos adapters are only available on macOS")]
     UnsupportedPlatform,

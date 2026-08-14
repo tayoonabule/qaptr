@@ -17,6 +17,13 @@ pub enum DomainError {
         /// The dimension's domain name.
         kind: &'static str,
     },
+    /// A normalized rectangle had a non-finite coordinate or exceeded the
+    /// inclusive image bounds.
+    #[error("{kind} geometry must be finite and within normalized image bounds")]
+    InvalidGeometry {
+        /// The domain value whose geometry was invalid.
+        kind: &'static str,
+    },
     /// A confidence value was outside the inclusive range from zero to one.
     #[error("confidence must be finite and between 0 and 1, got {value}")]
     InvalidConfidence {
@@ -34,6 +41,15 @@ pub enum DomainError {
     TimedOut {
         /// The domain operation that exceeded its budget.
         operation: &'static str,
+    },
+    /// A platform adapter returned a typed failure that is not denial or a
+    /// timeout.
+    #[error("{operation} failed: {reason}")]
+    Failed {
+        /// The domain operation that failed.
+        operation: &'static str,
+        /// A bounded diagnostic from the adapter.
+        reason: String,
     },
 }
 

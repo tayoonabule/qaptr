@@ -879,6 +879,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "qaptr-privacy"
+version = "0.1.0"
+dependencies = [
+ "qaptr-domain",
+]
+
+[[package]]
 name = "qaptr-provider"
 version = "0.1.0"
 dependencies = [

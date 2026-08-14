@@ -19,7 +19,13 @@ mod credentials;
 #[cfg(target_os = "macos")]
 mod login_item;
 #[cfg(target_os = "macos")]
+mod ocr;
+#[cfg(target_os = "macos")]
 mod permissions;
+#[cfg(target_os = "macos")]
+mod recognition;
+#[cfg(target_os = "macos")]
+mod vision;
 
 pub use error::MacosError;
 
@@ -28,4 +34,8 @@ pub use credentials::{KEYCHAIN_SERVICE, MacCredentials};
 #[cfg(target_os = "macos")]
 pub use login_item::MacLoginItem;
 #[cfg(target_os = "macos")]
+pub use ocr::MacOcr;
+#[cfg(target_os = "macos")]
 pub use permissions::MacPermissions;
+#[cfg(target_os = "macos")]
+pub use vision::MacVision;

@@ -1,6 +1,6 @@
 //! The local optical-character-recognition port.
 
-use crate::{CaptureId, Confidence};
+use crate::{CaptureId, Confidence, NormalizedRect};
 
 use super::PortResult;
 
@@ -9,6 +9,7 @@ use super::PortResult;
 pub struct TextRegion {
     text: String,
     confidence: Confidence,
+    geometry: Option<NormalizedRect>,
 }
 
 impl TextRegion {
@@ -17,6 +18,20 @@ impl TextRegion {
         Self {
             text: text.into(),
             confidence,
+            geometry: None,
+        }
+    }
+
+    /// Creates a recognized region with Vision-normalized geometry.
+    pub const fn with_geometry(
+        text: String,
+        confidence: Confidence,
+        geometry: NormalizedRect,
+    ) -> Self {
+        Self {
+            text,
+            confidence,
+            geometry: Some(geometry),
         }
     }
 
@@ -28,6 +43,11 @@ impl TextRegion {
     /// Returns the recognizer confidence.
     pub const fn confidence(&self) -> Confidence {
         self.confidence
+    }
+
+    /// Returns the normalized geometry when supplied by a native recognizer.
+    pub const fn geometry(&self) -> Option<NormalizedRect> {
+        self.geometry
     }
 }
 

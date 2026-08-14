@@ -10,6 +10,7 @@ mod units;
 
 pub mod clock;
 pub mod error;
+pub mod geometry;
 pub mod ids;
 pub mod ports;
 
@@ -18,5 +19,6 @@ pub mod testing;
 
 pub use clock::{Clock, FixedClock, SystemClock};
 pub use error::{DomainError, Result};
+pub use geometry::NormalizedRect;
 pub use ids::{CaptureId, ObservationId, SessionId, WorkflowId};
 pub use units::{ByteSize, Confidence, Duration};

@@ -1,0 +1,10 @@
+# Human-labeled U9 corpus. Coordinates are normalized Vision-style lower-left boxes.
+# image,kind,text,x,y,width,height
+text.png,text,Email: alice@example.com,0.08,0.63,0.70,0.08
+text.png,text,API key: sk-test-1234567890,0.08,0.51,0.74,0.08
+text.png,text,Qaptr U9 fixture,0.08,0.39,0.43,0.06
+rotated.png,text,Rotated human label,0.10,0.35,0.58,0.16
+qr.png,barcode,QAPTR-U9-BARCODE,0.414,0.362,0.173,0.276
+no_text.png,none,,0,0,0,0
+single_color.png,none,,0,0,0,0
+low_contrast.png,text,Low contrast secret label,0.08,0.42,0.63,0.08
