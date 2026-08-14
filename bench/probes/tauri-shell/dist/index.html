@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Qaptr</title>
+<style>
+:root{font:15px -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;color:CanvasText;background:Canvas}
+body{margin:0;padding:28px;box-sizing:border-box;width:460px;height:300px}h1{font-size:28px;letter-spacing:-.02em;margin:0 0 18px;font-weight:650}h2{font-size:17px;margin:0 0 10px;font-weight:550}p{color:color-mix(in srgb,CanvasText 60%,transparent);margin:0 0 18px}hr{border:0;border-top:1px solid color-mix(in srgb,CanvasText 20%,transparent);margin:0 0 18px}main{height:100%;box-sizing:border-box}
+</style></head>
+<body><main><h1>Qaptr</h1><h2>Observation Sheet</h2><p>A small, focused view of recent work.</p><hr><div>Review shell prototype</div></main>
+<script type="module">
+const { invoke } = window.__TAURI__.core;
+await invoke('screen_capture_permission');
+await invoke('record_paint');
+</script>
+</body></html>
