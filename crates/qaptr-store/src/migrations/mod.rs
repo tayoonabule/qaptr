@@ -4,7 +4,10 @@ use rusqlite::Connection;
 
 use crate::{Result, StoreError};
 
-const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("0001_initial.sql"))];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("0001_initial.sql")),
+    (2, include_str!("0002_notices.sql")),
+];
 
 /// Applies every migration newer than the database's current user version.
 pub(crate) fn apply(connection: &mut Connection) -> Result<()> {
@@ -25,5 +28,5 @@ pub(crate) fn apply(connection: &mut Connection) -> Result<()> {
 
 /// Returns the newest migration version compiled into this crate.
 pub(crate) const fn latest_version() -> i64 {
-    1
+    2
 }

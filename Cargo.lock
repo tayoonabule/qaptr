@@ -868,6 +868,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "qaptr-policy"
+version = "0.1.0"
+dependencies = [
+ "qaptr-domain",
+ "qaptr-store",
+ "qaptr-vault",
+ "tempfile",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "qaptr-provider"
 version = "0.1.0"
 dependencies = [

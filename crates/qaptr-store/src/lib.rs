@@ -17,6 +17,7 @@
 
 mod history;
 mod migrations;
+mod notices;
 mod schema;
 
 use std::{
@@ -75,6 +76,15 @@ pub enum StoreError {
     /// A timestamp cannot fit in the database integer representation.
     #[error("timestamp is too large for SQLite's integer representation")]
     TimestampOverflow,
+    /// A notice id was empty.
+    #[error("notice id must not be empty")]
+    EmptyNoticeId,
+    /// A notice count was zero.
+    #[error("notice count must be greater than zero")]
+    EmptyNoticeCount,
+    /// A stored notice reason was not recognized.
+    #[error("unknown notice reason: {0}")]
+    UnknownNoticeReason(String),
 }
 
 /// Convenient result type for qaptr-store operations.
@@ -145,6 +155,17 @@ impl Store {
         self.transaction(|transaction| transaction.put_workflow(record))
     }
 
+    /// Stores one compact exclusion notice without capture content.
+    pub fn put_notice(&self, record: &NoticeRecord) -> Result<()> {
+        self.transaction(|transaction| transaction.put_notice(record))
+    }
+
+    /// Returns compact exclusion notices in creation order.
+    pub fn notices(&self) -> Result<Vec<NoticeRecord>> {
+        let writer = self.writer.lock().map_err(|_| StoreError::WriterPoisoned)?;
+        notices::load(&writer)
+    }
+
     /// Deletes one capture's vault metadata while preserving dependent history.
     pub fn delete_capture(&self, capture_id: &qaptr_domain::CaptureId) -> Result<bool> {
         let writer = self.writer.lock().map_err(|_| StoreError::WriterPoisoned)?;
@@ -153,6 +174,12 @@ impl Store {
             [capture_id.as_str()],
         )?;
         Ok(deleted == 1)
+    }
+
+    /// Deletes several capture metadata rows in one transaction while leaving
+    /// observations and workflows intact.
+    pub fn delete_captures(&self, capture_ids: &[qaptr_domain::CaptureId]) -> Result<usize> {
+        self.transaction(|transaction| transaction.delete_captures(capture_ids))
     }
 
     /// Reads a transactionally consistent snapshot using a separate reader.
@@ -248,3 +275,4 @@ fn version_string(version: (u32, u32, u32)) -> String {
 pub use history::{
     CaptureRecord, HistorySnapshot, ObservationRecord, UnixMillis, WorkflowRecord, WriteTransaction,
 };
+pub use notices::{NoticeReason, NoticeRecord};

@@ -77,7 +77,7 @@ fn migration_from_empty_produces_the_allowlisted_schema() {
     let (directory, path) = temporary_database("migration");
     let store = Store::open(&path).expect("an empty database must migrate");
 
-    assert_eq!(Store::schema_version(), 1);
+    assert_eq!(Store::schema_version(), 2);
     assert!(
         store
             .sqlite_version()

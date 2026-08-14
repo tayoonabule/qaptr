@@ -1,0 +1,19 @@
+[package]
+name = "qaptr-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Deterministic Qaptr capture and retention policy"
+
+[dependencies]
+qaptr-domain = { path = "../qaptr-domain" }
+qaptr-store = { path = "../qaptr-store" }
+qaptr-vault = { path = "../qaptr-vault" }
+thiserror.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.23.0"

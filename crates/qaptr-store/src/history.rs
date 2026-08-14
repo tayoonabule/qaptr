@@ -194,6 +194,23 @@ impl<'transaction> WriteTransaction<'transaction> {
         Ok(())
     }
 
+    /// Inserts or replaces a compact exclusion notice.
+    pub fn put_notice(&mut self, record: &crate::NoticeRecord) -> Result<()> {
+        crate::notices::insert(&self.transaction, record)
+    }
+
+    /// Deletes capture metadata rows without cascading into derived history.
+    pub fn delete_captures(&mut self, capture_ids: &[CaptureId]) -> Result<usize> {
+        let mut deleted = 0;
+        for capture_id in capture_ids {
+            deleted += self.transaction.execute(
+                "DELETE FROM captures WHERE capture_id = ?1",
+                [capture_id.as_str()],
+            )?;
+        }
+        Ok(deleted)
+    }
+
     pub(crate) fn into_transaction(self) -> Transaction<'transaction> {
         self.transaction
     }

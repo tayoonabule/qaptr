@@ -44,6 +44,10 @@ const TABLE_COLUMNS: &[(&str, &[&str])] = &[
             "created_at_ms",
         ],
     ),
+    (
+        "notices",
+        &["notice_id", "created_at_ms", "excluded_count", "reason"],
+    ),
 ];
 
 const FORBIDDEN_NAME_PARTS: &[&str] = &[
@@ -147,6 +151,9 @@ mod tests {
         connection
             .execute_batch(include_str!("migrations/0001_initial.sql"))
             .expect("the production schema must execute");
+        connection
+            .execute_batch(include_str!("migrations/0002_notices.sql"))
+            .expect("the notice schema must execute");
         connection
     }
 

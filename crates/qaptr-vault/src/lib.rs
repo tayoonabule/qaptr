@@ -23,9 +23,11 @@
 mod bundle;
 mod fs;
 mod keys;
+mod reaper;
 
 pub use bundle::{BundleInput, BundleMetadata, OpenedBundle, PrivacyImage, SampledContext};
 pub use keys::{GenerationId, GenerationKeypair, GenerationPrivateKey, GenerationPublicKey};
+pub use reaper::{ReapReport, Reaper};
 
 use std::{
     fs::File,
@@ -130,6 +132,15 @@ impl Vault {
         &self.root
     }
 
+    /// Creates a retention reaper that operates through the supplied secure
+    /// credential adapter.
+    pub fn reaper<'credentials, C: CredentialPort>(
+        &self,
+        credentials: &'credentials C,
+    ) -> Reaper<'_, 'credentials, C> {
+        Reaper::new(self, credentials)
+    }
+
     /// Returns the secure credentials key used for a generation private key.
     pub fn generation_credential_key(generation: &GenerationId) -> Result<CredentialKey> {
         generation_credential_key(generation)
@@ -154,6 +165,12 @@ impl Vault {
         let value = String::from_utf8(bytes)
             .map_err(|_| VaultError::InvalidKey("public key is not UTF-8".to_owned()))?;
         value.parse()
+    }
+
+    /// Returns non-sensitive metadata for one committed bundle.
+    pub fn bundle_metadata(&self, capture_id: &qaptr_domain::CaptureId) -> Result<BundleMetadata> {
+        let _lock = self.lock()?;
+        self.read_metadata(capture_id)
     }
 
     /// Seals a capture using only the generation public key.
