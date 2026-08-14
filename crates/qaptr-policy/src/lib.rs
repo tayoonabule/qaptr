@@ -10,13 +10,21 @@
 //!   operation is called.
 //! - Exclusion notices use only counts and reason categories. They never carry
 //!   application names, window titles, capture ids, or payload material.
+//! - A detailed capture profile is explicitly started, owns one immutable end
+//!   bound, and returns to sparse mode once that bound is reached.
+//! - Profile expiry is evaluated through [`qaptr_domain::Clock`], so a review
+//!   app restart cannot make an already-ended window active again.
 
 mod exclusions;
+mod profile;
 mod retention;
 
 pub use exclusions::{
-    CaptureDecision, ExclusionReason, ExclusionRules, PolicyError, seal_if_allowed,
+    seal_if_allowed, CaptureDecision, ExclusionReason, ExclusionRules, PolicyError,
+};
+pub use profile::{
+    CaptureProfileLifecycle, CaptureProfileState, DetailedCaptureProfile, ProfileError,
 };
 pub use retention::{
-    RetentionBundle, RetentionError, RetentionPolicy, RetentionReport, enforce_retention,
+    enforce_retention, RetentionBundle, RetentionError, RetentionPolicy, RetentionReport,
 };
