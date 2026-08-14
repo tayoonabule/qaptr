@@ -68,8 +68,8 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 - R-P2. The person chooses a simple cache lifetime.
 - R-P3. Expired screenshots are permanently deleted: their encryption keys are destroyed and their files unlinked, making the content unrecoverable through any Qaptr path. Qaptr does not claim secure physical overwrite of storage media.
 - R-P4. Durable history contains only compact workflow summaries and observations, never screenshot thumbnails.
-- R-P5. OCR and PII redaction occur locally before any provider receives an image or extracted context.
-- R-P6. Images that cannot be confidently redacted fail closed and are excluded from provider requests.
+- R-P5. OCR and PII redaction occur locally before any provider receives an image or extracted context. The guarantee is scoped to data the local recognizers detect and to the enumerated sensitive classes; residual recall is measured and disclosed rather than claimed to be zero.
+- R-P6. Images that cannot be confidently redacted fail closed and are excluded from provider requests. "Confidently" means the coverage proof passes and no recognizer reports a remaining region; it does not claim detection of material no recognizer reports.
 - R-P7. Exclusions are communicated quietly, for example: "1 capture was excluded because it could not be safely redacted."
 - R-P8. Qaptr clearly explains that approved redacted data is sent only to the person's selected existing AI provider.
 - R-P9. Provider credentials use secure operating-system storage.
@@ -127,7 +127,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 - AE1. Given sparse mode on a 5K display, when the helper runs for 12 hours, then every scheduled capture is written and helper resident memory stays below 50 MB.
 - AE2. Given a cache of recent captures, when the person opens Qaptr, then analysis begins without the helper having performed OCR or provider work.
-- AE3. Given a capture containing an email address, an API key, and a face, when the capture is prepared for a provider, then the structured context is sanitized with no unmasked sensitive value, and any image payload has every recognized region masked with its measured recall floor disclosed.
+- AE3. Given a capture containing an email address, an API key, and a face, when the capture is prepared for a provider, then the structured context is sanitized so no value of an enumerated sensitive class leaves the device, and any image payload has every recognizer-detected region masked with its measured recall floor disclosed.
 - AE4. Given one capture whose redaction confidence gate fails, when analysis runs, then that capture is excluded, the remaining captures are analyzed, and the person sees a quiet one-line exclusion notice.
 - AE5. Given an observation, when the person chooses **Qaptr in more detail** and accepts the recommended profile, then detailed capture becomes visibly active in the menu bar and continues until manually stopped.
 - AE6. Given a 24-hour cache lifetime, when a capture passes 24 hours, then its encryption keys are destroyed and its image and derived files unlinked, while its summaries remain available.
@@ -638,7 +638,8 @@ Per-unit: a unit is done when its stated test scenarios pass, its verification s
 
 - Q1 (deferred). Minimum supported macOS version, decided by U3 and U4 measurements rather than assumption.
 - Q2 (deferred). Whether masked images are worth offering at all, decided after U17 shows how much they improve observations over sanitized context alone and after U10 publishes the recall floor. Images are off by default either way.
-- Q3 (resolved). Waitlist storage is a Cloudflare D1 table behind one Worker endpoint (KTD12), with schema and migration in U21.
+
+No launch-blocking question remains.
 
 ### Sources and research
 
