@@ -1,0 +1,20 @@
+[package]
+name = "qaptr-vault"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Encrypted, ephemeral Qaptr capture bundles"
+
+[dependencies]
+age.workspace = true
+fs2.workspace = true
+qaptr-domain = { path = "../qaptr-domain" }
+thiserror.workspace = true
+xattr.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.23.0"
