@@ -3,13 +3,24 @@
 import PackageDescription
 
 let package = Package(
-    name: "QaptrCaptureSpike",
+    name: "QaptrHelper",
     platforms: [
         .macOS(.v14),
     ],
+    products: [
+        .executable(name: "QaptrHelper", targets: ["QaptrHelper"]),
+    ],
     targets: [
+        .target(
+            name: "QaptrHelperCore"
+        ),
         .executableTarget(
-            name: "QaptrCaptureSpike"
+            name: "QaptrHelper",
+            dependencies: ["QaptrHelperCore"]
+        ),
+        .testTarget(
+            name: "QaptrHelperTests",
+            dependencies: ["QaptrHelperCore"]
         ),
     ]
 )

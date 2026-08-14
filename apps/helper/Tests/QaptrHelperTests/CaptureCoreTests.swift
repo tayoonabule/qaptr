@@ -1,0 +1,117 @@
+import Foundation
+import XCTest
+@testable import QaptrHelperCore
+
+final class CaptureCoreTests: XCTestCase {
+    func testMissedTicksDoNotCatchUp() throws {
+        var planner = TickPlanner(interval: try CaptureInterval(seconds: 600))
+        XCTAssertEqual(planner.action(at: 0), .capture)
+        XCTAssertEqual(planner.action(at: 601), .capture)
+        XCTAssertEqual(planner.action(at: 602), .wait)
+        XCTAssertEqual(planner.action(at: 1201), .capture)
+        XCTAssertEqual(planner.action(at: 1202), .wait)
+    }
+
+    func testSecondHelperCannotClaimTheSameOwnershipLock() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-helper-lock-\(UUID().uuidString)")
+        let first = try SingleInstanceLock(path: root)
+        XCTAssertThrowsError(try SingleInstanceLock(path: root)) { error in
+            XCTAssertEqual(error as? SingleInstanceError, .alreadyRunning)
+        }
+        _ = first
+    }
+
+    func testSecondCaptureIsRefusedWhileFirstIsInFlight() throws {
+        let capture = BlockingCapture()
+        let sealer = RecordingSealer()
+        let coordinator = CaptureCoordinator(capture: capture, sealer: sealer)
+        let firstStarted = expectation(description: "first capture starts")
+        capture.onStart = { firstStarted.fulfill() }
+        let firstFinished = expectation(description: "first capture finishes")
+        DispatchQueue.global().async {
+            _ = coordinator.runTick(displays: ["1"], context: SampledContext(application: "Editor")) { _ in "capture-1" }
+            firstFinished.fulfill()
+        }
+        wait(for: [firstStarted], timeout: 1)
+        XCTAssertEqual(
+            coordinator.runTick(displays: ["1"], context: SampledContext(application: "Editor")) { _ in "capture-2" },
+            [.refusedOverlap]
+        )
+        capture.release()
+        wait(for: [firstFinished], timeout: 1)
+        XCTAssertEqual(sealer.sealed.count, 1)
+    }
+
+    func testPermissionRevocationIsQuietlySkippedByTheCallerBoundary() {
+        let coordinator = CaptureCoordinator(capture: ImmediateCapture(), sealer: RecordingSealer())
+        XCTAssertEqual(
+            coordinator.runTick(
+                displays: ["1"],
+                context: SampledContext(application: "Editor"),
+                permissionGranted: false
+            ) { _ in "capture-1" },
+            [.skippedPermission]
+        )
+    }
+
+    func testBrowserContextDropsPathQueryAndFragment() {
+        XCTAssertEqual(reducedBrowserHost(from: "https://example.com/private?q=secret#fragment"), "https://example.com")
+        XCTAssertNil(reducedBrowserHost(from: "not a url"))
+    }
+
+    func testSealingFailureDoesNotProduceASealedEvent() throws {
+        let capture = ImmediateCapture()
+        let sealer = FailingSealer()
+        let coordinator = CaptureCoordinator(capture: capture, sealer: sealer)
+        XCTAssertEqual(
+            coordinator.runTick(displays: ["1"], context: SampledContext(application: "Editor")) { _ in "capture-1" },
+            [.skippedSealing(displayID: "1", reason: "Error Domain=tests Code=1 \"intentional failure\" UserInfo={NSLocalizedDescription=intentional failure}")]
+        )
+    }
+}
+
+private final class BlockingCapture: ImageCapture, @unchecked Sendable {
+    var onStart: (() -> Void)?
+    private let started = DispatchSemaphore(value: 0)
+    private let releaseSemaphore = DispatchSemaphore(value: 0)
+
+    func capture(displayID: String, maxDimension: Int) throws -> CapturedFrame {
+        _ = displayID
+        _ = maxDimension
+        onStart?()
+        started.signal()
+        releaseSemaphore.wait()
+        return try CapturedFrame(imageData: Data([1]), width: 1, height: 1)
+    }
+
+    func release() {
+        releaseSemaphore.signal()
+    }
+}
+
+private final class ImmediateCapture: ImageCapture, @unchecked Sendable {
+    func capture(displayID: String, maxDimension: Int) throws -> CapturedFrame {
+        _ = displayID
+        _ = maxDimension
+        return try CapturedFrame(imageData: Data([1]), width: 1, height: 1)
+    }
+}
+
+private final class RecordingSealer: BundleSealer, @unchecked Sendable {
+    private(set) var sealed: [String] = []
+    func seal(captureID: String, frame: CapturedFrame, context: SampledContext) throws {
+        _ = frame
+        _ = context
+        sealed.append(captureID)
+    }
+}
+
+private struct FailingSealer: BundleSealer {
+    func seal(captureID: String, frame: CapturedFrame, context: SampledContext) throws {
+        _ = captureID
+        _ = frame
+        _ = context
+        throw NSError(domain: "tests", code: 1, userInfo: [NSLocalizedDescriptionKey: "intentional failure"])
+    }
+}
