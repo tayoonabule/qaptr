@@ -13,13 +13,13 @@ platform: Apple-silicon macOS
 
 ## Product contract
 
-Qaptr is an exceptionally lightweight, privacy-first macOS menu-bar app that periodically captures sparse visual and contextual snapshots of a person's work. When the person opens Qaptr, the full app processes recent captures through their chosen AI provider and presents a few concise observations about time use, repeated workflows, and automation opportunities.
+Qaptr is an exceptionally lightweight, privacy-first macOS menu-bar app that periodically captures sparse visual and contextual snapshots of a person's work. When the person opens Qaptr, the full app processes recent captures through their chosen AI provider and presents a few concise observations about the workflows they performed, how those workflows unfolded, and which ones are worth capturing more deliberately.
 
-The product should normally feel invisible. Its opened experience should be beautifully simple, fast, monochrome, and native-feeling, with the interaction quality of Apple or Linear and the visual ambition of Shopify Design.
+The product should normally feel invisible. Its opened experience should be beautifully simple, fast, monochrome, and native-feeling, with Granola-level product simplicity, the interaction quality of Apple or Linear, and the visual ambition of Shopify Design.
 
 ## Primary outcome
 
-Help a person recognize work they repeat, inspect a promising workflow at greater detail, and receive a polished Markdown brief explaining how that workflow could be automated.
+Help a person recognize and preserve how work actually gets done, inspect a promising workflow at greater detail, and turn it into one reusable Workflow document that can be exported for automation, team handoff, onboarding, or a general SOP.
 
 ## Core interaction
 
@@ -28,11 +28,12 @@ Help a person recognize work they repeat, inspect a promising workflow at greate
 3. At capture time, it samples lightweight context such as active app, window title, browser URL, document name, display, idle state, and temporary visible Accessibility text/structure.
 4. It never records clipboard contents, raw keystrokes, or continuous Accessibility activity.
 5. Opening Qaptr starts local preparation and provider-backed analysis of recent captures. No OCR or AI analysis runs in the background helper.
-6. The first screen presents a small number of smart observations combining chronological time use, repeated workflows, and automation potential.
+6. The first screen presents a small number of smart observations combining chronological context, repeated patterns, and candidate workflows.
 7. A person can select an observation and choose **Qaptr in more detail**.
 8. Qaptr recommends an appropriate detailed-capture interval and explains it simply.
 9. Detailed capture continues until the person explicitly stops it. A subtle persistent menu-bar state makes enhanced capture visible.
-10. After analysis, Qaptr can generate a polished Markdown automation brief. It does not launch agents, create workflows, or execute automations.
+10. After analysis, Qaptr creates a canonical Workflow document describing the goal, context, tools, sequence, decisions, variations, and evidence confidence.
+11. The person can export that Workflow as polished Markdown tailored for automation, team handoff, onboarding, or a general SOP. Qaptr does not launch agents, create workflows, or execute automations.
 
 ## Capture requirements
 
@@ -63,12 +64,13 @@ Help a person recognize work they repeat, inspect a promising workflow at greate
 - Target integrations include Codex, Hermes, OpenClaw, Claude, OpenCode, and Jcode.
 - Provider capability differences must be hidden behind a stable adapter boundary.
 - Unsupported or incompatible detected tools must never appear as working choices.
-- Provider output is normalized into Qaptr's observation and Markdown-brief formats.
+- Provider output is normalized into Qaptr's observation, canonical Workflow, and purpose-specific Markdown export formats.
 
 ## Desktop experience
 
 - The menu-bar helper is quiet, low-memory, and legible at a glance.
 - The main app opens directly into recent observations rather than a dashboard full of controls.
+- The core review surface is an intentionally spare Observation Sheet, closer to Granola's focused note experience than a productivity dashboard.
 - The interface follows system light and dark appearance, using predominantly whites, blacks, and disciplined neutral tones.
 - Typography, spacing, motion, icons, loading, empty, permission, and failure states receive production-level design attention.
 - Settings remain intentionally small: capture cadence/profile, displays, cache duration, provider, and privacy/permission status.
@@ -99,7 +101,7 @@ Help a person recognize work they repeat, inspect a promising workflow at greate
 - Background OCR or provider analysis.
 - Retaining raw screenshots or redacted thumbnails as durable history.
 - Automatically creating, launching, or executing automations.
-- Team collaboration, cloud sync, or shared workflow libraries.
+- Real-time collaboration, cloud sync, or shared workflow libraries. v1 sharing is through exported Workflow documents.
 
 ## Acceptance criteria
 
@@ -110,7 +112,7 @@ Help a person recognize work they repeat, inspect a promising workflow at greate
 5. A user can move from an observation to **Qaptr in more detail**, accept a recommended profile, see that enhanced capture is active, and stop it manually.
 6. Raw captures expire according to the configured cache lifetime while summaries remain available.
 7. At least OpenRouter and one installed CLI adapter complete the end-to-end observation flow in v1.
-8. Qaptr produces a useful, well-formatted Markdown automation brief from a selected repeated workflow.
+8. Qaptr produces a useful canonical Workflow document and well-formatted Markdown exports for automation, team handoff, onboarding, and SOP use.
 9. The opened app remains below 150 MB RAM in representative ordinary-use tests.
 10. Onboarding successfully guides a fresh macOS user through required permissions and provider configuration.
 11. The website presents Qaptr clearly and submits a waitlist signup through a production-ready endpoint.
