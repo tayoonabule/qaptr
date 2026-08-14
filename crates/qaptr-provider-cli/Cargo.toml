@@ -1,0 +1,13 @@
+[package]
+name = "qaptr-provider-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+qaptr-provider = { path = "../qaptr-provider" }
+thiserror.workspace = true
+
+[lints]
+workspace = true
