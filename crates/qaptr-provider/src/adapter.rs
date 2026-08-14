@@ -562,6 +562,12 @@ pub enum RuntimeFailureKind {
     /// The provider process or request failed during invocation.
     #[error("invocation failed")]
     Invocation,
+    /// The provider could not be reached or its transport failed.
+    #[error("network failure")]
+    Network,
+    /// The provider rejected a request because its rate limit was reached.
+    #[error("rate limited")]
+    RateLimited,
     /// The provider exceeded its allowed wall-clock budget.
     #[error("timed out")]
     TimedOut,

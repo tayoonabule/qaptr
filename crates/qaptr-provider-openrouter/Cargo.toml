@@ -1,14 +1,17 @@
 [package]
-name = "qaptr-provider-cli"
+name = "qaptr-provider-openrouter"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
+description = "OpenRouter provider adapter for Qaptr"
 
 [dependencies]
+qaptr-domain.workspace = true
 qaptr-provider = { path = "../qaptr-provider" }
 serde_json.workspace = true
 thiserror.workspace = true
+ureq = { version = "3.1.2", default-features = false, features = ["json", "rustls"] }
 
 [lints]
 workspace = true
