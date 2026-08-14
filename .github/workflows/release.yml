@@ -1,0 +1,23 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+env:
+  QAPTR_SIGNING_IDENTITY: ${{ vars.QAPTR_SIGNING_IDENTITY }}
+  QAPTR_NOTARY_PROFILE: ${{ vars.QAPTR_NOTARY_PROFILE }}
+
+jobs:
+  package:
+    # The release runner is deliberately self-hosted. Its keychain contains the
+    # Developer ID identity and notarytool profile configured by release owners;
+    # no certificate, Apple ID, password, or API key is stored in this repo.
+    runs-on: [self-hosted, macos, qaptr-release]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run helper tests
+        run: swift test --package-path apps/helper
+      - name: Build, sign, notarize, and package
+        run: bash packaging/release.sh --reproducibility-check
