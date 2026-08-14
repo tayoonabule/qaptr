@@ -26,7 +26,8 @@ grepping. Install the indexer once and build the graph:
 
 ```sh
 uv tool install graphifyy
-graphify update .
+graphify update .      # build the graph
+graphify hook install  # rebuild it automatically after each commit
 ```
 
 Then query it instead of reading files at random:

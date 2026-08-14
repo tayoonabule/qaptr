@@ -39,6 +39,7 @@ locally:
 ```sh
 uv tool install graphifyy   # once
 graphify update .           # in the repo root
+graphify hook install       # git hooks are not cloned; install them per checkout
 ```
 
 ## Parallel agents
