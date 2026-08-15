@@ -16,11 +16,16 @@
 //!   app restart cannot make an already-ended window active again.
 
 mod exclusions;
+mod model_policy;
 mod profile;
 mod retention;
 
 pub use exclusions::{
     CaptureDecision, ExclusionReason, ExclusionRules, PolicyError, seal_if_allowed,
+};
+pub use model_policy::{
+    ModelAvailability, ModelId, ModelPolicy, ModelPolicyError, ModelReadiness, PolicyVersion,
+    ProviderReadinessInput, resolve_model,
 };
 pub use profile::{
     CaptureProfileLifecycle, CaptureProfileState, DetailedCaptureProfile, ProfileError,
