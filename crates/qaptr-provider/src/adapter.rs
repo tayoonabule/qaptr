@@ -299,6 +299,8 @@ pub enum ProviderPayloadKind {
 /// ```compile_fail
 /// use qaptr_provider::{ProviderPayloadKind, ProviderRequest};
 ///
+/// let _ = ProviderRequest::text("RAW SECRET password=hunter2");
+///
 /// let _ = ProviderRequest {
 ///     context: "RAW SECRET password=hunter2".to_owned(),
 ///     payload_kind: ProviderPayloadKind::Text,
@@ -331,9 +333,8 @@ impl ProviderRequest {
         } else {
             ProviderPayloadKind::Text
         };
-        let image_count = (payload.masked_image().is_some()).then(|| {
-            NonZeroU32::new(1).expect("the fixed prepared-image count is non-zero")
-        });
+        let image_count = (payload.masked_image().is_some())
+            .then(|| NonZeroU32::new(1).expect("the fixed prepared-image count is non-zero"));
         Self {
             context,
             payload_kind,

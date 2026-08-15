@@ -4,7 +4,7 @@
 //!
 //! - The review app is the only owner of this task. No worker executable,
 //!   shell, automation, or tool is launched here.
-//! - A provider request is constructed only from a [`PreparedPayload`] returned
+//! - A provider request is constructed only from a [`qaptr_privacy::PreparedPayload`] returned
 //!   by U12's [`PrivacyGate`]. A privacy exclusion is never converted into a
 //!   fallback request.
 //! - Vault opening and local preparation happen before consent and provider
@@ -19,7 +19,7 @@ use std::fmt;
 use qaptr_domain::clock::Clock;
 use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
 use qaptr_domain::{CaptureId, SessionId};
-use qaptr_privacy::{PreparationInput, PreparedPayload, PrivacyGate};
+use qaptr_privacy::{PreparationInput, PrivacyGate};
 use qaptr_provider::{ProviderAdapter, ProviderError, ProviderGate, ProviderId};
 use qaptr_store::{CaptureRecord, Store, StoreError, UnixMillis};
 use qaptr_vault::{OpenedBundle, Vault, VaultError};
