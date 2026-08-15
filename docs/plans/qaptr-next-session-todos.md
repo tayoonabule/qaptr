@@ -84,10 +84,10 @@
 - [ ] Add bridge contract tests for output shape, errors, no-image invariant, and restart persistence.
 
 ### 2.4 Vertical-slice acceptance tests
-- [ ] Make the 24-capture fixture run through the production-shaped coordinator using a fake provider behind the real adapter/gate boundary.
-- [ ] Assert all local preparation finishes before the fake provider sees a request.
+- [x] Make the 24-capture fixture run through the production-shaped coordinator using a fake provider behind the real adapter/gate boundary. The coordinator integration test seals 24 real vault bundles, runs the real privacy gate and shared provider gate, and uses a fake provider only at the adapter endpoint (`de99c29`; `cargo test -p qaptr-workflow --test session` passes).
+- [x] Assert all local preparation finishes before the fake provider sees a request. The 24-capture adapter checks the decoder counter at provider detection and observes all 24 local preparations before it is allowed to receive a request (`de99c29`; `cargo test -p qaptr-workflow --test session` passes).
 - [x] Assert declined consent causes no fake-provider calls. The production-shaped `ReviewSessionCoordinator` integration test seals a real fixture bundle, runs local preparation, records consent, and asserts zero provider invocations after a decline (`6a5592c`; `cargo test -p qaptr-workflow --test session` passes).
-- [ ] Assert one excluded capture creates exactly one aggregate notice without suppressing observations from safe captures.
+- [x] Assert one excluded capture creates exactly one aggregate notice without suppressing observations from safe captures. The 24-capture coordinator test excludes one unsafe context, asserts one notice, and verifies 23 scalar observations persist for safe capture ids (`de99c29`; `cargo test -p qaptr-workflow --test session` passes).
 - [ ] Assert malformed/failed provider responses produce no partial observation/workflow rows.
 - [ ] Assert a successful fixture run is visible through the same review-app snapshot API as the actual app.
 
