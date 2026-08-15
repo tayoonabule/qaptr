@@ -113,36 +113,56 @@ import ArcDial from "../components/ArcDial.astro";
     </div>
   </section>
 
-  <section class="passages wrap">
-    <article class="passage reveal">
-      <p class="meta passage__eyebrow">What it captures</p>
-      <p class="passage__statement">The shape of your working day, recorded as it happens.</p>
-      <p class="passage__body">
-        Qaptr watches the apps and windows you actually use and turns that activity into a plain-language
-        record. No manual timers, no forms to fill in after the fact. The record exists because the day
-        happened, not because you remembered to write it down.
-      </p>
-    </article>
+  <section class="product-bento wrap reveal" aria-labelledby="product-bento-title">
+    <div class="product-bento__intro">
+      <p class="meta">A quieter kind of history</p>
+      <h2 id="product-bento-title">The useful parts of your day, already in view.</h2>
+      <p>Qaptr turns background activity into small, legible moments you can trust before sharing.</p>
+    </div>
 
-    <article class="passage passage--offset reveal">
-      <p class="meta passage__eyebrow">What it never captures</p>
-      <p class="passage__statement">Anything you have not explicitly agreed to share.</p>
-      <p class="passage__body">
-        Qaptr does not connect to a provider, a calendar, or a repository until you complete setup and
-        give explicit consent. Nothing is recorded during onboarding, and nothing leaves your machine
-        without your say-so at every step along the way.
-      </p>
-    </article>
+    <div class="product-bento__grid">
+      <article class="product-card product-card--capture">
+        <div class="product-card__copy">
+          <p class="meta">01 · Capture</p>
+          <h3>The shape of your working day.</h3>
+          <p>Apps and windows become a plain-language trail, without timers or after-the-fact forms.</p>
+        </div>
+        <div class="mini-timeline" aria-hidden="true">
+          <span class="mini-timeline__line"></span>
+          <span class="mini-timeline__event mini-timeline__event--one"><b>09:42</b> Drafted a brief</span>
+          <span class="mini-timeline__event mini-timeline__event--two"><b>10:18</b> Reviewed notes</span>
+          <span class="mini-timeline__event mini-timeline__event--three"><b>11:06</b> Prepared next step</span>
+        </div>
+      </article>
 
-    <article class="passage reveal">
-      <p class="meta passage__eyebrow">What it becomes</p>
-      <p class="passage__statement">A record you can hand to a standup, a review, or your future self.</p>
-      <p class="passage__body">
-        The minutes Qaptr keeps turn into a workflow document: a readable account of what happened,
-        when, and in what order. Skim it before a meeting, paste it into a review, or use it to remember
-        what you were doing before lunch.
-      </p>
-    </article>
+      <article class="product-card product-card--privacy">
+        <div class="product-card__copy">
+          <p class="meta">02 · Consent</p>
+          <h3>Nothing leaves without a yes.</h3>
+          <p>Local-first capture stays quiet until you decide what belongs in the record.</p>
+        </div>
+        <div class="privacy-orbit" aria-hidden="true">
+          <span class="privacy-orbit__ring"></span>
+          <span class="privacy-orbit__lock">⌑</span>
+          <span class="privacy-orbit__label">Private on this Mac</span>
+        </div>
+      </article>
+
+      <article class="product-card product-card--document">
+        <div class="product-card__copy">
+          <p class="meta">03 · Review</p>
+          <h3>A record you can hand to tomorrow.</h3>
+          <p>Skim the sequence before a standup, a review, or the next time you wonder where the morning went.</p>
+        </div>
+        <div class="mini-document" aria-hidden="true">
+          <span class="mini-document__bar mini-document__bar--wide"></span>
+          <span class="mini-document__bar"></span>
+          <span class="mini-document__bar mini-document__bar--short"></span>
+          <span class="mini-document__rule"></span>
+          <span class="mini-document__tag">ready to share</span>
+        </div>
+      </article>
+    </div>
   </section>
 
   <section id="join" class="join join--paper reveal">
@@ -166,7 +186,7 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .hero__content {
-      max-width: 54rem;
+      max-width: 62rem;
     }
 
     .hero__eyebrow {
@@ -185,7 +205,7 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .hero__headline {
-      max-width: 14ch;
+      max-width: 16ch;
       color: var(--color-charcoal);
       font-size: var(--text-display);
       letter-spacing: var(--tracking-display);
@@ -463,40 +483,248 @@ import ArcDial from "../components/ArcDial.astro";
       text-align: center;
     }
 
-    .passages {
+    .product-bento {
       display: grid;
-      gap: var(--spacing-48);
-      padding-block: clamp(var(--spacing-48), 9vw, var(--spacing-96));
+      gap: var(--spacing-40);
+      padding-block: clamp(var(--spacing-64), 10vw, var(--spacing-112));
     }
 
-    .passage {
+    .product-bento__intro {
       display: grid;
-      grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 0.9fr) minmax(0, 0.75fr);
+      grid-template-columns: minmax(12rem, 0.65fr) minmax(0, 1.35fr);
       gap: var(--spacing-24);
-      align-items: start;
-      border-top: 1px solid var(--color-ash);
-      padding-top: var(--spacing-16);
+      align-items: end;
+      max-width: 70rem;
     }
 
-    .passage--offset {
-      grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 0.75fr) minmax(0, 0.9fr);
-      padding-left: clamp(0rem, 10vw, 8rem);
-    }
-
-    .passage__statement {
+    .product-bento__intro h2 {
       max-width: 17ch;
       color: var(--color-charcoal);
-      font-family: var(--font-satoshi);
-      font-size: clamp(1.75rem, 4vw, 2.5rem);
-      font-weight: 500;
-      letter-spacing: -0.025em;
-      line-height: 1.1;
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      letter-spacing: -0.03em;
+      line-height: 1.04;
     }
 
-    .passage__body {
-      max-width: 42ch;
+    .product-bento__intro > p:last-child {
+      max-width: 34ch;
       color: var(--color-steel);
-      font-size: var(--text-body-lg);
+      font-size: var(--text-body-xl);
+    }
+
+    .product-bento__grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: var(--spacing-16);
+    }
+
+    .product-card {
+      display: flex;
+      min-height: 28rem;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: var(--spacing-32);
+      overflow: hidden;
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-large-card);
+      background: var(--color-canvas-white);
+      padding: clamp(var(--spacing-20), 3vw, var(--spacing-32));
+      box-shadow: var(--shadow-subtle);
+      transition: transform 320ms var(--ease-out), box-shadow 320ms var(--ease-out);
+    }
+
+    .product-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-mockup);
+    }
+
+    .product-card--capture {
+      grid-column: span 7;
+      background: var(--color-orange-wash);
+    }
+
+    .product-card--privacy {
+      grid-column: span 5;
+      background: var(--color-green-wash);
+    }
+
+    .product-card--document {
+      grid-column: 3 / span 8;
+      min-height: 24rem;
+      background: var(--color-violet-wash);
+    }
+
+    .product-card__copy {
+      max-width: 32rem;
+    }
+
+    .product-card__copy h3 {
+      max-width: 13ch;
+      margin-top: var(--spacing-12);
+      color: var(--color-charcoal);
+      font-family: var(--font-satoshi);
+      font-size: clamp(1.75rem, 3vw, 2.5rem);
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1.06;
+    }
+
+    .product-card__copy > p:last-child {
+      max-width: 38ch;
+      margin-top: var(--spacing-16);
+      color: var(--color-steel);
+    }
+
+    .mini-timeline,
+    .mini-document {
+      position: relative;
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-card);
+      background: var(--color-canvas-white);
+      box-shadow: var(--shadow-subtle);
+    }
+
+    .mini-timeline {
+      display: grid;
+      gap: var(--spacing-12);
+      min-height: 12rem;
+      padding: var(--spacing-20) var(--spacing-20) var(--spacing-20) var(--spacing-40);
+    }
+
+    .mini-timeline__line {
+      position: absolute;
+      top: var(--spacing-20);
+      bottom: var(--spacing-20);
+      left: 1.25rem;
+      width: 1px;
+      background: var(--color-smoke);
+    }
+
+    .mini-timeline__event {
+      position: relative;
+      z-index: 1;
+      display: block;
+      border-radius: var(--radius-input);
+      background: var(--color-paper-mist);
+      padding: var(--spacing-8) var(--spacing-12);
+      color: var(--color-steel);
+      font-size: var(--text-caption);
+    }
+
+    .mini-timeline__event::before {
+      position: absolute;
+      top: 50%;
+      left: -1.55rem;
+      width: 9px;
+      height: 9px;
+      border: 2px solid var(--color-orange-wash);
+      border-radius: 50%;
+      background: var(--color-tangerine);
+      content: "";
+      transform: translateY(-50%);
+    }
+
+    .mini-timeline__event b {
+      margin-right: var(--spacing-8);
+      color: var(--color-charcoal);
+      font-family: var(--font-geist-mono);
+      font-weight: 500;
+    }
+
+    .privacy-orbit {
+      position: relative;
+      display: grid;
+      min-height: 12rem;
+      place-items: center;
+      overflow: hidden;
+      border-radius: var(--radius-card);
+      background: var(--color-soft-mint);
+    }
+
+    .privacy-orbit__ring {
+      position: absolute;
+      width: 9rem;
+      height: 9rem;
+      border: 1px solid var(--color-vivid-green);
+      border-radius: 50%;
+      opacity: 0.42;
+    }
+
+    .privacy-orbit__ring::after {
+      position: absolute;
+      inset: 1rem;
+      border: 1px dashed var(--color-vivid-green);
+      border-radius: 50%;
+      content: "";
+    }
+
+    .privacy-orbit__lock {
+      position: relative;
+      display: grid;
+      width: 3.5rem;
+      height: 3.5rem;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--color-canvas-white);
+      color: var(--color-vivid-green);
+      font-size: 2rem;
+      box-shadow: var(--shadow-subtle);
+    }
+
+    .privacy-orbit__label {
+      position: absolute;
+      right: var(--spacing-12);
+      bottom: var(--spacing-12);
+      color: var(--color-vivid-green);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
+      text-transform: uppercase;
+    }
+
+    .mini-document {
+      display: grid;
+      align-content: center;
+      gap: var(--spacing-12);
+      min-height: 10rem;
+      padding: var(--spacing-24);
+      transform: rotate(-1deg);
+    }
+
+    .mini-document__bar {
+      display: block;
+      width: 72%;
+      height: 8px;
+      border-radius: var(--radius-tag);
+      background: var(--color-ash);
+    }
+
+    .mini-document__bar--wide {
+      width: 88%;
+      height: 14px;
+      background: var(--color-charcoal);
+    }
+
+    .mini-document__bar--short {
+      width: 48%;
+    }
+
+    .mini-document__rule {
+      display: block;
+      width: 100%;
+      height: 1px;
+      margin-block: var(--spacing-4);
+      background: var(--color-ash);
+    }
+
+    .mini-document__tag {
+      justify-self: start;
+      border-radius: var(--radius-tag);
+      background: var(--color-violet-wash);
+      padding: var(--spacing-4) var(--spacing-8);
+      color: var(--color-lavender);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      text-transform: uppercase;
     }
 
     .join {
@@ -536,7 +764,7 @@ import ArcDial from "../components/ArcDial.astro";
 
     @media (min-width: 768px) {
       .hero {
-        grid-template-columns: minmax(0, 0.8fr) minmax(28rem, 1.2fr);
+        grid-template-columns: minmax(0, 1fr) minmax(32rem, 1.25fr);
         gap: clamp(var(--spacing-40), 7vw, var(--spacing-80));
         align-items: center;
       }
@@ -574,18 +802,30 @@ import ArcDial from "../components/ArcDial.astro";
         padding-top: var(--spacing-8);
       }
 
-      .passage,
-      .passage--offset {
+      .product-bento__intro {
         display: block;
-        padding-left: 0;
       }
 
-      .passage__statement {
+      .product-bento__intro h2 {
         margin-top: var(--spacing-12);
       }
 
-      .passage__body {
+      .product-bento__intro > p:last-child {
         margin-top: var(--spacing-16);
+      }
+
+      .product-bento__grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .product-card--capture,
+      .product-card--privacy,
+      .product-card--document {
+        grid-column: auto;
+      }
+
+      .product-card {
+        min-height: 24rem;
       }
     }
 

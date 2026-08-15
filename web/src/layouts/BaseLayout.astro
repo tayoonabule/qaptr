@@ -67,7 +67,12 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
           },
           { threshold: 0.15 },
         );
-        document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+        document.querySelectorAll(".reveal").forEach((el, index) => {
+          if (el instanceof HTMLElement) {
+            el.style.setProperty("--reveal-index", String(index % 5));
+          }
+          io.observe(el);
+        });
       } else {
         document.querySelectorAll(".reveal").forEach((el) => el.classList.add("is-visible"));
       }
