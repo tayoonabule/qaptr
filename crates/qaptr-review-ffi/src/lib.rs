@@ -539,6 +539,88 @@ mod tests {
     }
 
     #[test]
+    fn successful_fixture_result_is_visible_through_snapshot_and_status_apis() {
+        let root = tempfile::tempdir().expect("temporary root");
+        let db_path = root.path().join("history.sqlite3");
+        let path_bytes = db_path.to_string_lossy().into_owned();
+        let handle = unsafe { qaptr_store_open(path_bytes.as_bytes().as_ptr(), path_bytes.len()) };
+        assert!(!handle.is_null());
+
+        // This is the scalar store result produced by a successful fixture
+        // session. The bridge must expose the result without exposing the
+        // sealed vault record or any image/provider material.
+        let store_ref = unsafe { &(*handle).store };
+        store_ref
+            .put_capture(&CaptureRecord {
+                id: CaptureId::new("fixture-capture-1").expect("capture id"),
+                captured_at: UnixMillis::from_millis(1_000),
+                vault_record_id: "fixture-generation/fixture-capture-1".to_owned(),
+                context_summary: Some("Editor review".to_owned()),
+            })
+            .expect("capture insert");
+        store_ref
+            .put_observation(&qaptr_store::ObservationRecord {
+                id: ObservationId::new("fixture-observation-1").expect("observation id"),
+                capture_id: Some(CaptureId::new("fixture-capture-1").expect("capture id")),
+                session_id: SessionId::new("fixture-session-1").expect("session id"),
+                title: "Repeated document review".to_owned(),
+                summary: "The same document review step recurred.".to_owned(),
+                confidence: Confidence::new(0.84).expect("confidence"),
+                created_at: UnixMillis::from_millis(2_000),
+            })
+            .expect("observation insert");
+        store_ref
+            .put_workflow(&WorkflowRecord {
+                id: WorkflowId::new("fixture-workflow-1").expect("workflow id"),
+                session_id: SessionId::new("fixture-session-1").expect("session id"),
+                title: "Document review workflow".to_owned(),
+                goal: "Review the document consistently".to_owned(),
+                context: "Editor".to_owned(),
+                tools: "[\"editor\"]".to_owned(),
+                sequence: "[\"open\",\"review\"]".to_owned(),
+                decisions: "[]".to_owned(),
+                variations: "[]".to_owned(),
+                evidence_confidence: Confidence::new(0.84).expect("confidence"),
+                created_at: UnixMillis::from_millis(2_000),
+            })
+            .expect("workflow insert");
+
+        let mut snapshot_output = vec![0_u8; 4096];
+        let snapshot_required = unsafe {
+            qaptr_store_snapshot_json(
+                handle,
+                snapshot_output.as_mut_ptr(),
+                snapshot_output.len(),
+            )
+        };
+        assert!(snapshot_required > 0 && snapshot_required <= snapshot_output.len());
+        let snapshot: Value = serde_json::from_slice(&snapshot_output[..snapshot_required - 1])
+            .expect("snapshot JSON");
+        assert_eq!(snapshot["observations"].as_array().unwrap().len(), 1);
+        assert_eq!(snapshot["workflows"].as_array().unwrap().len(), 1);
+        assert_eq!(snapshot["observations"][0]["title"], "Repeated document review");
+        assert_eq!(snapshot["workflows"][0]["title"], "Document review workflow");
+        assert!(!snapshot.to_string().contains("fixture-generation/"));
+        assert!(!snapshot.to_string().contains("image"));
+        assert!(!snapshot.to_string().contains("provider"));
+
+        let mut status_output = vec![0_u8; 2048];
+        let status_required = unsafe {
+            qaptr_review_status_json(handle, status_output.as_mut_ptr(), status_output.len())
+        };
+        assert!(status_required > 0 && status_required <= status_output.len());
+        let status: Value = serde_json::from_slice(&status_output[..status_required - 1])
+            .expect("status JSON");
+        assert_eq!(status["review_session"]["history_available"], true);
+        assert_eq!(status["review_session"]["observation_count"], 1);
+        assert_eq!(status["review_session"]["workflow_count"], 1);
+        assert_eq!(status["analysis"]["state"], "unavailable");
+        assert!(status["analysis"]["provider"].is_null());
+
+        unsafe { qaptr_store_destroy(handle) };
+    }
+
+    #[test]
     fn review_status_reports_history_without_claiming_provider_analysis() {
         let root = tempfile::tempdir().expect("temporary root");
         let db_path = root.path().join("history.sqlite3");
