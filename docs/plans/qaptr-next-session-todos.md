@@ -30,7 +30,7 @@
 - [ ] Verify that a successful capture creates a sealed bundle and updates the scalar last-success time/count.
 - [ ] Relaunch the review app and confirm that it reports the same persisted state.
 - [ ] Capture and classify failure evidence for denied Screen Recording, no selected display, inaccessible/locked display, and vault/disk write failure.
-- [ ] Add this real capture/review path to U23/release validation so idle launches cannot pass it.
+- [x] Add this real capture/review path to U23/release validation so idle launches cannot pass it. `release_validate.sh` now requires explicit helper-capture and review-result evidence records, reporting absent environment evidence as `BLOCKED` and malformed/contradictory records as `FAIL`; deterministic validator contracts cover idle/first-paint rejection (`6f1b821`; `bench/scripts/test_validate_release_evidence.sh` passes).
 
 ## 1. Capture status boundary
 
@@ -192,7 +192,7 @@
 ## 7. Packaging and release validation
 
 ### 7.1 Packaged-app coverage
-- [ ] Extend U23/release checks to require a real helper-generated capture and review-session result, not an idle app launch.
+- [x] Extend U23/release checks to require a real helper-generated capture and review-session result, not an idle app launch. `release_validate.sh` delegates to `validate_release_evidence.sh`, which accepts only explicit externally produced helper-capture and review-result records and otherwise reports `BLOCKED`, never passing idle app evidence (`6f1b821`; `bench/scripts/test_validate_release_evidence.sh` passes).
 - [ ] Verify the helper is embedded at the expected location, starts as the login item, and is visible to the review app through scalar status.
 - [x] Add a deterministic packaged smoke fixture for environments where Screen Recording cannot be granted. See [`fixtures/packaged-smoke/`](../../fixtures/packaged-smoke/) and [`docs/release-packaged-smoke.md`](../release-packaged-smoke.md). The fixture is explicitly not a substitute for real Screen Recording evidence.
 
