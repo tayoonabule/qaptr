@@ -15,10 +15,13 @@ use std::{
 };
 
 use qaptr_provider::{
-    Capability, ProviderError, ProviderGate, ProviderRequest, RuntimeFailureKind,
+    Capability, ProviderError, ProviderGate, ProviderRequest, ProviderVersion, RuntimeFailureKind,
 };
 use qaptr_provider_cli::adapters::{CliExecutor, claude::ClaudeAdapter};
-use qaptr_provider_cli::{CliInvocation, CliOutput, CliRuntimeError, ExecutableDiscovery};
+use qaptr_provider_cli::{
+    CliInvocation, CliOutput, CliRuntime, CliRuntimeError, ExecutableDiscovery, OutputLimit,
+    RuntimeLimits, Timeout,
+};
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -195,4 +198,19 @@ fn image_request_cannot_bypass_the_gate() {
 #[test]
 fn auth_status_parser_rejects_malformed_probe() {
     assert!(qaptr_provider_cli::adapters::claude::parse_auth_status(b"{}").is_err());
+}
+
+#[test]
+#[ignore = "requires a genuine installed Claude Code CLI and local authenticated session"]
+fn installed_claude_passes_real_detection() {
+    let timeout =
+        Timeout::new(std::time::Duration::from_secs(10)).expect("test timeout is non-zero");
+    let output = OutputLimit::new(64 * 1024).expect("test output limit is non-zero");
+    let adapter = ClaudeAdapter::new(CliRuntime::new(RuntimeLimits::new(timeout, output)))
+        .expect("Claude descriptor is valid");
+    let verified = ProviderGate::new(adapter)
+        .detect_and_verify()
+        .expect("a genuine installed Claude CLI should pass detection");
+    assert!(verified.version() >= ClaudeAdapter::minimum_version());
+    assert_eq!(verified.version(), ProviderVersion::new(2, 1, 228));
 }

@@ -24,6 +24,28 @@ probe output and returns `NotAuthenticated` without this production fallback.
 The sandboxed Jcode auth probe returned tabular status containing `claude`
 `available` and `openai` `available`; no credential contents were read by Qaptr.
 
+## U15 Claude detection evidence
+
+Recorded on 2026-08-15 UTC on the Apple-silicon development machine. Direct
+invocation outside U14's sandbox reported `2.1.228 (Claude Code)` and an auth
+status with `loggedIn: true`. This is useful installation evidence, but it is
+not evidence that sandboxed Qaptr detection succeeded, and Qaptr did not read
+or store any Claude login token.
+
+The `claude` command on `PATH` resolves to a per-session cmux shell shim under
+`/var/folders`, not to a genuine Claude Code installation. U14 correctly
+refuses that ephemeral shim under its default-deny execution profile. Release
+verification must use a genuine installed Claude CLI, not a session wrapper;
+the ignored test is:
+
+```sh
+cargo test -p qaptr-provider-cli --test claude -- --ignored installed_claude_passes_real_detection
+```
+
+The test runs detection through `ProviderGate` and U14's `CliRuntime`. The
+sandbox must not be widened to execute arbitrary `/var/folders` shims merely to
+accommodate this development-machine artifact.
+
 U16 also verifies missing installation, unauthenticated state, old versions,
 malformed output, image-capability refusal, and identical normalized response
 shape using deterministic in-process executors. Codex and Jcode adapters expose
