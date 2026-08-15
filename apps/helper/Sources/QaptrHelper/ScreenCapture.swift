@@ -5,7 +5,11 @@ import ScreenCaptureKit
 import UniformTypeIdentifiers
 import QaptrHelperCore
 
-struct ScreenCaptureAdapter: ImageCapture {
+struct ScreenCaptureAdapter: ImageCapture, CaptureStartupPreflight {
+    func screenRecordingAccessGranted() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
     func capture(displayID: String, maxDimension: Int) throws -> CapturedFrame {
         let content = try currentShareableContent()
         guard let numericID = CGDirectDisplayID(displayID),

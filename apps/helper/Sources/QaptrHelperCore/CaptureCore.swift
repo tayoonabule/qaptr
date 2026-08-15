@@ -429,6 +429,27 @@ public struct CaptureProgressTracker: Sendable {
         self.progress = initial
     }
 
+    public mutating func beginStartup(
+        at timestamp: Int64,
+        processID: Int64,
+        selectedDisplayIDs: [String] = [],
+        activeIntervalSeconds: Int? = nil
+    ) {
+        progress = CaptureProgress(
+            state: .starting,
+            captureCount: progress.captureCount,
+            lastCaptureAtMillis: progress.lastCaptureAtMillis,
+            startedAtMillis: timestamp,
+            updatedAtMillis: timestamp,
+            processID: processID,
+            version: progress.version,
+            revision: nextRevision(),
+            lastAttemptedAtMillis: progress.lastAttemptedAtMillis,
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds ?? progress.activeIntervalSeconds
+        )
+    }
+
     public mutating func start(
         at timestamp: Int64,
         processID: Int64,

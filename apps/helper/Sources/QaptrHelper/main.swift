@@ -1,5 +1,4 @@
 import AppKit
-import CoreGraphics
 import Foundation
 import QaptrHelperCore
 
@@ -87,6 +86,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     private let options: Options
     private let instanceLock: SingleInstanceLock
     private let capture = ScreenCaptureAdapter()
+    private let startupCoordinator: CaptureStartupCoordinator
     private let context = PointInTimeContextSampler()
     private let coordinator: CaptureCoordinator
     private let progressStore: CaptureProgressStore
@@ -102,6 +102,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     init(options: Options, instanceLock: SingleInstanceLock, sealer: BundleSealer) {
         self.options = options
         self.instanceLock = instanceLock
+        self.startupCoordinator = CaptureStartupCoordinator(preflight: ScreenCaptureAdapter())
         self.coordinator = CaptureCoordinator(capture: capture, sealer: sealer)
         let progressStore = CaptureProgressStore(url: Self.captureProgressURL())
         self.progressStore = progressStore
@@ -124,54 +125,24 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         _ = notification
         NSApp.setActivationPolicy(.accessory)
         configureStatusItem()
-        progressTracker.start(
-            at: Self.currentTimestamp(),
+        let timestamp = Self.currentTimestamp()
+        let startupResult = startupCoordinator.prepare(
+            progressTracker: &progressTracker,
+            progressStore: progressStore,
+            at: timestamp,
             processID: Int64(ProcessInfo.processInfo.processIdentifier),
             activeIntervalSeconds: activeInterval.seconds
         )
-        persistProgress()
-        guard CGPreflightScreenCaptureAccess() else {
-            progressTracker.markPermissionRequired(
-                at: Self.currentTimestamp(),
-                selectedDisplayIDs: [],
-                activeIntervalSeconds: activeInterval.seconds,
-                failureReason: "Screen Recording permission not granted"
-            )
-            persistProgress()
+        switch startupResult {
+        case let .ready(displayIDs):
+            selectedDisplayIDs = Set(displayIDs)
+            print("event=start pid=\(ProcessInfo.processInfo.processIdentifier) displays=\(displayIDs.joined(separator: ",")) interval_seconds=\(activeInterval.seconds)")
+        case .permissionRequired:
             print("event=skip reason=screen_recording_permission")
-            scheduleTimer()
-            return
-        }
-        do {
-            selectedDisplayIDs = Set(try capture.availableDisplayIDs())
-            guard !selectedDisplayIDs.isEmpty else {
-                progressTracker.markNoDisplays(
-                    at: Self.currentTimestamp(),
-                    selectedDisplayIDs: [],
-                    activeIntervalSeconds: activeInterval.seconds,
-                    failureReason: "no displays available"
-                )
-                persistProgress()
-                print("event=skip reason=no_displays")
-                scheduleTimer()
-                return
-            }
-            progressTracker.start(
-                at: Self.currentTimestamp(),
-                processID: Int64(ProcessInfo.processInfo.processIdentifier),
-                selectedDisplayIDs: Array(selectedDisplayIDs),
-                activeIntervalSeconds: activeInterval.seconds
-            )
-            persistProgress()
-            print("event=start pid=\(ProcessInfo.processInfo.processIdentifier) displays=\(selectedDisplayIDs.sorted().joined(separator: ",")) interval_seconds=\(options.interval.seconds)")
-        } catch {
-            progressTracker.markError(
-                at: Self.currentTimestamp(),
-                activeIntervalSeconds: activeInterval.seconds,
-                failureReason: "display enumeration failed: \(error)"
-            )
-            persistProgress()
-            print("event=skip reason=display_enumeration error=\(error)")
+        case .noDisplays:
+            print("event=skip reason=no_displays")
+        case let .startupFailed(reason):
+            print("event=skip reason=startup_failed error=\(reason)")
         }
         scheduleTimer()
     }
@@ -305,7 +276,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
 
     private func runTick() {
         cycle += 1
-        guard CGPreflightScreenCaptureAccess() else {
+        guard capture.screenRecordingAccessGranted() else {
             progressTracker.markPermissionRequired(
                 at: Self.currentTimestamp(),
                 selectedDisplayIDs: Array(selectedDisplayIDs),

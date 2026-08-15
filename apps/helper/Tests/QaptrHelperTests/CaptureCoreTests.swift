@@ -33,6 +33,63 @@ final class CaptureCoreTests: XCTestCase {
         XCTAssertEqual(tracker.progress.revision, 6)
     }
 
+    func testStartupPreflightDeniedPersistsPermissionRequiredBeforeScheduling() throws {
+        let store = try temporaryProgressStore()
+        let coordinator = CaptureStartupCoordinator(
+            preflight: ScriptedStartupPreflight(permissionGranted: false, displayIDs: ["display-1"])
+        )
+        var tracker = CaptureProgressTracker()
+
+        XCTAssertEqual(
+            coordinator.prepare(
+                progressTracker: &tracker,
+                progressStore: store,
+                at: 100,
+                processID: 42,
+                activeIntervalSeconds: 60
+            ),
+            .permissionRequired
+        )
+
+        let persisted = try store.read()
+        XCTAssertEqual(persisted.state, .permissionRequired)
+        XCTAssertEqual(persisted.startedAtMillis, 100)
+        XCTAssertEqual(persisted.lastAttemptedAtMillis, 100)
+        XCTAssertEqual(persisted.activeIntervalSeconds, 60)
+        XCTAssertEqual(persisted.selectedDisplayIDs, [])
+    }
+
+    func testStartupPreflightSuccessPersistsWaitingStateAndDisplays() throws {
+        let store = try temporaryProgressStore()
+        let coordinator = CaptureStartupCoordinator(
+            preflight: ScriptedStartupPreflight(
+                permissionGranted: true,
+                displayIDs: [" display-2", "display-1", "display-2"]
+            )
+        )
+        var tracker = CaptureProgressTracker()
+
+        XCTAssertEqual(
+            coordinator.prepare(
+                progressTracker: &tracker,
+                progressStore: store,
+                at: 200,
+                processID: 42,
+                activeIntervalSeconds: 60
+            ),
+            .ready(selectedDisplayIDs: ["display-1", "display-2"])
+        )
+
+        let persisted = try store.read()
+        XCTAssertEqual(persisted.state, .waiting)
+        XCTAssertEqual(persisted.startedAtMillis, 200)
+        XCTAssertEqual(persisted.updatedAtMillis, 200)
+        XCTAssertEqual(persisted.processID, 42)
+        XCTAssertEqual(persisted.selectedDisplayIDs, ["display-1", "display-2"])
+        XCTAssertEqual(persisted.activeIntervalSeconds, 60)
+        XCTAssertEqual(persisted.captureCount, 0)
+    }
+
     func testCaptureProgressV1RoundTripsFieldsWithoutImages() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("qaptr-progress-\(UUID().uuidString)")
@@ -409,6 +466,13 @@ final class CaptureCoreTests: XCTestCase {
 }
 
 private extension CaptureCoreTests {
+    func temporaryProgressStore() throws -> CaptureProgressStore {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-startup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return CaptureProgressStore(url: root.appendingPathComponent("capture-progress.json"))
+    }
+
     func persistAndRead(_ progress: CaptureProgress) throws -> CaptureProgress {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("qaptr-capture-event-status-\(UUID().uuidString)")
@@ -417,6 +481,19 @@ private extension CaptureCoreTests {
         let store = CaptureProgressStore(url: url)
         try store.write(progress)
         return try store.read()
+    }
+}
+
+private struct ScriptedStartupPreflight: CaptureStartupPreflight {
+    let permissionGranted: Bool
+    let displayIDs: [String]
+
+    func screenRecordingAccessGranted() -> Bool {
+        permissionGranted
+    }
+
+    func availableDisplayIDs() throws -> [String] {
+        displayIDs
     }
 }
 
