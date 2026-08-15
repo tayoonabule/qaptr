@@ -201,6 +201,27 @@ pub enum ModelReadiness {
     },
 }
 
+/// A non-blocking notice emitted when the preferred model is unavailable.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ModelReadinessNotice {
+    /// A validated fallback was selected in the policy's declared order.
+    FallbackSelected {
+        /// The fallback model selected for the request.
+        selected: ModelId,
+    },
+}
+
+impl ModelReadinessNotice {
+    /// Returns the concise notice suitable for a status surface or log.
+    pub fn text(&self) -> String {
+        match self {
+            Self::FallbackSelected { selected } => {
+                format!("Preferred model unavailable; using fallback model {selected}.")
+            }
+        }
+    }
+}
+
 impl ModelReadiness {
     /// Returns the resolved model, if resolution reached a ready state.
     pub const fn model(&self) -> Option<&ModelId> {
@@ -218,6 +239,29 @@ impl ModelReadiness {
             self,
             Self::Ready { .. } | Self::PreferredUnavailableWithFallback { .. }
         )
+    }
+
+    /// Returns whether resolution is blocked by an error state.
+    pub const fn is_error(&self) -> bool {
+        matches!(
+            self,
+            Self::ProviderUnavailable
+                | Self::AuthenticationNeeded
+                | Self::CatalogStaleOrUnavailable
+                | Self::OverrideUnavailable { .. }
+        )
+    }
+
+    /// Returns the non-blocking notice produced by fallback selection.
+    pub fn notice(&self) -> Option<ModelReadinessNotice> {
+        match self {
+            Self::PreferredUnavailableWithFallback { selected } => {
+                Some(ModelReadinessNotice::FallbackSelected {
+                    selected: selected.clone(),
+                })
+            }
+            _ => None,
+        }
     }
 }
 
@@ -397,6 +441,16 @@ mod tests {
             }
         );
         assert!(readiness.is_ready());
+        assert_eq!(
+            readiness.notice(),
+            Some(ModelReadinessNotice::FallbackSelected {
+                selected: model("fallback-2")
+            })
+        );
+        assert_eq!(
+            readiness.notice().expect("fallback notice").text(),
+            "Preferred model unavailable; using fallback model fallback-2."
+        );
     }
 
     #[test]
@@ -434,6 +488,8 @@ mod tests {
             }
         );
         assert!(!readiness.is_ready());
+        assert!(readiness.is_error());
+        assert!(readiness.notice().is_none());
     }
 
     #[test]

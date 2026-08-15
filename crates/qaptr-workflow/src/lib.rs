@@ -21,6 +21,7 @@ pub mod consent;
 pub mod document;
 pub mod export;
 pub mod observation;
+pub mod session;
 
 pub use analyze::{
     AnalysisError, AnalysisReport, AnalysisRunner, Cancellation, CaptureDecoder,
@@ -33,3 +34,6 @@ pub use document::{
     WorkflowVariation,
 };
 pub use export::{render_automation, render_handoff, render_onboarding, render_sop};
+pub use session::{
+    ReviewProgress, ReviewSessionCoordinator, ReviewSessionError, SessionCancellation,
+};
