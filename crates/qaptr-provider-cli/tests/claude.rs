@@ -114,6 +114,25 @@ fn unauthenticated_cli_is_a_typed_not_authenticated_error() {
 }
 
 #[test]
+fn nonzero_sandboxed_auth_status_is_a_typed_not_authenticated_error() {
+    let (discovery, _executable) = executable_discovery();
+    let executor = FakeExecutor::new([
+        output("2.1.228"),
+        Err(CliRuntimeError::NonZeroExit {
+            code: Some(1),
+            stdout: br#"{"loggedIn":false}"#.to_vec(),
+            stderr: b"sandbox denied Keychain access".to_vec(),
+        }),
+    ]);
+    let adapter = ClaudeAdapter::with_executor(executor, discovery)
+        .expect("fixed Claude test configuration is valid");
+    assert!(matches!(
+        ProviderGate::new(adapter).detect_and_verify(),
+        Err(ProviderError::NotAuthenticated { .. })
+    ));
+}
+
+#[test]
 fn old_cli_is_refused_by_the_shared_gate() {
     let (adapter, _executor) = adapter_with_outputs("2.0.99", true, RESPONSE);
     assert!(matches!(
