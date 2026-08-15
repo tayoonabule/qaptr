@@ -44,6 +44,14 @@ while (($# > 0)); do
     esac
 done
 
+# Reproducibility is intentionally credential-free. When no Developer ID
+# identity is supplied, run the package itself in the same ad-hoc mode used by
+# the clean-checkout comparisons below. A real identity still exercises the
+# release signing path before the comparison.
+if [[ "$reproducibility" == true && -z "${QAPTR_SIGNING_IDENTITY:-}" ]]; then
+    dry_run=true
+fi
+
 [[ "$(uname -s)" == "Darwin" ]] || { echo "U22 packaging requires macOS" >&2; exit 1; }
 [[ "$(uname -m)" == "arm64" ]] || { echo "U22 v1 packaging requires Apple silicon (arm64)" >&2; exit 1; }
 for tool in codesign plutil otool nm file swiftc hdiutil; do
