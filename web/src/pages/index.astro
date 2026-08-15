@@ -116,7 +116,27 @@ import ArcDial from "../components/ArcDial.astro";
         <h2 id="product-bento-title">A useful record, not a replay.</h2>
         <p>Qaptr turns the shape of your work into a short, readable timeline you can check before you report, hand off, or share.</p>
       </div>
-      <p class="product-bento__intro-note">A simple timeline for the moments you usually have to reconstruct.</p>
+      <div class="product-bento__intro-visual" aria-hidden="true">
+        <div class="intro-visual__header">
+          <span>Session record</span>
+          <span>Ready to review</span>
+        </div>
+        <div class="intro-visual__row">
+          <ion-icon name="camera-outline"></ion-icon>
+          <span>Work captured</span>
+          <b>09:42</b>
+        </div>
+        <div class="intro-visual__row">
+          <ion-icon name="document-text-outline"></ion-icon>
+          <span>Context organized</span>
+          <b>10:18</b>
+        </div>
+        <div class="intro-visual__row">
+          <ion-icon name="checkmark-outline"></ion-icon>
+          <span>Ready to share</span>
+          <b>11:06</b>
+        </div>
+      </div>
     </div>
 
     <div class="product-bento__grid">
@@ -503,13 +523,53 @@ import ArcDial from "../components/ArcDial.astro";
       font-size: var(--text-body-xl);
     }
 
-    .product-bento__intro-note {
-      max-width: 24ch;
-      color: var(--color-steel);
-      font-size: var(--text-body-xl);
-      line-height: 1.35;
-      padding-top: var(--spacing-16);
+    .product-bento__intro-visual {
+      display: grid;
+      gap: var(--spacing-12);
+      align-self: stretch;
+      min-height: 10rem;
       border-top: 1px solid var(--color-ash);
+      border-bottom: 1px solid var(--color-ash);
+      padding-block: var(--spacing-12);
+    }
+
+    .intro-visual__header,
+    .intro-visual__row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--spacing-12);
+      align-items: center;
+    }
+
+    .intro-visual__header {
+      color: var(--color-steel);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
+      text-transform: uppercase;
+    }
+
+    .intro-visual__header span:last-child {
+      color: var(--color-vivid-green);
+    }
+
+    .intro-visual__row {
+      grid-template-columns: 1rem minmax(0, 1fr) auto;
+      border-top: 1px solid var(--color-paper-mist);
+      padding-top: var(--spacing-8);
+      color: var(--color-charcoal);
+    }
+
+    .intro-visual__row ion-icon {
+      color: var(--color-electric-blue);
+      font-size: 1rem;
+    }
+
+    .intro-visual__row b {
+      color: var(--color-steel);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      font-weight: 400;
     }
 
     .product-bento__grid {
@@ -903,8 +963,8 @@ import ArcDial from "../components/ArcDial.astro";
         grid-template-columns: 1fr;
       }
 
-      .product-bento__intro-note {
-        max-width: 34ch;
+      .product-bento__intro-visual {
+        min-height: 0;
       }
 
       .product-bento__intro h2 {
