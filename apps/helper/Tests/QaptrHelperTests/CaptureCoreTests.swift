@@ -8,25 +8,32 @@ final class CaptureCoreTests: XCTestCase {
         tracker.start(at: 100, processID: 42)
         XCTAssertEqual(tracker.progress.state, .waiting)
         XCTAssertEqual(tracker.progress.captureCount, 0)
+        XCTAssertEqual(tracker.progress.version, CaptureProgress.schemaVersion)
+        XCTAssertEqual(tracker.progress.revision, 1)
 
         tracker.beginCapture(at: 200)
         XCTAssertEqual(tracker.progress.state, .capturing)
+        XCTAssertEqual(tracker.progress.revision, 2)
+        XCTAssertEqual(tracker.progress.lastAttemptedAtMillis, 200)
         tracker.finishCapture(at: 300, successfulCaptures: 2)
         XCTAssertEqual(tracker.progress.state, .waiting)
         XCTAssertEqual(tracker.progress.captureCount, 2)
         XCTAssertEqual(tracker.progress.lastCaptureAtMillis, 300)
+        XCTAssertEqual(tracker.progress.revision, 3)
 
         tracker.start(at: 400, processID: 42)
         XCTAssertEqual(tracker.progress.state, .waiting)
         XCTAssertEqual(tracker.progress.captureCount, 2)
+        XCTAssertEqual(tracker.progress.revision, 4)
 
         tracker.beginCapture(at: 500)
         tracker.finishCapture(at: 600, successfulCaptures: 0)
         XCTAssertEqual(tracker.progress.captureCount, 2)
         XCTAssertEqual(tracker.progress.lastCaptureAtMillis, 300)
+        XCTAssertEqual(tracker.progress.revision, 6)
     }
 
-    func testCaptureProgressStoreRoundTripsOnlyScalarStatus() throws {
+    func testCaptureProgressV1RoundTripsFieldsWithoutImages() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("qaptr-progress-\(UUID().uuidString)")
             .appendingPathComponent("capture-progress.json")
@@ -37,12 +44,62 @@ final class CaptureCoreTests: XCTestCase {
             lastCaptureAtMillis: 900,
             startedAtMillis: 100,
             updatedAtMillis: 900,
-            processID: 42
+            processID: 42,
+            revision: 7,
+            lastAttemptedAtMillis: 850,
+            selectedDisplayIDs: ["display-2", "display-1", "display-2"],
+            activeIntervalSeconds: 60,
+            failureReason: "  intermittent\npermission  "
         )
 
         try store.write(progress)
         XCTAssertEqual(try store.read(), progress)
-        XCTAssertFalse(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("image"))
+        let json = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        XCTAssertTrue(json.contains("\"version\":1"))
+        XCTAssertTrue(json.contains("\"revision\":7"))
+        XCTAssertTrue(json.contains("\"last_attempted_at_ms\":850"))
+        XCTAssertTrue(json.contains("\"selected_display_ids\":[\"display-1\",\"display-2\"]"))
+        XCTAssertTrue(json.contains("\"active_interval_seconds\":60"))
+        XCTAssertTrue(json.contains("\"failure_reason\":\"intermittent permission\""))
+        XCTAssertFalse(json.contains("image"))
+        XCTAssertFalse(json.contains("image_data"))
+    }
+
+    func testCaptureProgressDecodesLegacyStatusAsV1Defaults() throws {
+        let json = """
+        {"state":"waiting","capture_count":2,"last_capture_at_ms":300,"started_at_ms":100,"updated_at_ms":300,"process_id":42}
+        """
+
+        let progress = try JSONDecoder().decode(CaptureProgress.self, from: Data(json.utf8))
+        XCTAssertEqual(progress.version, CaptureProgress.schemaVersion)
+        XCTAssertEqual(progress.revision, 0)
+        XCTAssertNil(progress.lastAttemptedAtMillis)
+        XCTAssertEqual(progress.selectedDisplayIDs, [])
+        XCTAssertNil(progress.activeIntervalSeconds)
+        XCTAssertNil(progress.failureReason)
+    }
+
+    func testTrackerTransitionsCarryV1FieldsAndConciseFailureReason() {
+        var tracker = CaptureProgressTracker()
+        tracker.start(
+            at: 100,
+            processID: 42,
+            selectedDisplayIDs: [" display-2", "display-1", "display-2"],
+            activeIntervalSeconds: 60
+        )
+        tracker.beginCapture(at: 200)
+
+        XCTAssertEqual(tracker.progress.selectedDisplayIDs, ["display-1", "display-2"])
+        XCTAssertEqual(tracker.progress.activeIntervalSeconds, 60)
+        XCTAssertEqual(tracker.progress.lastAttemptedAtMillis, 200)
+
+        let longReason = "first line\nsecond line " + String(repeating: "x", count: 300)
+        tracker.markError(at: 300, failureReason: longReason)
+
+        XCTAssertEqual(tracker.progress.revision, 3)
+        XCTAssertEqual(tracker.progress.state, .error)
+        XCTAssertEqual(tracker.progress.failureReason?.prefix(22), "first line second line")
+        XCTAssertEqual(tracker.progress.failureReason?.count, 256)
     }
 
     func testMissedTicksDoNotCatchUp() throws {

@@ -302,12 +302,20 @@ public struct CaptureControlStore: Sendable {
 /// review app can therefore distinguish real capture progress from an empty
 /// analysis result without seeing image contents.
 public struct CaptureProgress: Codable, Equatable, Sendable {
+    public static let schemaVersion = 1
+
+    public let version: Int
+    public let revision: Int64
     public let state: CaptureProgressState
     public let captureCount: Int
     public let lastCaptureAtMillis: Int64?
+    public let lastAttemptedAtMillis: Int64?
     public let startedAtMillis: Int64?
     public let updatedAtMillis: Int64
     public let processID: Int64?
+    public let selectedDisplayIDs: [String]
+    public let activeIntervalSeconds: Int?
+    public let failureReason: String?
 
     public init(
         state: CaptureProgressState,
@@ -315,23 +323,94 @@ public struct CaptureProgress: Codable, Equatable, Sendable {
         lastCaptureAtMillis: Int64? = nil,
         startedAtMillis: Int64? = nil,
         updatedAtMillis: Int64 = 0,
-        processID: Int64? = nil
+        processID: Int64? = nil,
+        version: Int = CaptureProgress.schemaVersion,
+        revision: Int64 = 0,
+        lastAttemptedAtMillis: Int64? = nil,
+        selectedDisplayIDs: [String] = [],
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
     ) {
+        self.version = max(Self.schemaVersion, version)
+        self.revision = max(0, revision)
         self.state = state
         self.captureCount = max(0, captureCount)
         self.lastCaptureAtMillis = lastCaptureAtMillis
+        self.lastAttemptedAtMillis = lastAttemptedAtMillis
         self.startedAtMillis = startedAtMillis
         self.updatedAtMillis = updatedAtMillis
         self.processID = processID
+        self.selectedDisplayIDs = Self.normalizedDisplayIDs(selectedDisplayIDs)
+        self.activeIntervalSeconds = activeIntervalSeconds
+        self.failureReason = Self.conciseFailureReason(failureReason)
     }
 
     private enum CodingKeys: String, CodingKey {
+        case version
+        case revision
         case state
         case captureCount = "capture_count"
         case lastCaptureAtMillis = "last_capture_at_ms"
+        case lastAttemptedAtMillis = "last_attempted_at_ms"
         case startedAtMillis = "started_at_ms"
         case updatedAtMillis = "updated_at_ms"
         case processID = "process_id"
+        case selectedDisplayIDs = "selected_display_ids"
+        case activeIntervalSeconds = "active_interval_seconds"
+        case failureReason = "failure_reason"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            state: try container.decode(CaptureProgressState.self, forKey: .state),
+            captureCount: try container.decodeIfPresent(Int.self, forKey: .captureCount) ?? 0,
+            lastCaptureAtMillis: try container.decodeIfPresent(Int64.self, forKey: .lastCaptureAtMillis),
+            startedAtMillis: try container.decodeIfPresent(Int64.self, forKey: .startedAtMillis),
+            updatedAtMillis: try container.decodeIfPresent(Int64.self, forKey: .updatedAtMillis) ?? 0,
+            processID: try container.decodeIfPresent(Int64.self, forKey: .processID),
+            version: try container.decodeIfPresent(Int.self, forKey: .version) ?? Self.schemaVersion,
+            revision: try container.decodeIfPresent(Int64.self, forKey: .revision) ?? 0,
+            lastAttemptedAtMillis: try container.decodeIfPresent(Int64.self, forKey: .lastAttemptedAtMillis),
+            selectedDisplayIDs: try container.decodeIfPresent([String].self, forKey: .selectedDisplayIDs) ?? [],
+            activeIntervalSeconds: try container.decodeIfPresent(Int.self, forKey: .activeIntervalSeconds),
+            failureReason: try container.decodeIfPresent(String.self, forKey: .failureReason)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(revision, forKey: .revision)
+        try container.encode(state, forKey: .state)
+        try container.encode(captureCount, forKey: .captureCount)
+        try container.encodeIfPresent(lastCaptureAtMillis, forKey: .lastCaptureAtMillis)
+        try container.encodeIfPresent(lastAttemptedAtMillis, forKey: .lastAttemptedAtMillis)
+        try container.encodeIfPresent(startedAtMillis, forKey: .startedAtMillis)
+        try container.encode(updatedAtMillis, forKey: .updatedAtMillis)
+        try container.encodeIfPresent(processID, forKey: .processID)
+        try container.encode(selectedDisplayIDs, forKey: .selectedDisplayIDs)
+        try container.encodeIfPresent(activeIntervalSeconds, forKey: .activeIntervalSeconds)
+        try container.encodeIfPresent(failureReason, forKey: .failureReason)
+    }
+
+    private static func normalizedDisplayIDs(_ displayIDs: [String]) -> [String] {
+        Array(
+            Set(
+                displayIDs
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        ).sorted()
+    }
+
+    private static func conciseFailureReason(_ reason: String?) -> String? {
+        guard let reason else { return nil }
+        let singleLine = reason
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        guard !singleLine.isEmpty else { return nil }
+        return String(singleLine.prefix(256))
     }
 
     public static let initial = CaptureProgress(state: .stopped)
@@ -345,58 +424,152 @@ public struct CaptureProgressTracker: Sendable {
         self.progress = initial
     }
 
-    public mutating func start(at timestamp: Int64, processID: Int64) {
+    public mutating func start(
+        at timestamp: Int64,
+        processID: Int64,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil
+    ) {
         progress = CaptureProgress(
             state: .waiting,
             captureCount: progress.captureCount,
             lastCaptureAtMillis: progress.lastCaptureAtMillis,
             startedAtMillis: timestamp,
             updatedAtMillis: timestamp,
-            processID: processID
+            processID: processID,
+            version: progress.version,
+            revision: nextRevision(),
+            lastAttemptedAtMillis: progress.lastAttemptedAtMillis,
+            selectedDisplayIDs: selectedDisplayIDs ?? progress.selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds ?? progress.activeIntervalSeconds
         )
     }
 
-    public mutating func beginCapture(at timestamp: Int64) {
-        progress = replacing(state: .capturing, updatedAtMillis: timestamp)
+    public mutating func beginCapture(
+        at timestamp: Int64,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil
+    ) {
+        progress = replacing(
+            state: .capturing,
+            updatedAtMillis: timestamp,
+            lastAttemptedAtMillis: timestamp,
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds,
+            failureReason: nil
+        )
     }
 
-    public mutating func finishCapture(at timestamp: Int64, successfulCaptures: Int) {
+    public mutating func finishCapture(
+        at timestamp: Int64,
+        successfulCaptures: Int,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
+    ) {
         let count = max(0, successfulCaptures)
-        progress = CaptureProgress(
+        progress = replacing(
             state: .waiting,
+            updatedAtMillis: timestamp,
             captureCount: progress.captureCount + count,
             lastCaptureAtMillis: count > 0 ? timestamp : progress.lastCaptureAtMillis,
-            startedAtMillis: progress.startedAtMillis,
-            updatedAtMillis: timestamp,
-            processID: progress.processID
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds,
+            failureReason: failureReason
         )
     }
 
-    public mutating func markPermissionRequired(at timestamp: Int64) {
-        progress = replacing(state: .permissionRequired, updatedAtMillis: timestamp)
+    public mutating func markPermissionRequired(
+        at timestamp: Int64,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
+    ) {
+        progress = replacing(
+            state: .permissionRequired,
+            updatedAtMillis: timestamp,
+            lastAttemptedAtMillis: timestamp,
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds,
+            failureReason: failureReason
+        )
     }
 
-    public mutating func markNoDisplays(at timestamp: Int64) {
-        progress = replacing(state: .noDisplays, updatedAtMillis: timestamp)
+    public mutating func markNoDisplays(
+        at timestamp: Int64,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
+    ) {
+        progress = replacing(
+            state: .noDisplays,
+            updatedAtMillis: timestamp,
+            lastAttemptedAtMillis: timestamp,
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds,
+            failureReason: failureReason
+        )
     }
 
-    public mutating func markError(at timestamp: Int64) {
-        progress = replacing(state: .error, updatedAtMillis: timestamp)
+    public mutating func markError(
+        at timestamp: Int64,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
+    ) {
+        progress = replacing(
+            state: .error,
+            updatedAtMillis: timestamp,
+            lastAttemptedAtMillis: timestamp,
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds,
+            failureReason: failureReason
+        )
     }
 
-    public mutating func stop(at timestamp: Int64) {
-        progress = replacing(state: .stopped, updatedAtMillis: timestamp)
+    public mutating func stop(
+        at timestamp: Int64,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
+    ) {
+        progress = replacing(
+            state: .stopped,
+            updatedAtMillis: timestamp,
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds,
+            failureReason: failureReason
+        )
     }
 
-    private func replacing(state: CaptureProgressState, updatedAtMillis: Int64) -> CaptureProgress {
+    private func replacing(
+        state: CaptureProgressState,
+        updatedAtMillis: Int64,
+        captureCount: Int? = nil,
+        lastCaptureAtMillis: Int64? = nil,
+        lastAttemptedAtMillis: Int64? = nil,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
+    ) -> CaptureProgress {
         CaptureProgress(
             state: state,
-            captureCount: progress.captureCount,
-            lastCaptureAtMillis: progress.lastCaptureAtMillis,
+            captureCount: captureCount ?? progress.captureCount,
+            lastCaptureAtMillis: lastCaptureAtMillis ?? progress.lastCaptureAtMillis,
             startedAtMillis: progress.startedAtMillis,
             updatedAtMillis: updatedAtMillis,
-            processID: progress.processID
+            processID: progress.processID,
+            version: max(CaptureProgress.schemaVersion, progress.version),
+            revision: nextRevision(),
+            lastAttemptedAtMillis: lastAttemptedAtMillis ?? progress.lastAttemptedAtMillis,
+            selectedDisplayIDs: selectedDisplayIDs ?? progress.selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds ?? progress.activeIntervalSeconds,
+            failureReason: failureReason
         )
+    }
+
+    private func nextRevision() -> Int64 {
+        progress.revision == Int64.max ? Int64.max : progress.revision + 1
     }
 }
 
