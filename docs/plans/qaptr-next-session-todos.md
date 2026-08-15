@@ -37,7 +37,7 @@
 ### 1.1 Define and persist production-safe status
 - [x] Specify a shared, versioned scalar capture-status schema that contains: last attempted capture, last successful capture, successful capture count, selected display IDs, active interval, state, and concise failure reason.
 - [x] Ensure the schema has no image bytes, image-derived thumbnails, raw window text, secrets, or provider content.
-- [ ] Make the helper update state before an attempt, after a sealed bundle, and for every fail-closed terminal/temporary outcome.
+- [x] Make the helper update state before an attempt, after a sealed bundle, and for every fail-closed terminal/temporary outcome. `HelperApplication.runTick` atomically persists `capturing` before display enumeration/capture, then persists sealed-count or concise capture/sealing failure, permission-required, no-display, and enumeration-error transitions; `CaptureCoreTests` covers the event-to-status mappings and the packaged helper build passed in the release dry run.
 - [x] Atomically write status and tolerate absent/corrupt previous status by surfacing unavailable rather than inventing success.
 - [x] Add a monotonic status revision/timestamp so the review app can recognize a fresh helper update after relaunch.
 
