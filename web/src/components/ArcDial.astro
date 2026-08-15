@@ -41,19 +41,19 @@
 
   .arc-dial__needle {
     transform-origin: 200px 200px;
-    transform: rotate(-80deg);
+    transform: rotate(var(--dial-angle, -80deg));
   }
 
   .js-motion [data-arc-dial] .arc-dial__needle {
-    transition: transform var(--dur-sweep) var(--ease-out);
+    transition: transform 120ms linear;
   }
 
   .js-motion [data-arc-dial]:not(.is-visible) .arc-dial__needle {
-    transform: rotate(-80deg);
+    transform: rotate(var(--dial-angle, -80deg));
   }
 
   .js-motion [data-arc-dial].is-visible .arc-dial__needle {
-    transform: rotate(80deg);
+    transform: rotate(var(--dial-angle, 80deg));
   }
 
   /* No JS / motion disabled: render directly at the configured-interval end state. */

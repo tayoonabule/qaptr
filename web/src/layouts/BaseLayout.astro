@@ -77,6 +77,26 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
         document.querySelectorAll(".reveal").forEach((el) => el.classList.add("is-visible"));
       }
 
+      const dialSection = document.querySelector(".dial-section");
+      const dial = document.querySelector("[data-arc-dial]");
+      if (!prefersReduced && dialSection instanceof HTMLElement && dial instanceof HTMLElement) {
+        let frame = 0;
+        const updateDial = () => {
+          frame = 0;
+          const bounds = dialSection.getBoundingClientRect();
+          const travel = Math.max(bounds.height + window.innerHeight * 0.4, 1);
+          const progress = Math.min(1, Math.max(0, (window.innerHeight * 0.72 - bounds.top) / travel));
+          const angle = -80 + progress * 160;
+          dial.style.setProperty("--dial-angle", `${angle}deg`);
+        };
+        const requestDialUpdate = () => {
+          if (!frame) frame = window.requestAnimationFrame(updateDial);
+        };
+        window.addEventListener("scroll", requestDialUpdate, { passive: true });
+        window.addEventListener("resize", requestDialUpdate);
+        updateDial();
+      }
+
       document.querySelectorAll("form[data-waitlist-form]").forEach((form) => {
         form.addEventListener("submit", () => {
           const submit = form.querySelector("button[type='submit']");

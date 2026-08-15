@@ -13,7 +13,7 @@ import ArcDial from "../components/ArcDial.astro";
         A quiet macOS companion that captures what you did, so the record exists before you need it.
       </p>
 
-      <ul class="feature-pills reveal" aria-label="Qaptr product principles">
+      <ul class="feature-pills reveal" tabindex="0" aria-label="Qaptr product principles">
         <li class="feature-pill feature-pill--orange">
           <span class="feature-pill__dot" aria-hidden="true"></span>
           Private by default
@@ -115,9 +115,18 @@ import ArcDial from "../components/ArcDial.astro";
 
   <section class="product-bento wrap reveal" aria-labelledby="product-bento-title">
     <div class="product-bento__intro">
-      <p class="meta">A quieter kind of history</p>
-      <h2 id="product-bento-title">The useful parts of your day, already in view.</h2>
-      <p>Qaptr turns background activity into small, legible moments you can trust before sharing.</p>
+      <div class="product-bento__intro-copy">
+        <p class="meta">A quieter kind of history</p>
+        <h2 id="product-bento-title">The useful parts of your day, already in view.</h2>
+        <p>Qaptr turns background activity into small, legible moments you can trust before sharing.</p>
+      </div>
+      <div class="product-bento__intro-signal" aria-hidden="true">
+        <span class="signal-dot signal-dot--blue"></span>
+        <span class="signal-dot signal-dot--green"></span>
+        <span class="signal-dot signal-dot--violet"></span>
+        <span class="signal-line"></span>
+        <span class="signal-caption">quietly becoming useful</span>
+      </div>
     </div>
 
     <div class="product-bento__grid">
@@ -222,11 +231,18 @@ import ArcDial from "../components/ArcDial.astro";
 
     .feature-pills {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: var(--spacing-8);
       margin: var(--spacing-28) 0 0;
+      overflow-x: auto;
       padding: 0;
+      padding-bottom: var(--spacing-4);
       list-style: none;
+      scrollbar-width: none;
+    }
+
+    .feature-pills::-webkit-scrollbar {
+      display: none;
     }
 
     .feature-pill {
@@ -234,13 +250,14 @@ import ArcDial from "../components/ArcDial.astro";
       align-items: center;
       gap: var(--spacing-8);
       min-height: 2.25rem;
-      border: 1px solid var(--color-ash);
+      border: 1px solid transparent;
       border-radius: var(--radius-tag);
       background: var(--color-canvas-white);
       padding: var(--spacing-8) var(--spacing-12);
       color: var(--color-charcoal);
       font-size: var(--text-body);
       font-weight: 500;
+      white-space: nowrap;
       transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), transform 160ms var(--ease-out);
     }
 
@@ -273,10 +290,10 @@ import ArcDial from "../components/ArcDial.astro";
     .workspace-preview {
       width: 100%;
       overflow: hidden;
-      border: 1px solid var(--color-ash);
+      border: 1px solid transparent;
       border-radius: var(--radius-large-card);
       background: var(--color-canvas-white);
-      box-shadow: var(--shadow-mockup);
+      box-shadow: 0 1rem 3rem var(--color-paper-mist);
     }
 
     .workspace-preview__appbar {
@@ -495,6 +512,15 @@ import ArcDial from "../components/ArcDial.astro";
       gap: var(--spacing-24);
       align-items: end;
       max-width: 70rem;
+      border: 1px solid transparent;
+      border-radius: var(--radius-large-card);
+      background: linear-gradient(135deg, var(--color-paper-mist), var(--color-canvas-white));
+      padding: clamp(var(--spacing-20), 4vw, var(--spacing-40));
+      box-shadow: var(--shadow-subtle);
+    }
+
+    .product-bento__intro-copy {
+      min-width: 0;
     }
 
     .product-bento__intro h2 {
@@ -511,6 +537,52 @@ import ArcDial from "../components/ArcDial.astro";
       font-size: var(--text-body-xl);
     }
 
+    .product-bento__intro-copy > p:last-child {
+      max-width: 34ch;
+      margin-top: var(--spacing-16);
+      color: var(--color-steel);
+      font-size: var(--text-body-xl);
+    }
+
+    .product-bento__intro-signal {
+      display: grid;
+      grid-template-columns: repeat(3, 10px) minmax(3rem, 1fr);
+      gap: var(--spacing-8);
+      align-items: center;
+      min-height: 8rem;
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-card);
+      background: var(--color-canvas-white);
+      padding: var(--spacing-16);
+      transform: rotate(2deg);
+    }
+
+    .signal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 4px var(--color-paper-mist);
+    }
+
+    .signal-dot--blue { background: var(--color-electric-blue); }
+    .signal-dot--green { background: var(--color-vivid-green); }
+    .signal-dot--violet { background: var(--color-lavender); }
+
+    .signal-line {
+      display: block;
+      height: 1px;
+      background: linear-gradient(90deg, var(--color-electric-blue), var(--color-vivid-green), var(--color-lavender));
+    }
+
+    .signal-caption {
+      grid-column: 1 / -1;
+      color: var(--color-steel);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
+      text-transform: uppercase;
+    }
+
     .product-bento__grid {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -524,7 +596,7 @@ import ArcDial from "../components/ArcDial.astro";
       justify-content: space-between;
       gap: var(--spacing-32);
       overflow: hidden;
-      border: 1px solid var(--color-ash);
+      border: 1px solid transparent;
       border-radius: var(--radius-large-card);
       background: var(--color-canvas-white);
       padding: clamp(var(--spacing-20), 3vw, var(--spacing-32));
@@ -577,7 +649,7 @@ import ArcDial from "../components/ArcDial.astro";
     .mini-timeline,
     .mini-document {
       position: relative;
-      border: 1px solid var(--color-ash);
+      border: 1px solid transparent;
       border-radius: var(--radius-card);
       background: var(--color-canvas-white);
       box-shadow: var(--shadow-subtle);
@@ -804,6 +876,10 @@ import ArcDial from "../components/ArcDial.astro";
 
       .product-bento__intro {
         display: block;
+      }
+
+      .product-bento__intro-signal {
+        margin-top: var(--spacing-24);
       }
 
       .product-bento__intro h2 {
