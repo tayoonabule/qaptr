@@ -4,7 +4,10 @@
 //! credential environment variable. Codex authentication remains entirely
 //! inside the installed Codex CLI.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, CapabilityDescriptor, ProviderAdapter,
@@ -12,6 +15,7 @@ use qaptr_provider::{
     ProviderLocation, ProviderRequestError, ProviderVersion, RawProviderResponse,
     RuntimeFailureKind,
 };
+use serde_json::Value;
 
 use super::response::parse_response;
 use super::{
@@ -22,6 +26,8 @@ use crate::VersionProbe;
 
 const CODEX_COMMAND: &str = "codex";
 const CODEX_MINIMUM_VERSION: ProviderVersion = ProviderVersion::new(0, 147, 0);
+const CODEX_AUTH_FILE: &str = ".codex/auth.json";
+const CODEX_AUTH_FILE_MAX_BYTES: u64 = 64 * 1024;
 
 /// A Codex CLI adapter that uses only the CLI's existing local login.
 pub struct CodexAdapter {
@@ -89,6 +95,10 @@ impl CodexAdapter {
     fn authenticated(output: &[u8]) -> bool {
         let output = String::from_utf8_lossy(output).to_ascii_lowercase();
         !output.contains("not logged in")
+            && !output.contains("api key")
+            && !output.contains("api-key")
+            && !output.contains("apikey")
+            && !output.contains("openai_api_key")
             && (output.contains("logged in")
                 || output.contains("authenticated")
                 || output.contains("chatgpt"))
@@ -107,9 +117,7 @@ impl CodexAdapter {
             && self
                 .home
                 .as_ref()
-                .map(|home| home.join(".codex/auth.json"))
-                .and_then(|path| std::fs::metadata(path).ok())
-                .is_some_and(|metadata| metadata.is_file() && metadata.len() > 0)
+                .is_some_and(|home| auth_state_metadata_is_usable(&home.join(CODEX_AUTH_FILE)))
     }
 
     fn executable_from(
@@ -130,6 +138,52 @@ impl CodexAdapter {
             }),
         }
     }
+}
+
+/// Accepts only the local ChatGPT OAuth shape, never API-key metadata.
+///
+/// The file is used only as a bounded authentication hint when the sandboxed
+/// status probe cannot report a result. Token values are not returned, logged,
+/// or forwarded to the provider.
+fn auth_state_metadata_is_usable(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > CODEX_AUTH_FILE_MAX_BYTES {
+        return false;
+    }
+
+    let Ok(contents) = std::fs::read(path) else {
+        return false;
+    };
+    let Ok(Value::Object(object)) = serde_json::from_slice(&contents) else {
+        return false;
+    };
+
+    if object.get("auth_mode").and_then(Value::as_str) != Some("chatgpt") {
+        return false;
+    }
+
+    // A non-null OPENAI_API_KEY means this is API-key authentication, even if
+    // an attacker also adds an OAuth-looking auth_mode or tokens object.
+    if object
+        .get("OPENAI_API_KEY")
+        .is_some_and(|value| !value.is_null())
+    {
+        return false;
+    }
+
+    let Some(Value::Object(tokens)) = object.get("tokens") else {
+        return false;
+    };
+    ["access_token", "refresh_token", "id_token"]
+        .into_iter()
+        .all(|name| {
+            tokens
+                .get(name)
+                .and_then(Value::as_str)
+                .is_some_and(|value| !value.is_empty())
+        })
 }
 
 impl ProviderAdapter for CodexAdapter {
@@ -201,5 +255,89 @@ impl ProviderAdapter for CodexAdapter {
                 .stdin(prompt.into_bytes()),
         )?;
         parse_response(self.descriptor.id(), output.stdout())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        fs,
+        path::PathBuf,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    use super::{AuthenticationStatus, auth_state_metadata_is_usable};
+
+    static NEXT_AUTH_FILE: AtomicUsize = AtomicUsize::new(0);
+
+    fn auth_file(contents: &str) -> PathBuf {
+        let suffix = NEXT_AUTH_FILE.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "qaptr-codex-auth-{}-{suffix}.json",
+            std::process::id()
+        ));
+        fs::write(&path, contents).expect("test auth metadata can be written");
+        path
+    }
+
+    fn oauth_auth_file(extra: &str) -> PathBuf {
+        auth_file(&format!(
+            r#"{{
+                "auth_mode": "chatgpt",
+                "tokens": {{
+                    "access_token": "oauth-access",
+                    "refresh_token": "oauth-refresh",
+                    "id_token": "oauth-id"
+                }}{extra}
+            }}"#
+        ))
+    }
+
+    #[test]
+    fn auth_mode_apikey_is_not_authenticated() {
+        let path = auth_file(
+            r#"{
+                "auth_mode": "apikey",
+                "OPENAI_API_KEY": "test-api-key"
+            }"#,
+        );
+
+        assert!(!auth_state_metadata_is_usable(&path));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn openai_api_key_metadata_is_not_authenticated() {
+        let path = oauth_auth_file(
+            r#",
+                "OPENAI_API_KEY": "test-api-key""#,
+        );
+
+        assert!(!auth_state_metadata_is_usable(&path));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn fake_chatgpt_auth_file_without_oauth_tokens_is_not_authenticated() {
+        let path = auth_file(r#"{"auth_mode":"chatgpt"}"#);
+
+        assert!(!auth_state_metadata_is_usable(&path));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn chatgpt_oauth_auth_file_is_authenticated() {
+        let path = oauth_auth_file("");
+
+        assert!(auth_state_metadata_is_usable(&path));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn api_key_status_text_is_not_authenticated() {
+        assert_eq!(
+            super::CodexAdapter::authentication_status(b"Logged in using API key"),
+            AuthenticationStatus::NotAuthenticated
+        );
     }
 }
