@@ -7,13 +7,13 @@
 //! truthful unavailable result and never reaches consent or provider dispatch.
 
 use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::Barrier;
 use std::sync::{
     Arc, Condvar, Mutex,
     atomic::{AtomicBool, Ordering},
     mpsc::{self, Receiver, Sender},
 };
-#[cfg(test)]
-use std::sync::Barrier;
 use std::thread;
 use std::time::Duration;
 
@@ -29,8 +29,7 @@ use qaptr_store::{CaptureRecord, Store, UnixMillis};
 use qaptr_vault::Vault;
 use qaptr_workflow::{
     AnalysisReport, AnalysisRunner, CaptureRecordInput, ConsentDecision, ConsentPort,
-    ConsentRequest, ProviderOutcome, ReviewProgress, ReviewSessionCoordinator,
-    SessionCancellation,
+    ConsentRequest, ProviderOutcome, ReviewProgress, ReviewSessionCoordinator, SessionCancellation,
 };
 use serde_json::{Map, Value, json};
 
@@ -705,7 +704,10 @@ impl ReviewSessionDriver {
             .cached_request
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        if cached.as_ref().is_some_and(|request| request.input == input) {
+        if cached
+            .as_ref()
+            .is_some_and(|request| request.input == input)
+        {
             *cached = None;
         }
     }
@@ -865,7 +867,11 @@ fn worker_loop(
                 shared.set_active_cancellation(Some(cancellation.clone()));
                 let captures = match last_captures.clone() {
                     Some(captures) => captures,
-                    None => match committed_captures(&resources.vault, &cancellation, listing_hook.as_ref()) {
+                    None => match committed_captures(
+                        &resources.vault,
+                        &cancellation,
+                        listing_hook.as_ref(),
+                    ) {
                         Ok(captures) => captures,
                         Err(()) => {
                             shared.set_active_cancellation(None);
@@ -930,9 +936,7 @@ fn committed_captures(
     cancellation: &SessionCancellation,
     listing_hook: Option<&ListingHook>,
 ) -> Result<Vec<CaptureRecordInput>, ()> {
-    let metadata = vault
-        .list_committed_bundles()
-        .map_err(|_| ())?;
+    let metadata = vault.list_committed_bundles().map_err(|_| ())?;
     if let Some(listing_hook) = listing_hook {
         listing_hook(cancellation);
     }
@@ -949,7 +953,6 @@ fn committed_captures(
         })
         .collect()
 }
-
 
 #[derive(Debug, Eq, PartialEq)]
 enum Operation {
@@ -1023,8 +1026,8 @@ fn bounded_string(object: &Map<String, Value>, key: &'static str) -> Result<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Barrier};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier};
     use std::time::{Duration, UNIX_EPOCH};
 
     use qaptr_policy::ModelId;
@@ -1032,9 +1035,8 @@ mod tests {
 
     fn seed_committed_bundle(vault_root: &std::path::Path) {
         let vault = Vault::new(vault_root).expect("vault");
-        let keypair = GenerationKeypair::generate(
-            GenerationId::new("generation-1").expect("generation id"),
-        );
+        let keypair =
+            GenerationKeypair::generate(GenerationId::new("generation-1").expect("generation id"));
         vault
             .seal(
                 &BundleInput::new(
@@ -1122,7 +1124,10 @@ mod tests {
         });
         let worker = thread::spawn(move || ConsentPort::request(&broker, &request()));
         assert!(decider.join().expect("consent decider"));
-        assert_eq!(worker.join().expect("consent worker"), ConsentDecision::Granted);
+        assert_eq!(
+            worker.join().expect("consent worker"),
+            ConsentDecision::Granted
+        );
     }
 
     #[test]
@@ -1228,9 +1233,11 @@ mod tests {
         let root = tempfile::tempdir().expect("temp root");
         let vault = Vault::new(root.path()).expect("vault");
         let cancellation = SessionCancellation::new();
-        assert!(committed_captures(&vault, &cancellation, None)
-            .expect("list")
-            .is_empty());
+        assert!(
+            committed_captures(&vault, &cancellation, None)
+                .expect("list")
+                .is_empty()
+        );
         let _ =
             UnixMillis::from_system_time(UNIX_EPOCH + Duration::from_secs(1)).expect("timestamp");
     }
@@ -1342,9 +1349,8 @@ mod tests {
             entered.clone(),
             release,
         );
-        let started = driver.request(
-            br#"{"version":1,"operation":"start","session_id":"listing-cancel"}"#,
-        );
+        let started =
+            driver.request(br#"{"version":1,"operation":"start","session_id":"listing-cancel"}"#);
         assert_eq!(started["ok"], true);
         entered.wait();
         let cancelled = driver.request(br#"{"version":1,"operation":"cancel"}"#);
@@ -1369,9 +1375,7 @@ mod tests {
                 release,
             );
             assert_eq!(
-                driver.request(
-                    br#"{"version":1,"operation":"start","session_id":"destroy"}"#,
-                )["ok"],
+                driver.request(br#"{"version":1,"operation":"start","session_id":"destroy"}"#,)["ok"],
                 true
             );
             entered.wait();
