@@ -46,6 +46,34 @@ private typealias PermissionRequestFunction = @convention(c) (
 private typealias LoginItemStatusFunction = @convention(c) () -> Int32
 private typealias LoginItemSetEnabledFunction = @convention(c) (Int32) -> Int32
 
+enum ReviewFFILibraryPath {
+    static let fileName = "libqaptr_review_ffi.dylib"
+
+    static func candidates(environment: [String: String], bundle: Bundle) -> [String] {
+        var paths: [String] = []
+        if let path = environment["QAPTR_REVIEW_FFI_LIBRARY_PATH"], !path.isEmpty {
+            paths.append(path)
+        }
+        if let directory = environment["QAPTR_REVIEW_FFI_LIBRARY_DIR"], !directory.isEmpty {
+            paths.append(URL(fileURLWithPath: directory, isDirectory: true)
+                .appendingPathComponent(fileName).path)
+        }
+        if let privateFrameworksPath = bundle.privateFrameworksPath {
+            paths.append(URL(fileURLWithPath: privateFrameworksPath, isDirectory: true)
+                .appendingPathComponent(fileName).path)
+        }
+        if let executableDirectory = bundle.executableURL?.deletingLastPathComponent() {
+            paths.append(executableDirectory.appendingPathComponent(fileName).path)
+        }
+        paths.append(fileName)
+        return paths.reduce(into: []) { uniquePaths, path in
+            if !uniquePaths.contains(path) {
+                uniquePaths.append(path)
+            }
+        }
+    }
+}
+
 /// A loaded handle onto the native review-ffi library's exported symbols.
 private final class ReviewFFILibrary: @unchecked Sendable {
     let handle: UnsafeMutableRawPointer
@@ -59,12 +87,18 @@ private final class ReviewFFILibrary: @unchecked Sendable {
     let loginItemSetEnabled: LoginItemSetEnabledFunction
 
     init() throws {
-        let path = ProcessInfo.processInfo.environment["QAPTR_REVIEW_FFI_LIBRARY_PATH"]
-            ?? Bundle.main.privateFrameworksPath.map { "\($0)/libqaptr_review_ffi.dylib" }
-            ?? "libqaptr_review_ffi.dylib"
-        guard let handle = dlopen(path, RTLD_NOW | RTLD_LOCAL) else {
-            throw ReviewBridgeError.libraryUnavailable
+        let candidates = ReviewFFILibraryPath.candidates(
+            environment: ProcessInfo.processInfo.environment,
+            bundle: .main
+        )
+        var handle: UnsafeMutableRawPointer?
+        for path in candidates {
+            if let loaded = dlopen(path, RTLD_NOW | RTLD_LOCAL) {
+                handle = loaded
+                break
+            }
         }
+        guard let handle else { throw ReviewBridgeError.libraryUnavailable }
         self.handle = handle
         do {
             self.storeOpen = try Self.load("qaptr_store_open", from: handle)

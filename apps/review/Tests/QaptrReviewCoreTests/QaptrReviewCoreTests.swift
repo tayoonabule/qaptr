@@ -183,6 +183,22 @@ final class PermissionStatusTests: XCTestCase {
     }
 }
 
+final class ReviewFFILibraryPathTests: XCTestCase {
+    func testPrefersExplicitDevelopmentPathAndKeepsAdjacentExecutableFallback() {
+        let candidates = ReviewFFILibraryPath.candidates(
+            environment: [
+                "QAPTR_REVIEW_FFI_LIBRARY_PATH": "/tmp/explicit/libqaptr_review_ffi.dylib",
+                "QAPTR_REVIEW_FFI_LIBRARY_DIR": "/tmp/development"
+            ],
+            bundle: .main
+        )
+
+        XCTAssertEqual(candidates.first, "/tmp/explicit/libqaptr_review_ffi.dylib")
+        XCTAssertTrue(candidates.contains("/tmp/development/libqaptr_review_ffi.dylib"))
+        XCTAssertEqual(candidates.filter { $0 == "/tmp/explicit/libqaptr_review_ffi.dylib" }.count, 1)
+    }
+}
+
 final class CacheLifetimeTests: XCTestCase {
     func testOrdersLifetimesFromShortestToLongestInSeconds() {
         let seconds = CacheLifetime.allCases.map(\.seconds)

@@ -35,7 +35,14 @@ cargo test --manifest-path crates/qaptr-review-ffi/Cargo.toml --all-features
 The build script compiles the narrow Rust bridge as both a static library and
 an in-process dynamic library, then bundles the latter inside the review
 app's `Contents/Frameworks/`, exactly mirroring
-`apps/helper/build_app.sh`.
+`apps/helper/build_app.sh`. It also leaves a development-layout symlink beside
+the SwiftPM executable and validates that both the development and packaged
+paths can be loaded with `dlopen` before returning success.
+
+`ReviewBridge` searches, in order, the explicit
+`QAPTR_REVIEW_FFI_LIBRARY_PATH`, `QAPTR_REVIEW_FFI_LIBRARY_DIR`, the packaged
+app's `Contents/Frameworks/`, the executable's directory, and finally the
+standard loader name. A missing or unloadable library still fails closed.
 
 ## Memory measurement
 
