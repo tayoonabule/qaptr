@@ -45,7 +45,7 @@
 - [ ] Decode the shared schema in `QaptrReviewCore` with forward-compatible unknown-state handling.
 - [x] Map real state to exactly: never configured, permission denied, waiting for first tick, capturing, capture failed, and capture ready.
 - [x] Show last successful capture and count only when a sealed bundle has actually succeeded.
-- [ ] Show selected displays and configured interval from the same state/control boundary.
+- [x] Show selected displays and configured interval from the same state/control boundary. `ObservationSheetView` now renders the scalar `selectedDisplayIDs` and the helper’s active interval, falling back only to the same local interval control when no helper update exists (`35d9405`; review Swift tests pass).
 - [x] Surface one concise actionable reason for unavailable/failed states.
 - [x] Add unit tests for absent, corrupt, stale, denied, no-display, disk-failure, waiting, and successful progress files.
 
