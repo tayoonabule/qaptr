@@ -110,7 +110,7 @@
 
 ### 3.3 CLI provider strategy
 - [x] Keep the supported provider list limited to OpenRouter, Claude CLI, Codex CLI, and Jcode CLI. `ProviderChoice` is an exact closed enum and its isolated review-core contract test locks the four presentation identifiers (`7fe77b8`; `QaptrReviewCoreTests` target builds cleanly).
-- [ ] Derive CLI availability from each adapter’s supported detection/authentication capability check.
+- [x] Derive CLI availability from each adapter’s supported detection/authentication capability check. Claude, Codex, and Jcode adapters each probe the executable, version, and documented authentication boundary, returning typed not-installed/not-authenticated outcomes rather than optimistic selection; `cargo test -p qaptr-provider-cli` passes its deterministic suite with only three explicitly environment-dependent real-CLI tests ignored, and targeted clippy passes.
 - [ ] Do not expose detected-but-unusable CLI providers as selectable.
 - [ ] Resolve a CLI’s documented default model unless a supported explicit override exists.
 - [ ] Surface the resolved CLI model or an honest “provider default” label in consent and result metadata.
