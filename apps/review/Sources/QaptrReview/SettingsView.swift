@@ -10,6 +10,7 @@ struct SettingsView: View {
     let showObservations: () -> Void
     @State private var newExcludedApplication = ""
     @State private var newExcludedWindowTitle = ""
+    @State private var showsProviderSetup = false
 
     var body: some View {
         ScrollView {
@@ -33,6 +34,9 @@ struct SettingsView: View {
         }
         .background(Color.qaptrSurface)
         .onAppear { model.refreshSettings() }
+        .sheet(isPresented: $showsProviderSetup, onDismiss: model.dismissProviderSetup) {
+            ProviderSetupSheet(model: model)
+        }
     }
 
     private var captureSection: some View {
@@ -75,14 +79,32 @@ struct SettingsView: View {
     private var analysisSection: some View {
         SettingsSection(title: "Analysis") {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Choose a provider")
+                Text("Connect a provider")
                     .font(.system(size: 14, weight: .medium))
-                Text("This only saves your choice. Qaptr will not contact it from this page.")
+                Text("Qaptr checks a key before it says connected.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
-
-            SettingsProviderChoiceList(selection: providerBinding, includesNoSelection: true)
+            ForEach(ProviderChoice.allCases, id: \.self) { provider in
+                Button {
+                    model.connectProvider(provider)
+                    if provider == .openRouter { showsProviderSetup = true }
+                } label: {
+                    HStack {
+                        Text(provider.displayName)
+                            .font(.system(size: 15, weight: model.settings.provider == provider ? .semibold : .regular))
+                        Spacer()
+                        if model.settings.provider == provider {
+                            Text(model.providerConnection.title)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(model.settings.provider == provider ? .isSelected : [])
+            }
         }
     }
 

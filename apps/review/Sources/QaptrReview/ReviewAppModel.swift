@@ -47,15 +47,25 @@ final class ReviewAppModel {
     private(set) var captureIntervalSeconds = CaptureIntervalPolicy.defaultSeconds
     private(set) var loadError: String?
     private(set) var settings: SettingsState = .placeholder
+    private(set) var providerConnection = ProviderConnectionState.notConnected
+    var providerSetupRequest: ProviderChoice?
     var onboardingCompleted: Bool
 
     let preferences: SettingsPreferences
     private let bridge: ReviewBridge?
     private let progressReader: CaptureProgressReader
     private let controlStore: CaptureControlStore
+    private let credentialStore: any ProviderCredentialStoring
+    private let openRouterChecker: any OpenRouterChecking
 
-    init(preferences: SettingsPreferences = SettingsPreferences(store: UserDefaults.standard)) {
+    init(
+        preferences: SettingsPreferences = SettingsPreferences(store: UserDefaults.standard),
+        credentialStore: any ProviderCredentialStoring = KeychainProviderCredentialStore(),
+        openRouterChecker: any OpenRouterChecking = OpenRouterConnectionChecker()
+    ) {
         self.preferences = preferences
+        self.credentialStore = credentialStore
+        self.openRouterChecker = openRouterChecker
         self.onboardingCompleted = preferences.onboardingCompleted
         let storePath = defaultStorePath()
         self.progressReader = CaptureProgressReader(url: defaultCaptureProgressPath())
@@ -128,6 +138,7 @@ final class ReviewAppModel {
             next.loginItemEnabled = bridge.loginItemEnabled()
         }
         settings = next
+        refreshProviderConnection()
     }
 
     /// Requests Screen Recording through the native prompt.
@@ -156,12 +167,57 @@ final class ReviewAppModel {
     func setProvider(_ provider: ProviderChoice) {
         preferences.provider = provider
         settings.provider = provider
+        refreshProviderConnection()
     }
 
     /// Removes the provider preference without triggering a provider request.
     func clearProvider() {
         preferences.provider = nil
         settings.provider = nil
+        providerSetupRequest = nil
+        providerConnection = .notConnected
+    }
+
+    func connectProvider(_ provider: ProviderChoice) {
+        setProvider(provider)
+        guard provider == .openRouter else { return }
+        providerSetupRequest = .openRouter
+        providerConnection = credentialStore.containsOpenRouterKey() ? .notConnected : .needsKey
+    }
+
+    func dismissProviderSetup() {
+        providerSetupRequest = nil
+    }
+
+    func startOpenRouterConnectionCheck(_ key: String) {
+        providerConnection = .checking
+        do {
+            try credentialStore.saveOpenRouterKey(key)
+        } catch {
+            providerConnection = .failed(.unableToSave)
+            return
+        }
+        let checker = openRouterChecker
+        Task { [weak self] in
+            let result = await checker.check(apiKey: key)
+            await MainActor.run {
+                self?.providerConnection = result
+                if result == .connected { self?.providerSetupRequest = nil }
+            }
+        }
+    }
+
+    func disconnectProvider() {
+        if settings.provider == .openRouter { try? credentialStore.removeOpenRouterKey() }
+        clearProvider()
+    }
+
+    private func refreshProviderConnection() {
+        guard let provider = settings.provider else {
+            providerConnection = .notConnected
+            return
+        }
+        providerConnection = provider == .openRouter && !credentialStore.containsOpenRouterKey() ? .needsKey : .notConnected
     }
 
     func addExcludedApplication(_ raw: String) {
