@@ -395,6 +395,58 @@ fn eligible_sealed_capture_prepares_before_any_provider_request() {
     );
 }
 
+#[test]
+fn repeated_coordinator_session_skips_captures_already_in_history() {
+    let (harness, capture) = Harness::new("coordinator-repeat", safe_context());
+    let provider = ProviderGate::new(RecordingProvider::new());
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let runner = qaptr_workflow::AnalysisRunner::new(
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.privacy,
+        &harness.ocr,
+        &harness.vision,
+        Some(&provider),
+        &harness.decoder,
+        &consent,
+        &harness.clock,
+    );
+    let mut coordinator = ReviewSessionCoordinator::new(
+        &runner,
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.clock,
+    );
+
+    coordinator
+        .start(
+            session_id("coordinator-repeat-first"),
+            std::slice::from_ref(&capture),
+            |_| {},
+        )
+        .expect("first coordinator session");
+    let detections = provider.adapter().detections.get();
+    let invocations = provider.adapter().invocations.get();
+
+    let mut states = Vec::new();
+    let report = coordinator
+        .start(
+            session_id("coordinator-repeat-second"),
+            &[capture],
+            |state| states.push(state.state_name()),
+        )
+        .expect("repeated coordinator session");
+
+    assert_eq!(states, ["ingesting", "preparing", "completed"]);
+    assert_eq!(report.captures_seen, 0);
+    assert!(matches!(report.provider, ProviderOutcome::NotAttempted));
+    assert_eq!(provider.adapter().detections.get(), detections);
+    assert_eq!(provider.adapter().invocations.get(), invocations);
+    assert!(coordinator.last_capture_ids().is_empty());
+}
+
 /// The checklist 2.4 vertical slice exercises twenty-four sealed captures
 /// through the real vault, privacy, adapter, and coordinator boundaries.
 #[test]
@@ -590,4 +642,58 @@ fn first_run_retention_reaps_ingested_capture_before_runner_processing() {
             .is_empty()
     );
     assert!(coordinator.last_capture_ids().is_empty());
+}
+
+#[test]
+fn retention_reaps_expired_capture_even_when_history_filters_it() {
+    let (harness, capture) = Harness::new("represented-expired", safe_context());
+    harness
+        .store
+        .put_capture(&capture.record)
+        .expect("durable capture metadata");
+    let provider = ProviderGate::new(RecordingProvider::new());
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let runner = qaptr_workflow::AnalysisRunner::new(
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.privacy,
+        &harness.ocr,
+        &harness.vision,
+        Some(&provider),
+        &harness.decoder,
+        &consent,
+        &harness.clock,
+    );
+    let mut coordinator = ReviewSessionCoordinator::new(
+        &runner,
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.clock,
+    )
+    .with_retention_policy(RetentionPolicy::new(qaptr_domain::Duration::from_secs(1)));
+
+    let report = coordinator
+        .start(session_id("represented-expired"), &[capture], |_| {})
+        .expect("retention session");
+
+    assert!(matches!(report.provider, ProviderOutcome::NotAttempted));
+    assert_eq!(harness.decoder.decoded.get(), 0);
+    assert_eq!(provider.adapter().detections.get(), 0);
+    assert!(
+        harness
+            .vault
+            .list_committed_bundles()
+            .expect("bundles")
+            .is_empty()
+    );
+    assert!(
+        harness
+            .store
+            .snapshot()
+            .expect("history")
+            .captures
+            .is_empty()
+    );
 }

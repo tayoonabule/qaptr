@@ -6,7 +6,7 @@
 //! captures, and coarse progress suitable for a UI bridge. It deliberately
 //! exposes summaries and state, never vault members or provider payloads.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -260,13 +260,37 @@ where
         session_id: SessionId,
         captures: &[CaptureRecordInput],
         resolved_model: Option<ModelId>,
+        progress: F,
+    ) -> Result<AnalysisReport, ReviewSessionError>
+    where
+        F: FnMut(ReviewProgress),
+    {
+        self.start_with_resolved_model_mode(session_id, captures, resolved_model, progress, false)
+    }
+
+    fn start_with_resolved_model_mode<F>(
+        &mut self,
+        session_id: SessionId,
+        captures: &[CaptureRecordInput],
+        resolved_model: Option<ModelId>,
         mut progress: F,
+        allow_reprocessing: bool,
     ) -> Result<AnalysisReport, ReviewSessionError>
     where
         F: FnMut(ReviewProgress),
     {
         self.last_session = Some(session_id.clone());
         let mut eligible = deduplicate(captures);
+        if !allow_reprocessing {
+            let represented = self
+                .store
+                .snapshot()?
+                .captures
+                .into_iter()
+                .map(|capture| capture.id)
+                .collect::<BTreeSet<_>>();
+            eligible.retain(|capture| !represented.contains(capture.capture_id()));
+        }
         self.last_captures = Some(eligible.clone());
         progress(ReviewProgress::Ingesting {
             captures_seen: eligible.len(),
@@ -347,7 +371,7 @@ where
             .clone()
             .ok_or(ReviewSessionError::NothingToRetry)?;
         self.cancellation.reset();
-        self.start(session_id, &captures, progress)
+        self.start_with_resolved_model_mode(session_id, &captures, None, progress, true)
     }
 
     /// Returns the last deduplicated input set, without exposing vault data.

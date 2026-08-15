@@ -6,6 +6,7 @@
 //! no configured provider is selected, so a production session reports a
 //! truthful unavailable result and never reaches consent or provider dispatch.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::Barrier;
@@ -17,8 +18,9 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-use qaptr_domain::{SessionId, SystemClock};
+use qaptr_domain::{Duration as DomainDuration, SessionId, SystemClock};
 use qaptr_macos::{MacCredentials, MacOcr, MacVision};
+use qaptr_policy::RetentionPolicy;
 use qaptr_privacy::{PrivacyGate, measure_recall};
 use qaptr_provider::{
     AuthenticationMode, CapabilityDescriptor, ProviderAdapter, ProviderDescriptor,
@@ -50,6 +52,8 @@ const RETRY_UNAVAILABLE: &str = "retry_unavailable";
 const LOCAL_REVIEW_FAILED: &str = "local_review_failed";
 const PROVIDER_UNAVAILABLE: &str = "provider_unavailable";
 const PROVIDER_FAILED: &str = "provider_failed";
+const PRODUCTION_RETENTION: RetentionPolicy =
+    RetentionPolicy::new(DomainDuration::from_secs(24 * 60 * 60));
 
 struct UnavailableProvider {
     descriptor: ProviderDescriptor,
@@ -312,7 +316,6 @@ impl SharedState {
     }
 
     fn begin_if_allowed(&self, session_id: &SessionId) -> bool {
-        self.control.reset();
         let mut state = self
             .state
             .lock()
@@ -320,6 +323,7 @@ impl SharedState {
         if !state.allowed_operations().contains(&"start") {
             return false;
         }
+        self.control.reset();
         self.cancel_requested.store(false, Ordering::Release);
         *state = DriverState {
             session_id: Some(session_id.as_str().to_owned()),
@@ -330,7 +334,6 @@ impl SharedState {
     }
 
     fn begin_retry_if_allowed(&self) -> bool {
-        self.control.reset();
         let mut state = self
             .state
             .lock()
@@ -345,6 +348,7 @@ impl SharedState {
         else {
             return false;
         };
+        self.control.reset();
         self.cancel_requested.store(false, Ordering::Release);
         *state = DriverState {
             session_id: Some(session_id.as_str().to_owned()),
@@ -581,11 +585,6 @@ enum WorkerCommand {
     Shutdown,
 }
 
-struct CachedRequest {
-    input: Vec<u8>,
-    response: Value,
-}
-
 type ListingHook = Arc<dyn Fn(&SessionCancellation) + Send + Sync>;
 
 /// App-owned review session handle backing the scalar JSON ABI.
@@ -593,7 +592,7 @@ pub struct ReviewSessionDriver {
     shared: Arc<SharedState>,
     commands: Sender<WorkerCommand>,
     worker: Mutex<Option<thread::JoinHandle<()>>>,
-    cached_request: Mutex<Option<CachedRequest>>,
+    cached_request: Mutex<HashMap<Vec<u8>, Value>>,
     #[cfg(test)]
     executed_mutations: std::sync::atomic::AtomicUsize,
 }
@@ -609,6 +608,15 @@ impl ReviewSessionDriver {
         store_path: PathBuf,
         listing_hook: Option<ListingHook>,
     ) -> Self {
+        Self::new_with_hooks(vault_root, store_path, None, listing_hook)
+    }
+
+    fn new_with_hooks(
+        vault_root: PathBuf,
+        store_path: PathBuf,
+        acknowledgement_hook: Option<ListingHook>,
+        listing_hook: Option<ListingHook>,
+    ) -> Self {
         let shared = SharedState::new();
         let (commands, receiver) = mpsc::channel();
         let worker_shared = shared.clone();
@@ -620,6 +628,7 @@ impl ReviewSessionDriver {
                 receiver,
                 worker_shared,
                 worker_control,
+                acknowledgement_hook,
                 listing_hook,
             );
         });
@@ -627,7 +636,7 @@ impl ReviewSessionDriver {
             shared,
             commands,
             worker: Mutex::new(Some(worker)),
-            cached_request: Mutex::new(None),
+            cached_request: Mutex::new(HashMap::new()),
             #[cfg(test)]
             executed_mutations: std::sync::atomic::AtomicUsize::new(0),
         }
@@ -647,6 +656,22 @@ impl ReviewSessionDriver {
             }
         });
         Self::new_with_listing_hook(vault_root, store_path, Some(hook))
+    }
+
+    #[cfg(test)]
+    fn new_with_acknowledgement_barrier(
+        vault_root: PathBuf,
+        store_path: PathBuf,
+        entered: Arc<Barrier>,
+        release: Arc<AtomicBool>,
+    ) -> Self {
+        let hook: ListingHook = Arc::new(move |_cancellation| {
+            entered.wait();
+            while !release.load(Ordering::Acquire) {
+                thread::yield_now();
+            }
+        });
+        Self::new_with_hooks(vault_root, store_path, Some(hook), None)
     }
 
     /// Dispatches one bounded JSON v1 request and returns a scalar JSON result.
@@ -682,18 +707,13 @@ impl ReviewSessionDriver {
             .cached_request
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        if let Some(previous) = cached.as_ref()
-            && previous.input == input
-        {
-            return previous.response.clone();
+        if let Some(previous) = cached.get(input) {
+            return previous.clone();
         }
         #[cfg(test)]
         self.executed_mutations.fetch_add(1, Ordering::AcqRel);
         let response = self.execute(operation);
-        *cached = Some(CachedRequest {
-            input: input.to_vec(),
-            response: response.clone(),
-        });
+        cached.insert(input.to_vec(), response.clone());
         response
     }
 
@@ -704,12 +724,7 @@ impl ReviewSessionDriver {
             .cached_request
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        if cached
-            .as_ref()
-            .is_some_and(|request| request.input == input)
-        {
-            *cached = None;
-        }
+        cached.remove(input);
     }
 
     #[cfg(test)]
@@ -815,6 +830,7 @@ fn worker_loop(
     receiver: Receiver<WorkerCommand>,
     shared: Arc<SharedState>,
     control: Arc<ConsentControl>,
+    acknowledgement_hook: Option<ListingHook>,
     listing_hook: Option<ListingHook>,
 ) {
     let mut resources =
@@ -827,14 +843,21 @@ fn worker_loop(
                 session_id,
                 acknowledged,
             } => {
-                let _ = acknowledged.send(());
                 last_session = Some(session_id.clone());
+                let cancellation = SessionCancellation::new();
+                if shared.cancel_requested.load(Ordering::Acquire) {
+                    cancellation.cancel();
+                }
+                shared.set_active_cancellation(Some(cancellation.clone()));
+                if let Some(acknowledgement_hook) = acknowledgement_hook.as_ref() {
+                    acknowledgement_hook(&cancellation);
+                }
+                let _ = acknowledged.send(());
                 let Some(resources) = resources.as_mut() else {
+                    shared.set_active_cancellation(None);
                     shared.fail(SESSION_UNAVAILABLE);
                     continue;
                 };
-                let cancellation = SessionCancellation::new();
-                shared.set_active_cancellation(Some(cancellation.clone()));
                 let captures = match committed_captures(
                     &resources.vault,
                     &cancellation,
@@ -856,15 +879,22 @@ fn worker_loop(
                 run_attempt(resources, &shared, session_id, &captures, cancellation);
             }
             WorkerCommand::Retry { acknowledged } => {
-                let _ = acknowledged.send(());
                 let (Some(resources), Some(session_id)) =
                     (resources.as_mut(), last_session.clone())
                 else {
+                    let _ = acknowledged.send(());
                     shared.fail(RETRY_UNAVAILABLE);
                     continue;
                 };
                 let cancellation = SessionCancellation::new();
+                if shared.cancel_requested.load(Ordering::Acquire) {
+                    cancellation.cancel();
+                }
                 shared.set_active_cancellation(Some(cancellation.clone()));
+                if let Some(acknowledgement_hook) = acknowledgement_hook.as_ref() {
+                    acknowledgement_hook(&cancellation);
+                }
+                let _ = acknowledged.send(());
                 let captures = match last_captures.clone() {
                     Some(captures) => captures,
                     None => match committed_captures(
@@ -900,7 +930,6 @@ fn run_attempt(
     captures: &[CaptureRecordInput],
     cancellation: SessionCancellation,
 ) {
-    shared.control.reset();
     let runner = AnalysisRunner::new(
         &resources.vault,
         &resources.credentials,
@@ -920,7 +949,8 @@ fn run_attempt(
         &resources.store,
         &resources.clock,
         cancellation,
-    );
+    )
+    .with_retention_policy(PRODUCTION_RETENTION);
     let result = coordinator.start(session_id, captures, |progress| {
         shared.apply_progress(progress)
     });
@@ -1028,7 +1058,7 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::{Arc, Barrier};
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use qaptr_policy::ModelId;
     use qaptr_vault::{BundleInput, GenerationId, GenerationKeypair, SampledContext};
@@ -1037,12 +1067,13 @@ mod tests {
         let vault = Vault::new(vault_root).expect("vault");
         let keypair =
             GenerationKeypair::generate(GenerationId::new("generation-1").expect("generation id"));
+        let captured_at = SystemTime::now();
         vault
             .seal(
                 &BundleInput::new(
                     qaptr_domain::CaptureId::new("capture-1").expect("capture id"),
                     keypair.generation_id().clone(),
-                    UNIX_EPOCH + Duration::from_secs(1),
+                    captured_at,
                     b"encrypted image input".to_vec(),
                     SampledContext::new(br#"{"application":"Test"}"#.to_vec()),
                     Vec::new(),
@@ -1124,6 +1155,22 @@ mod tests {
         });
         let worker = thread::spawn(move || ConsentPort::request(&broker, &request()));
         assert!(decider.join().expect("consent decider"));
+        assert_eq!(
+            worker.join().expect("consent worker"),
+            ConsentDecision::Granted
+        );
+    }
+
+    #[test]
+    fn invalid_start_and_retry_preserve_pending_consent() {
+        let shared = SharedState::new();
+        let broker = ConsentBroker::new(shared.control.clone(), shared.clone());
+        let worker = thread::spawn(move || ConsentPort::request(&broker, &request()));
+        wait_for_consent(&shared);
+
+        assert!(!shared.begin_if_allowed(&SessionId::new("invalid-start").expect("session")));
+        assert!(!shared.begin_retry_if_allowed());
+        assert!(shared.control.decide(PendingConsent::Granted, &shared));
         assert_eq!(
             worker.join().expect("consent worker"),
             ConsentDecision::Granted
@@ -1289,6 +1336,40 @@ mod tests {
     }
 
     #[test]
+    fn interleaved_distinct_two_pass_mutations_keep_each_response() {
+        let root = tempfile::tempdir().expect("temp root");
+        let driver = Arc::new(ReviewSessionDriver::new(
+            root.path().join("vault"),
+            root.path().join("history.sqlite3"),
+        ));
+        let first = br#"{"version":1,"operation":"start","session_id":"first"}"#;
+        let second = br#"{"version":1,"operation":"cancel"}"#;
+        let callers = Arc::new(Barrier::new(3));
+        let first_driver = driver.clone();
+        let first_callers = callers.clone();
+        let first_thread = thread::spawn(move || {
+            first_callers.wait();
+            first_driver.request_once(first)
+        });
+        let second_driver = driver.clone();
+        let second_callers = callers.clone();
+        let second_thread = thread::spawn(move || {
+            second_callers.wait();
+            second_driver.request_once(second)
+        });
+        callers.wait();
+
+        let first_response = first_thread.join().expect("first mutation");
+        let second_response = second_thread.join().expect("second mutation");
+        assert_eq!(driver.request_once(first), first_response);
+        assert_eq!(driver.request_once(second), second_response);
+        assert_eq!(driver.executed_mutations(), 2);
+
+        driver.finish_cached_request(second);
+        driver.finish_cached_request(first);
+    }
+
+    #[test]
     fn concurrent_starts_have_one_atomic_winner() {
         let root = tempfile::tempdir().expect("temp root");
         let entered = Arc::new(Barrier::new(2));
@@ -1357,6 +1438,36 @@ mod tests {
         assert_eq!(cancelled["ok"], true);
         let terminal = wait_for_terminal_state(&driver);
         assert_eq!(terminal["state"]["phase"], "cancelled");
+    }
+
+    #[test]
+    fn cancellation_before_start_ack_reaches_worker_preparation() {
+        let root = tempfile::tempdir().expect("temp root");
+        seed_committed_bundle(&root.path().join("vault"));
+        let entered = Arc::new(Barrier::new(2));
+        let release = Arc::new(AtomicBool::new(false));
+        let driver = Arc::new(ReviewSessionDriver::new_with_acknowledgement_barrier(
+            root.path().join("vault"),
+            root.path().join("history.sqlite3"),
+            entered.clone(),
+            release.clone(),
+        ));
+        let starting = {
+            let driver = driver.clone();
+            thread::spawn(move || {
+                driver.request(br#"{"version":1,"operation":"start","session_id":"ack-cancel"}"#)
+            })
+        };
+
+        entered.wait();
+        let cancelled = driver.request(br#"{"version":1,"operation":"cancel"}"#);
+        assert_eq!(cancelled["ok"], true);
+        release.store(true, Ordering::Release);
+        assert_eq!(starting.join().expect("start request")["ok"], true);
+        assert_eq!(
+            wait_for_terminal_state(&driver)["state"]["phase"],
+            "cancelled"
+        );
     }
 
     #[test]
