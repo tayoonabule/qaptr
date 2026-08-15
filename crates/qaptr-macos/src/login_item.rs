@@ -2,12 +2,19 @@
 
 #![allow(unsafe_code)]
 
+#[cfg(test)]
+use std::ffi::CStr;
+#[cfg(test)]
+use std::os::raw::c_char;
+
 use qaptr_domain::DomainError;
 use qaptr_domain::ports::{LoginItemPort, LoginItemState, PortOutcome, PortResult};
 
 use crate::error::MacosError;
 
 unsafe extern "C" {
+    #[cfg(test)]
+    fn qaptr_smappservice_identifier() -> *const c_char;
     fn qaptr_smappservice_status() -> i64;
     fn qaptr_smappservice_register(error_code: *mut i64) -> i32;
     fn qaptr_smappservice_unregister(error_code: *mut i64) -> i32;
@@ -18,7 +25,7 @@ const SM_STATUS_ENABLED: i64 = 1;
 const SM_STATUS_REQUIRES_APPROVAL: i64 = 2;
 const SM_STATUS_NOT_FOUND: i64 = 3;
 
-/// A login-item adapter for the review app's main `SMAppService`.
+/// A login-item adapter for the packaged `com.qaptr.helper` application.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MacLoginItem;
 
@@ -109,7 +116,13 @@ fn native_status() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{LoginItemState, desired_state};
+    use super::{CStr, LoginItemState, desired_state, qaptr_smappservice_identifier};
+
+    #[test]
+    fn native_service_targets_the_packaged_helper() {
+        let identifier = unsafe { CStr::from_ptr(qaptr_smappservice_identifier()) };
+        assert_eq!(identifier.to_bytes(), b"com.qaptr.helper");
+    }
 
     #[test]
     fn desired_state_is_stable_for_repeated_requests() {

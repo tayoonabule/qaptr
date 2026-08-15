@@ -130,6 +130,18 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             activeIntervalSeconds: activeInterval.seconds
         )
         persistProgress()
+        guard CGPreflightScreenCaptureAccess() else {
+            progressTracker.markPermissionRequired(
+                at: Self.currentTimestamp(),
+                selectedDisplayIDs: [],
+                activeIntervalSeconds: activeInterval.seconds,
+                failureReason: "Screen Recording permission not granted"
+            )
+            persistProgress()
+            print("event=skip reason=screen_recording_permission")
+            scheduleTimer()
+            return
+        }
         do {
             selectedDisplayIDs = Set(try capture.availableDisplayIDs())
             guard !selectedDisplayIDs.isEmpty else {

@@ -260,6 +260,11 @@ final class ReviewAppModel {
         let completed = preferences.completeOnboardingIfEligible(currentOnboardingCompletionInputs())
         if completed {
             onboardingCompleted = true
+            // Registering the packaged login item starts it immediately. This
+            // happens only after the person explicitly presses Finish on the
+            // final privacy-consent stage, never during a read-only refresh or
+            // an ordinary review-app launch.
+            setLoginItemEnabled(true)
         }
         return completed
     }

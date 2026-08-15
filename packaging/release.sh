@@ -69,7 +69,10 @@ build_product_app() {
         return
     fi
     if [[ -x "$build_script" ]]; then
-        bash "$build_script" release >/dev/null
+        if ! bash "$build_script" release >/dev/null; then
+            echo "product build failed: $build_script" >&2
+            exit 1
+        fi
     else
         echo "missing product build script: $build_script" >&2
         exit 1
@@ -99,6 +102,38 @@ let reviewApp = Bundle.main.bundleURL
     .appendingPathComponent("Contents", isDirectory: true)
     .appendingPathComponent("Applications", isDirectory: true)
     .appendingPathComponent("QaptrReview.app", isDirectory: true)
+let helperApp = reviewApp
+    .appendingPathComponent("Contents", isDirectory: true)
+    .appendingPathComponent("Library", isDirectory: true)
+    .appendingPathComponent("LoginItems", isDirectory: true)
+    .appendingPathComponent("QaptrHelper.app", isDirectory: true)
+
+let onboardingCompleted = UserDefaults(suiteName: "com.qaptr.review")?
+    .bool(forKey: "com.qaptr.review.onboarding.completed") ?? false
+let helperIsRunning = !NSRunningApplication
+    .runningApplications(withBundleIdentifier: "com.qaptr.helper")
+    .isEmpty
+
+if onboardingCompleted && !helperIsRunning {
+    NSApplication.shared.setActivationPolicy(.accessory)
+    NSApp.activate(ignoringOtherApps: true)
+    if FileManager.default.fileExists(atPath: helperApp.path) {
+        let alert = NSAlert()
+        alert.messageText = "Start Qaptr capture?"
+        alert.informativeText = "Qaptr will start periodic, local screen captures at your configured interval. macOS may still require Screen Recording permission for Qaptr Helper. No provider request is made."
+        alert.addButton(withTitle: "Start Capture")
+        alert.addButton(withTitle: "Not Now")
+        if alert.runModal() == .alertFirstButtonReturn,
+           !NSWorkspace.shared.open(helperApp) {
+            fputs("Qaptr could not start the packaged capture helper\n", stderr)
+        }
+    } else {
+        let alert = NSAlert()
+        alert.messageText = "Capture is unavailable"
+        alert.informativeText = "The packaged Qaptr Helper is missing. Reinstall Qaptr to enable capture."
+        alert.runModal()
+    }
+}
 
 if !NSWorkspace.shared.open(reviewApp) {
     fputs("Qaptr could not open the nested review app\\n", stderr)

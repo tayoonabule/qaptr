@@ -32,6 +32,7 @@ fn main() {
         println!("cargo:rustc-link-lib=framework=Foundation");
         println!("cargo:rustc-link-lib=framework=ServiceManagement");
         println!("cargo:rustc-env=QAPTR_VISION_HELPER={}", output.display());
+        println!("cargo:rerun-if-changed=native/login_item.m");
         println!("cargo:rerun-if-changed=native/vision_recognizer.swift");
     }
 }
