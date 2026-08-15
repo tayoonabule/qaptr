@@ -11,7 +11,7 @@ private struct Options {
     let generationID: String
 
     static func parse(_ arguments: ArraySlice<String>) throws -> Self {
-        var intervalSeconds: TimeInterval = 600
+        var intervalSeconds = CaptureInterval.defaultSeconds
         var maxDimension = 1_920
         var maximumCycles: Int?
         var vaultRoot = FileManager.default.homeDirectoryForCurrentUser
@@ -29,7 +29,8 @@ private struct Options {
             index = arguments.index(after: index)
             switch argument {
             case "--interval-seconds":
-                guard let parsed = TimeInterval(value), parsed > 0, parsed.isFinite else {
+                guard let parsed = Int(value),
+                      (try? CaptureInterval(seconds: parsed)) != nil else {
                     throw HelperError.invalidArgument("invalid interval \(value)")
                 }
                 intervalSeconds = parsed
@@ -75,7 +76,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     private let controlStore: CaptureControlStore
     private var progressTracker: CaptureProgressTracker
     private var planner: TickPlanner
-    private var wasPaused = false
+    private var activeInterval: CaptureInterval
     private var selectedDisplayIDs = Set<String>()
     private var cycle = 0
     private var timer: DispatchSourceTimer?
@@ -87,10 +88,19 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         self.coordinator = CaptureCoordinator(capture: capture, sealer: sealer)
         let progressStore = CaptureProgressStore(url: Self.captureProgressURL())
         self.progressStore = progressStore
-        self.controlStore = CaptureControlStore(url: Self.captureControlURL())
+        let controlStore = CaptureControlStore(url: Self.captureControlURL())
+        self.controlStore = controlStore
         self.progressTracker = CaptureProgressTracker(initial: (try? progressStore.read()) ?? .initial)
-        self.planner = TickPlanner(interval: options.interval)
+        let persistedControl = (try? controlStore.read())
+            ?? (try? CaptureControl(intervalSeconds: options.interval.seconds))
+            ?? .default
+        self.activeInterval = (try? CaptureInterval(seconds: persistedControl.intervalSeconds)) ?? options.interval
+        self.planner = TickPlanner(interval: self.activeInterval)
         super.init()
+        // Canonicalize missing or corrupt control data as the scalar interval.
+        try? controlStore.write(
+            (try? CaptureControl(intervalSeconds: self.activeInterval.seconds)) ?? .default
+        )
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -139,30 +149,18 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
 
     private func scheduleTimer() {
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.qaptr.helper.capture"))
-        timer.schedule(deadline: .now(), repeating: min(options.interval.seconds, 1), leeway: .milliseconds(100))
+        timer.schedule(deadline: .now(), repeating: 1, leeway: .milliseconds(100))
         timer.setEventHandler { [weak self] in
             DispatchQueue.main.async {
                 guard let self else {
                     return
                 }
-                let paused = (try? self.controlStore.read().mode == .paused) ?? false
-                if paused {
-                    if !self.wasPaused {
-                        self.wasPaused = true
-                        self.progressTracker.markPaused(at: Self.currentTimestamp())
-                        self.persistProgress()
-                        self.updateStatus("Ⅱ")
-                    }
-                    return
-                }
-                if self.wasPaused {
-                    self.wasPaused = false
-                    self.planner = TickPlanner(interval: self.options.interval)
-                    self.progressTracker.start(
-                        at: Self.currentTimestamp(),
-                        processID: Int64(ProcessInfo.processInfo.processIdentifier)
-                    )
-                    self.persistProgress()
+                if let control = try? self.controlStore.read(),
+                   let interval = try? CaptureInterval(seconds: control.intervalSeconds),
+                   interval != self.activeInterval {
+                    self.activeInterval = interval
+                    self.planner = TickPlanner(interval: interval)
+                    print("event=control interval_seconds=\(interval.seconds)")
                 }
                 guard self.planner.action(at: ProcessInfo.processInfo.systemUptime) == .capture else {
                     return

@@ -4,18 +4,36 @@ import Darwin
 @_silgen_name("flock")
 private func qaptrFlock(_ descriptor: Int32, _ operation: Int32) -> Int32
 
-/// The helper's sparse or detailed capture cadence.
+/// The helper's bounded capture interval.
 public struct CaptureInterval: Equatable, Sendable {
-    /// The interval in seconds. It must be positive and finite.
-    public let seconds: TimeInterval
+    public static let minimumSeconds = 5
+    public static let maximumSeconds = 300
+    public static let stepSeconds = 5
+    public static let defaultSeconds = 60
+
+    /// The interval in whole seconds. It is constrained to the same values
+    /// exposed by the review app's slider.
+    public let seconds: Int
 
     /// Creates a validated interval.
-    public init(seconds: TimeInterval) throws {
-        guard seconds.isFinite, seconds > 0 else {
-            throw CaptureCoreError.invalidInterval(seconds)
+    public init(seconds: Int) throws {
+        guard (Self.minimumSeconds...Self.maximumSeconds).contains(seconds),
+              seconds.isMultiple(of: Self.stepSeconds) else {
+            throw CaptureCoreError.invalidInterval(TimeInterval(seconds))
         }
         self.seconds = seconds
     }
+
+    public init(timeInterval: TimeInterval) throws {
+        guard timeInterval.isFinite,
+              timeInterval.rounded() == timeInterval,
+              let seconds = Int(exactly: timeInterval) else {
+            throw CaptureCoreError.invalidInterval(timeInterval)
+        }
+        try self.init(seconds: seconds)
+    }
+
+    public var timeInterval: TimeInterval { TimeInterval(seconds) }
 }
 
 /// Errors raised by the platform-independent helper coordination layer.
@@ -60,20 +78,20 @@ public final class SingleInstanceLock: @unchecked Sendable {
     }
 }
 
-/// The result of asking the cadence planner whether a tick is due.
+/// The result of asking the interval planner whether a tick is due.
 public enum TickAction: Equatable, Sendable {
     case capture
     case wait
 }
 
-/// A monotonic cadence planner that deliberately drops missed ticks.
+/// A monotonic interval planner that deliberately drops missed ticks.
 public struct TickPlanner: Sendable {
     private let interval: TimeInterval
     private var nextDue: TimeInterval?
 
     /// Creates a planner with no catch-up state.
     public init(interval: CaptureInterval) {
-        self.interval = interval.seconds
+        self.interval = interval.timeInterval
         self.nextDue = nil
     }
 
@@ -206,7 +224,6 @@ public enum CaptureProgressState: String, Codable, Equatable, Sendable {
     case starting
     case waiting
     case capturing
-    case paused
     case permissionRequired
     case noDisplays
     case error
@@ -214,22 +231,50 @@ public enum CaptureProgressState: String, Codable, Equatable, Sendable {
 }
 
 /// The only mutable capture setting exposed to the review app.
-public enum CaptureControlMode: String, Codable, Equatable, Sendable {
-    case running
-    case paused
-}
-
 public struct CaptureControl: Codable, Equatable, Sendable {
-    public let mode: CaptureControlMode
+    public let intervalSeconds: Int
 
-    public init(mode: CaptureControlMode = .running) {
-        self.mode = mode
+    private init(uncheckedIntervalSeconds: Int) {
+        self.intervalSeconds = uncheckedIntervalSeconds
     }
 
-    public static let `default` = CaptureControl()
+    public init(intervalSeconds: Int = CaptureInterval.defaultSeconds) throws {
+        _ = try CaptureInterval(seconds: intervalSeconds)
+        self.init(uncheckedIntervalSeconds: intervalSeconds)
+    }
+
+    public static let `default` = CaptureControl(uncheckedIntervalSeconds: CaptureInterval.defaultSeconds)
+
+    private enum CodingKeys: String, CodingKey {
+        case intervalSeconds = "interval_seconds"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let interval = try container.decodeIfPresent(Int.self, forKey: .intervalSeconds) {
+            guard let control = try? CaptureControl(intervalSeconds: interval) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .intervalSeconds,
+                    in: container,
+                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 300"
+                )
+            }
+            self = control
+            return
+        }
+        throw DecodingError.keyNotFound(
+            CodingKeys.intervalSeconds,
+            DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "missing interval_seconds")
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(intervalSeconds, forKey: .intervalSeconds)
+    }
 }
 
-/// Atomic persistence for the scalar pause/resume control.
+/// Atomic persistence for the scalar capture interval control.
 public struct CaptureControlStore: Sendable {
     public let url: URL
 
@@ -329,10 +374,6 @@ public struct CaptureProgressTracker: Sendable {
 
     public mutating func markPermissionRequired(at timestamp: Int64) {
         progress = replacing(state: .permissionRequired, updatedAtMillis: timestamp)
-    }
-
-    public mutating func markPaused(at timestamp: Int64) {
-        progress = replacing(state: .paused, updatedAtMillis: timestamp)
     }
 
     public mutating func markNoDisplays(at timestamp: Int64) {

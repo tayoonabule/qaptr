@@ -32,15 +32,27 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         XCTAssertNil(CaptureProgressSnapshot.unavailable.captureCount)
     }
 
-    func testPauseControlRoundTripsAndRejectsUnknownModes() throws {
+    func testIntervalControlRoundTripsAsOneScalar() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("qaptr-control-\(UUID().uuidString)")
         let store = CaptureControlStore(url: root.appendingPathComponent("capture-control.json"))
-        try store.write(CaptureControl(mode: .paused))
-        XCTAssertEqual(try store.read(), CaptureControl(mode: .paused))
+        try store.write(try CaptureControl(intervalSeconds: 120))
+        XCTAssertEqual(try store.read(), try CaptureControl(intervalSeconds: 120))
+        let encoded = String(decoding: try Data(contentsOf: store.url), as: UTF8.self)
+        XCTAssertEqual(encoded, "{\"interval_seconds\":120}")
+    }
 
-        XCTAssertThrowsError(
-            try JSONDecoder().decode(CaptureControl.self, from: Data("{\"mode\":\"later\"}".utf8))
-        )
+    func testIntervalPolicyClampsAndHumanizes() throws {
+        XCTAssertEqual(CaptureIntervalPolicy.normalized(1), 5)
+        XCTAssertEqual(CaptureIntervalPolicy.normalized(7), 5)
+        XCTAssertEqual(CaptureIntervalPolicy.normalized(8), 10)
+        XCTAssertEqual(CaptureIntervalPolicy.normalized(999), 300)
+        XCTAssertEqual(CaptureIntervalPolicy.humanized(5), "5 seconds")
+        XCTAssertEqual(CaptureIntervalPolicy.humanized(60), "1 minute")
+        XCTAssertEqual(CaptureIntervalPolicy.humanized(300), "5 minutes")
+
+        XCTAssertThrowsError(try CaptureControl(intervalSeconds: 6)) { error in
+            XCTAssertEqual(error as? CaptureControlError, .invalidInterval(6))
+        }
     }
 }

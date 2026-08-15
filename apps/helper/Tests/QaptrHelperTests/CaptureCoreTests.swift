@@ -16,15 +16,12 @@ final class CaptureCoreTests: XCTestCase {
         XCTAssertEqual(tracker.progress.captureCount, 2)
         XCTAssertEqual(tracker.progress.lastCaptureAtMillis, 300)
 
-        tracker.markPaused(at: 400)
-        XCTAssertEqual(tracker.progress.state, .paused)
-        XCTAssertEqual(tracker.progress.captureCount, 2)
-        tracker.start(at: 500, processID: 42)
+        tracker.start(at: 400, processID: 42)
         XCTAssertEqual(tracker.progress.state, .waiting)
         XCTAssertEqual(tracker.progress.captureCount, 2)
 
-        tracker.beginCapture(at: 600)
-        tracker.finishCapture(at: 700, successfulCaptures: 0)
+        tracker.beginCapture(at: 500)
+        tracker.finishCapture(at: 600, successfulCaptures: 0)
         XCTAssertEqual(tracker.progress.captureCount, 2)
         XCTAssertEqual(tracker.progress.lastCaptureAtMillis, 300)
     }
@@ -49,12 +46,28 @@ final class CaptureCoreTests: XCTestCase {
     }
 
     func testMissedTicksDoNotCatchUp() throws {
-        var planner = TickPlanner(interval: try CaptureInterval(seconds: 600))
+        var planner = TickPlanner(interval: try CaptureInterval(seconds: 60))
         XCTAssertEqual(planner.action(at: 0), .capture)
-        XCTAssertEqual(planner.action(at: 601), .capture)
-        XCTAssertEqual(planner.action(at: 602), .wait)
-        XCTAssertEqual(planner.action(at: 1201), .capture)
-        XCTAssertEqual(planner.action(at: 1202), .wait)
+        XCTAssertEqual(planner.action(at: 61), .capture)
+        XCTAssertEqual(planner.action(at: 62), .wait)
+        XCTAssertEqual(planner.action(at: 121), .capture)
+        XCTAssertEqual(planner.action(at: 122), .wait)
+    }
+
+    func testCaptureIntervalAcceptsOnlyBoundedFiveSecondSteps() throws {
+        XCTAssertEqual(try CaptureInterval(seconds: 5).seconds, 5)
+        XCTAssertEqual(try CaptureInterval(seconds: 300).seconds, 300)
+
+        for invalid in [0, 4, 6, 301] {
+            XCTAssertThrowsError(try CaptureInterval(seconds: invalid))
+        }
+    }
+
+    func testCaptureControlPersistsOnlyTheBoundedIntervalScalar() throws {
+        let control = try CaptureControl(intervalSeconds: 60)
+        let encoded = try JSONEncoder().encode(control)
+        let json = String(decoding: encoded, as: UTF8.self)
+        XCTAssertEqual(json, "{\"interval_seconds\":60}")
     }
 
     func testSecondHelperCannotClaimTheSameOwnershipLock() throws {

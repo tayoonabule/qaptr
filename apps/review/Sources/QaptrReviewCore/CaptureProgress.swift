@@ -6,27 +6,85 @@ public enum CaptureProgressState: String, Codable, Equatable, Sendable {
     case starting
     case waiting
     case capturing
-    case paused
     case permissionRequired
     case noDisplays
     case error
     case stopped
 }
 
-/// The bounded scalar setting the review app can change safely.
-public enum CaptureControlMode: String, Codable, Equatable, Sendable {
-    case running
-    case paused
+/// The canonical interval bounds shared by the review slider and control file.
+public enum CaptureIntervalPolicy {
+    public static let minimumSeconds = 5
+    public static let maximumSeconds = 300
+    public static let stepSeconds = 5
+    public static let defaultSeconds = 60
+
+    public static func isValid(_ seconds: Int) -> Bool {
+        (minimumSeconds...maximumSeconds).contains(seconds) && seconds.isMultiple(of: stepSeconds)
+    }
+
+    /// Clamps to the supported range and rounds to the nearest supported step.
+    public static func normalized(_ seconds: Int) -> Int {
+        let bounded = min(max(seconds, minimumSeconds), maximumSeconds)
+        let stepped = Int((Double(bounded) / Double(stepSeconds)).rounded()) * stepSeconds
+        return min(max(stepped, minimumSeconds), maximumSeconds)
+    }
+
+    public static func humanized(_ seconds: Int) -> String {
+        let normalized = normalized(seconds)
+        guard normalized % 60 == 0 else { return "\(normalized) seconds" }
+        let minutes = normalized / 60
+        return "\(minutes) minute\(minutes == 1 ? "" : "s")"
+    }
+}
+
+public enum CaptureControlError: Error, Equatable, Sendable {
+    case invalidInterval(Int)
 }
 
 public struct CaptureControl: Codable, Equatable, Sendable {
-    public let mode: CaptureControlMode
+    public let intervalSeconds: Int
 
-    public init(mode: CaptureControlMode = .running) {
-        self.mode = mode
+    private init(uncheckedIntervalSeconds: Int) {
+        self.intervalSeconds = uncheckedIntervalSeconds
     }
 
-    public static let `default` = CaptureControl()
+    public init(intervalSeconds: Int = CaptureIntervalPolicy.defaultSeconds) throws {
+        guard CaptureIntervalPolicy.isValid(intervalSeconds) else {
+            throw CaptureControlError.invalidInterval(intervalSeconds)
+        }
+        self.init(uncheckedIntervalSeconds: intervalSeconds)
+    }
+
+    public static let `default` = CaptureControl(uncheckedIntervalSeconds: CaptureIntervalPolicy.defaultSeconds)
+
+    private enum CodingKeys: String, CodingKey {
+        case intervalSeconds = "interval_seconds"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let interval = try container.decodeIfPresent(Int.self, forKey: .intervalSeconds) {
+            guard let control = try? CaptureControl(intervalSeconds: interval) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .intervalSeconds,
+                    in: container,
+                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 300"
+                )
+            }
+            self = control
+            return
+        }
+        throw DecodingError.keyNotFound(
+            CodingKeys.intervalSeconds,
+            DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "missing interval_seconds")
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(intervalSeconds, forKey: .intervalSeconds)
+    }
 }
 
 public struct CaptureControlStore: Sendable {
@@ -109,8 +167,6 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
             helperIsRunning ? "Background capture active" : "Helper not running"
         case .capturing:
             helperIsRunning ? "Capturing now" : "Capture interrupted"
-        case .paused:
-            "Paused by user"
         case .permissionRequired:
             "Screen Recording permission required"
         case .noDisplays:
