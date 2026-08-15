@@ -290,6 +290,53 @@ final class CaptureCoreTests: XCTestCase {
             [.skippedSealing(displayID: "1", reason: "Error Domain=tests Code=1 \"intentional failure\" UserInfo={NSLocalizedDescription=intentional failure}")]
         )
     }
+
+    func testFixtureIngestionSealsRecordsAndPersistsOnlyScalarStatus() throws {
+        let manifest = try FixtureManifest(csv: """
+        capture_id,source,captured_at_ms
+        capture-01,text,0
+        capture-02,rotated,600000
+        """)
+        let statusURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-fixture-status-\(UUID().uuidString)")
+            .appendingPathComponent("capture-progress.json")
+        let sealer = RecordingSealer()
+
+        let result = try FixtureIngestion.run(
+            manifest: manifest,
+            capture: ImmediateCapture(),
+            sealer: sealer,
+            context: SampledContext(application: "fixture"),
+            progressStore: CaptureProgressStore(url: statusURL),
+            intervalSeconds: 5,
+            maxDimension: 1_920,
+            processID: 42,
+            at: 1_000
+        )
+
+        XCTAssertEqual(result, FixtureIngestionResult(attemptedCount: 2, sealedCount: 2, failedCount: 0))
+        XCTAssertEqual(sealer.sealed, ["capture-01", "capture-02"])
+        let progress = try CaptureProgressStore(url: statusURL).read()
+        XCTAssertEqual(progress.state, .waiting)
+        XCTAssertEqual(progress.captureCount, 2)
+        XCTAssertEqual(progress.lastCaptureAtMillis, 1_000)
+        XCTAssertEqual(progress.selectedDisplayIDs, ["fixture"])
+        let json = String(decoding: try Data(contentsOf: statusURL), as: UTF8.self)
+        XCTAssertFalse(json.contains("image"))
+        XCTAssertFalse(json.contains("text"))
+        XCTAssertFalse(json.contains("600000"))
+    }
+
+    func testFixtureManifestRejectsUnsafeImagePaths() {
+        XCTAssertThrowsError(
+            try FixtureManifest(csv: """
+            capture_id,source,captured_at_ms
+            capture-01,../private.png,0
+            """)
+        ) { error in
+            XCTAssertEqual(error as? FixtureManifestError, .invalidSource("../private.png"))
+        }
+    }
 }
 
 private extension CaptureCoreTests {

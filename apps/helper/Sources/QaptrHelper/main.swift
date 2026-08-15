@@ -9,6 +9,8 @@ private struct Options {
     let maximumCycles: Int?
     let vaultRoot: URL
     let generationID: String
+    let fixtureManifest: URL?
+    let fixtureImageRoot: URL?
 
     static func parse(_ arguments: ArraySlice<String>) throws -> Self {
         var intervalSeconds = CaptureInterval.defaultSeconds
@@ -17,6 +19,8 @@ private struct Options {
         var vaultRoot = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Qaptr/vault", isDirectory: true)
         var generationID = "generation-1"
+        var fixtureManifest: URL?
+        var fixtureImageRoot: URL?
         var index = arguments.startIndex
 
         while index < arguments.endIndex {
@@ -51,16 +55,25 @@ private struct Options {
                     throw HelperError.invalidArgument("empty generation id")
                 }
                 generationID = value
+            case "--fixture-manifest":
+                fixtureManifest = URL(fileURLWithPath: value)
+            case "--fixture-image-root":
+                fixtureImageRoot = URL(fileURLWithPath: value, isDirectory: true)
             default:
                 throw HelperError.invalidArgument("unknown argument \(argument)")
             }
+        }
+        guard fixtureManifest == nil || fixtureImageRoot != nil else {
+            throw HelperError.invalidArgument("--fixture-manifest requires --fixture-image-root")
         }
         return try Self(
             interval: CaptureInterval(seconds: intervalSeconds),
             maxDimension: maxDimension,
             maximumCycles: maximumCycles,
             vaultRoot: vaultRoot,
-            generationID: generationID
+            generationID: generationID,
+            fixtureManifest: fixtureManifest,
+            fixtureImageRoot: fixtureImageRoot
         )
     }
 }
@@ -384,12 +397,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     }
 
     private static func captureProgressURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["QAPTR_CAPTURE_PROGRESS_PATH"], !override.isEmpty {
-            return URL(fileURLWithPath: override)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
-            .appendingPathComponent("capture-progress.json")
+        captureProgressURLOverride()
     }
 
     private static func captureControlURL() -> URL {
@@ -449,6 +457,15 @@ private enum HelperError: Error, CustomStringConvertible {
     }
 }
 
+private func captureProgressURLOverride() -> URL {
+    if let override = ProcessInfo.processInfo.environment["QAPTR_CAPTURE_PROGRESS_PATH"], !override.isEmpty {
+        return URL(fileURLWithPath: override)
+    }
+    return FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
+        .appendingPathComponent("capture-progress.json")
+}
+
 @MainActor
 private enum QaptrHelperMain {
     static func main() {
@@ -472,6 +489,23 @@ private enum QaptrHelperMain {
             } catch {
                 print("event=skip reason=vault_unavailable detail=\(error)")
                 sealer = UnavailableSealer(reason: String(describing: error))
+            }
+            if let fixtureManifestURL = options.fixtureManifest,
+               let fixtureImageRoot = options.fixtureImageRoot {
+                let manifest = try FixtureManifest(data: Data(contentsOf: fixtureManifestURL))
+                let result = try FixtureIngestion.run(
+                    manifest: manifest,
+                    capture: FixtureImageCapture(root: fixtureImageRoot),
+                    sealer: sealer,
+                    context: SampledContext(application: "Qaptr fixture"),
+                    progressStore: CaptureProgressStore(url: captureProgressURLOverride()),
+                    intervalSeconds: options.interval.seconds,
+                    maxDimension: options.maxDimension,
+                    processID: Int64(ProcessInfo.processInfo.processIdentifier),
+                    at: Int64(Date().timeIntervalSince1970 * 1_000)
+                )
+                print("event=fixture_ingestion attempted=\(result.attemptedCount) sealed=\(result.sealedCount) failed=\(result.failedCount)")
+                return
             }
             let application = NSApplication.shared
             let delegate = HelperApplication(options: options, instanceLock: instanceLock, sealer: sealer)
