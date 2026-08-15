@@ -92,10 +92,14 @@ struct ObservationSheetView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
             } else {
-            Text("No screenshot yet")
+                Text("No screenshot yet")
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
             }
+            Text(captureConfigurationSummary)
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -103,6 +107,15 @@ struct ObservationSheetView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
         }
+    }
+
+    private var captureConfigurationSummary: String {
+        let displays = model.captureProgress.selectedDisplayIDs
+        let displaySummary = displays.isEmpty
+            ? "No displays selected"
+            : "\(displays.count) selected display\(displays.count == 1 ? "" : "s")"
+        let interval = model.captureProgress.activeIntervalSeconds ?? model.captureIntervalSeconds
+        return "\(displaySummary) · Every \(interval) seconds"
     }
 
     private var reviewStatusSummary: some View {
