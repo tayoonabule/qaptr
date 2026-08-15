@@ -24,7 +24,7 @@ use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, CapabilityDescriptor, ExecutablePath,
     ProviderAdapter, ProviderDescriptor, ProviderDetection, ProviderError, ProviderGate,
     ProviderId, ProviderLocation, ProviderVersion, RawObservation, RawProviderResponse,
-    RuntimeFailureKind,
+    RawWorkflow, RuntimeFailureKind,
 };
 use qaptr_store::{CaptureRecord, Store, UnixMillis};
 use qaptr_vault::OpenedBundle;
@@ -190,6 +190,14 @@ impl FakeProvider {
 
     fn unavailable(mut self) -> Self {
         self.detection = ProviderDetection::not_installed();
+        self
+    }
+
+    fn with_workflow(mut self) -> Self {
+        self.response.workflow = Some(RawWorkflow::new(
+            "Repeated export review",
+            "Prepare the repeated export review",
+        ));
         self
     }
 }
@@ -455,6 +463,26 @@ fn observations_are_scalar_summaries_with_provider_confidence_unchanged() {
     assert_eq!(observation.summary, "The same step recurred");
     assert!((observation.confidence.as_f32() - 0.42).abs() < f32::EPSILON);
     assert_eq!(snapshot.observations.len(), 1);
+}
+
+#[test]
+fn candidate_workflow_is_persisted_as_scalar_canonical_history() {
+    let (harness, capture) = Harness::new("workflow", safe_context());
+    let provider = ProviderGate::new(FakeProvider::new(None).with_workflow());
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+
+    runner(&harness, Some(&provider), &consent)
+        .run(session(), &[capture])
+        .expect("analysis");
+
+    let snapshot = harness.store.snapshot().expect("snapshot");
+    assert_eq!(snapshot.workflows.len(), 1);
+    let workflow = snapshot.workflows.first().expect("workflow");
+    assert_eq!(workflow.id.as_str(), "u19/session-u17/candidate-0");
+    assert_eq!(workflow.title, "Repeated export review");
+    assert_eq!(workflow.goal, "Prepare the repeated export review");
+    assert!(workflow.sequence.contains("\"steps\":[]"));
+    assert!(!workflow.sequence.contains("screenshot"));
 }
 
 #[test]

@@ -1,6 +1,8 @@
 //! Acceptance and golden tests for U19 exports.
 
 use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
+use qaptr_provider::{RawObservation, RawProviderResponse, RawWorkflow, normalize_response};
+use qaptr_store::{ObservationRecord, UnixMillis};
 use qaptr_workflow::{
     Artifact, ConfidenceAssessment, DecisionAlternative, DecisionPoint, Provenance, ToolObserved,
     WorkflowDocument, WorkflowStep, WorkflowVariation, render_automation, render_handoff,
@@ -207,4 +209,65 @@ fn all_exports_match_golden_documents() {
         include_str!("snapshots/onboarding.md")
     );
     assert_eq!(render_sop(&workflow), include_str!("snapshots/sop.md"));
+}
+
+#[test]
+fn observation_generation_is_stable_and_keeps_missing_sequence_visible() {
+    let observation = ObservationRecord {
+        id: ObservationId::new("observation-detail").expect("observation id"),
+        capture_id: Some(CaptureId::new("capture-detail").expect("capture id")),
+        session_id: SessionId::new("session-detail").expect("session id"),
+        title: "Review exceptions".to_owned(),
+        summary: "The operator returned to the exception list twice.".to_owned(),
+        confidence: Confidence::new(0.32).expect("confidence"),
+        created_at: UnixMillis::from_millis(42),
+    };
+
+    let first = WorkflowDocument::from_observation(&observation).expect("workflow document");
+    let second = WorkflowDocument::from_observation(&observation).expect("workflow document");
+    assert_eq!(first, second);
+    assert_eq!(first.id.as_str(), "u19/observation/observation-detail");
+    assert!(first.has_no_sequence());
+    assert_eq!(
+        first.provenance.observation_ids,
+        vec![observation.id.clone()]
+    );
+
+    let record = first
+        .to_record(UnixMillis::from_millis(43))
+        .expect("scalar workflow record");
+    assert_eq!(record.id.as_str(), first.id.as_str());
+    assert!(record.sequence.contains("\"steps\":[]"));
+    assert!(render_sop(&first).contains("No procedure steps were captured"));
+}
+
+#[test]
+fn candidate_generation_preserves_candidate_material_without_inventing_steps() {
+    let normalized = normalize_response(RawProviderResponse::new(
+        vec![RawObservation::new(
+            "Observed action",
+            "A repeated action",
+            0.88,
+        )],
+        Some(RawWorkflow::new(
+            "Weekly review",
+            "Prepare the weekly review",
+        )),
+    ))
+    .expect("normalized candidate");
+    let candidate = normalized.workflow().expect("candidate workflow");
+    let session_id = SessionId::new("session-candidate").expect("session id");
+    let evidence = ConfidenceAssessment::scored(Confidence::new(0.88).expect("confidence"));
+
+    let first = WorkflowDocument::from_candidate(&session_id, candidate, 0, evidence.clone(), None)
+        .expect("workflow document");
+    let second = WorkflowDocument::from_candidate(&session_id, candidate, 0, evidence, None)
+        .expect("workflow document");
+
+    assert_eq!(first.id, second.id);
+    assert_eq!(first.id.as_str(), "u19/session-candidate/candidate-0");
+    assert_eq!(first.title, "Weekly review");
+    assert_eq!(first.goal.as_deref(), Some("Prepare the weekly review"));
+    assert!(first.steps.is_empty());
+    assert!(render_automation(&first).contains("No steps were captured"));
 }

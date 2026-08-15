@@ -1,0 +1,533 @@
+//! Review-app-owned lifecycle coordination above [`AnalysisRunner`].
+//!
+//! The runner owns the privacy and provider boundaries. This coordinator owns
+//! the review-session lifecycle around it: deterministic capture ingestion,
+//! retention before analysis, cooperative cancellation, retry of sealed
+//! captures, and coarse progress suitable for a UI bridge. It deliberately
+//! exposes summaries and state, never vault members or provider payloads.
+
+use std::collections::BTreeMap;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
+use qaptr_domain::clock::Clock;
+use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
+use qaptr_domain::{CaptureId, SessionId};
+use qaptr_policy::{RetentionError, RetentionPolicy, enforce_retention};
+use qaptr_provider::{ProviderAdapter, ProviderId};
+use qaptr_store::{Store, StoreError};
+use qaptr_vault::Vault;
+use thiserror::Error;
+
+use crate::{
+    AnalysisError, AnalysisReport, AnalysisRunner, Cancellation, CaptureRecordInput,
+    ProviderOutcome,
+};
+
+/// A coarse lifecycle state safe to mirror across the review bridge.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReviewProgress {
+    /// Sealed capture metadata is being deduplicated and made eligible.
+    Ingesting {
+        /// Number of deduplicated capture records seen.
+        captures_seen: usize,
+    },
+    /// Local privacy preparation is running. No provider request has occurred.
+    Preparing {
+        /// Number of eligible capture records being prepared.
+        captures_seen: usize,
+    },
+    /// The runner has finished local preparation and is about to request consent.
+    ReadyForConsent {
+        /// Number of capture records supplied to the session.
+        captures_seen: usize,
+        /// Number of captures that passed local preparation.
+        prepared_captures: usize,
+        /// Number of captures excluded by the local privacy gate.
+        excluded_captures: usize,
+        /// Selected provider, when one was configured.
+        provider: Option<ProviderId>,
+    },
+    /// Provider analysis is in flight.
+    Analyzing {
+        /// Number of prepared captures being sent after consent.
+        captures: usize,
+    },
+    /// The session finished and durable scalar history can be refreshed.
+    Completed {
+        /// Number of capture records supplied to the session.
+        captures_seen: usize,
+        /// Number of scalar observations committed by the runner.
+        observations_written: usize,
+    },
+    /// The session stopped cooperatively without committing staged results.
+    Cancelled {
+        /// Number of capture records seen before cancellation.
+        captures_seen: usize,
+    },
+    /// The session failed before a trustworthy completed result existed.
+    Failed {
+        /// A concise recovery-oriented message safe for the UI.
+        message: String,
+    },
+}
+
+impl ReviewProgress {
+    /// Returns a bridge-stable lowercase state name.
+    pub const fn state_name(&self) -> &'static str {
+        match self {
+            Self::Ingesting { .. } => "ingesting",
+            Self::Preparing { .. } => "preparing",
+            Self::ReadyForConsent { .. } => "ready_for_consent",
+            Self::Analyzing { .. } => "analyzing",
+            Self::Completed { .. } => "completed",
+            Self::Cancelled { .. } => "cancelled",
+            Self::Failed { .. } => "failed",
+        }
+    }
+}
+
+/// A cloneable cancellation handle for a running review session.
+#[derive(Clone, Debug, Default)]
+pub struct SessionCancellation {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl SessionCancellation {
+    /// Creates a reset cancellation handle.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Requests cooperative cancellation at the next runner boundary.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
+    /// Clears a previous request before a new attempt or retry.
+    pub fn reset(&self) {
+        self.cancelled.store(false, Ordering::Release);
+    }
+
+    /// Returns whether cancellation has been requested.
+    pub fn is_requested(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+}
+
+impl Cancellation for SessionCancellation {
+    fn is_cancelled(&self) -> bool {
+        self.is_requested()
+    }
+}
+
+/// Errors raised by the review-session lifecycle rather than by provider data.
+#[derive(Debug, Error)]
+pub enum ReviewSessionError {
+    /// Local analysis or persistence failed inside the runner.
+    #[error(transparent)]
+    Analysis(#[from] AnalysisError),
+    /// Retention could not safely complete before preparation.
+    #[error("review retention failed: {0}")]
+    Retention(#[from] RetentionError),
+    /// The durable history snapshot could not be read while ingesting.
+    #[error("review history could not be read: {0}")]
+    Store(#[from] StoreError),
+    /// Retry was requested before a session had an eligible capture set.
+    #[error("no review session is available to retry")]
+    NothingToRetry,
+}
+
+/// A production-shaped coordinator that is the review app's lifecycle owner.
+///
+/// Construction is side-effect free. The supplied runner remains the only
+/// owner of vault opening, local preparation, provider dispatch, and scalar
+/// observation persistence. This wrapper owns when those operations happen and
+/// provides the restart-safe lifecycle around them.
+pub struct ReviewSessionCoordinator<'a, C, O, V, A, D, P, K>
+where
+    C: CredentialPort,
+    O: OcrPort,
+    V: VisionPort,
+    A: ProviderAdapter,
+    D: crate::CaptureDecoder,
+    P: crate::ConsentPort,
+    K: Clock,
+{
+    runner: &'a AnalysisRunner<'a, C, O, V, A, D, P, K>,
+    vault: &'a Vault,
+    credentials: &'a C,
+    store: &'a Store,
+    clock: &'a K,
+    retention: Option<RetentionPolicy>,
+    cancellation: SessionCancellation,
+    last_session: Option<SessionId>,
+    last_captures: Option<Vec<CaptureRecordInput>>,
+}
+
+impl<'a, C, O, V, A, D, P, K> ReviewSessionCoordinator<'a, C, O, V, A, D, P, K>
+where
+    C: CredentialPort,
+    O: OcrPort,
+    V: VisionPort,
+    A: ProviderAdapter,
+    D: crate::CaptureDecoder,
+    P: crate::ConsentPort,
+    K: Clock,
+{
+    /// Creates a coordinator without opening the vault or invoking a provider.
+    pub fn new(
+        runner: &'a AnalysisRunner<'a, C, O, V, A, D, P, K>,
+        vault: &'a Vault,
+        credentials: &'a C,
+        store: &'a Store,
+        clock: &'a K,
+    ) -> Self {
+        Self {
+            runner,
+            vault,
+            credentials,
+            store,
+            clock,
+            retention: None,
+            cancellation: SessionCancellation::new(),
+            last_session: None,
+            last_captures: None,
+        }
+    }
+
+    /// Applies retention before the next preparation pass.
+    pub const fn with_retention_policy(mut self, policy: RetentionPolicy) -> Self {
+        self.retention = Some(policy);
+        self
+    }
+
+    /// Returns a handle that can cancel this coordinator's current attempt.
+    pub fn cancellation(&self) -> SessionCancellation {
+        self.cancellation.clone()
+    }
+
+    /// Requests cancellation without requiring access to the runner.
+    pub fn cancel(&self) {
+        self.cancellation.cancel();
+    }
+
+    /// Starts a fresh session from sealed capture metadata.
+    ///
+    /// Inputs are deduplicated by stable capture id before any vault access.
+    /// Retry stores this exact metadata set and therefore reuses sealed
+    /// captures without reusing a stale provider verification decision.
+    pub fn start<F>(
+        &mut self,
+        session_id: SessionId,
+        captures: &[CaptureRecordInput],
+        mut progress: F,
+    ) -> Result<AnalysisReport, ReviewSessionError>
+    where
+        F: FnMut(ReviewProgress),
+    {
+        self.last_session = Some(session_id.clone());
+        let eligible = deduplicate(captures);
+        self.last_captures = Some(eligible.clone());
+        progress(ReviewProgress::Ingesting {
+            captures_seen: eligible.len(),
+        });
+
+        if self.cancellation.is_requested() {
+            progress(ReviewProgress::Cancelled {
+                captures_seen: eligible.len(),
+            });
+            let report = self
+                .runner
+                .run_with_cancellation(session_id, &[], &self.cancellation)?;
+            return Ok(report);
+        }
+
+        if let Some(policy) = self.retention {
+            enforce_retention(
+                &policy,
+                self.vault,
+                self.store,
+                self.credentials,
+                self.clock,
+            )?;
+        }
+
+        if self.cancellation.is_requested() {
+            progress(ReviewProgress::Cancelled {
+                captures_seen: eligible.len(),
+            });
+            let report = self
+                .runner
+                .run_with_cancellation(session_id, &[], &self.cancellation)?;
+            return Ok(report);
+        }
+        progress(ReviewProgress::Preparing {
+            captures_seen: eligible.len(),
+        });
+
+        let report =
+            self.runner
+                .run_with_cancellation(session_id, &eligible, &self.cancellation)?;
+        emit_report_progress(&report, &mut progress);
+        Ok(report)
+    }
+
+    /// Retries the last sealed-capture set with fresh provider/model checks.
+    pub fn retry<F>(&mut self, progress: F) -> Result<AnalysisReport, ReviewSessionError>
+    where
+        F: FnMut(ReviewProgress),
+    {
+        let session_id = self
+            .last_session
+            .clone()
+            .ok_or(ReviewSessionError::NothingToRetry)?;
+        let captures = self
+            .last_captures
+            .clone()
+            .ok_or(ReviewSessionError::NothingToRetry)?;
+        self.cancellation.reset();
+        self.start(session_id, &captures, progress)
+    }
+
+    /// Returns the last deduplicated input set, without exposing vault data.
+    pub fn last_capture_ids(&self) -> Vec<CaptureId> {
+        self.last_captures
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|capture| capture.capture_id().clone())
+            .collect()
+    }
+}
+
+fn deduplicate(captures: &[CaptureRecordInput]) -> Vec<CaptureRecordInput> {
+    let mut unique = BTreeMap::new();
+    for capture in captures {
+        unique
+            .entry(capture.capture_id().clone())
+            .or_insert_with(|| capture.clone());
+    }
+    unique.into_values().collect()
+}
+
+fn emit_report_progress<F: FnMut(ReviewProgress)>(report: &AnalysisReport, progress: &mut F) {
+    match &report.provider {
+        ProviderOutcome::Cancelled => progress(ReviewProgress::Cancelled {
+            captures_seen: report.captures_seen,
+        }),
+        ProviderOutcome::Unavailable { provider, .. } if report.prepared_captures > 0 => {
+            progress(ReviewProgress::ReadyForConsent {
+                captures_seen: report.captures_seen,
+                prepared_captures: report.prepared_captures,
+                excluded_captures: report.excluded_captures,
+                provider: provider.clone(),
+            });
+            progress(ReviewProgress::Failed {
+                message: "provider unavailable; check provider setup and retry".to_owned(),
+            });
+        }
+        ProviderOutcome::ConsentDeclined => progress(ReviewProgress::Completed {
+            captures_seen: report.captures_seen,
+            observations_written: 0,
+        }),
+        ProviderOutcome::Failed { .. } => progress(ReviewProgress::Failed {
+            message: "provider analysis failed; no partial observations were committed".to_owned(),
+        }),
+        ProviderOutcome::NotAttempted => progress(ReviewProgress::Completed {
+            captures_seen: report.captures_seen,
+            observations_written: 0,
+        }),
+        ProviderOutcome::Completed { .. } => {
+            progress(ReviewProgress::Analyzing {
+                captures: report.prepared_captures,
+            });
+            progress(ReviewProgress::Completed {
+                captures_seen: report.captures_seen,
+                observations_written: report.observations_written,
+            });
+        }
+        ProviderOutcome::Unavailable { .. } => progress(ReviewProgress::Failed {
+            message: "no provider is configured; choose a provider and retry".to_owned(),
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    use qaptr_domain::clock::FixedClock;
+    use qaptr_domain::ports::credentials::{CredentialKey, CredentialValue};
+    use qaptr_domain::ports::ocr::OcrResult;
+    use qaptr_domain::ports::vision::VisionResult;
+    use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
+    use qaptr_domain::ports::PortOutcome;
+    use qaptr_privacy::{PrivacyGate, measure_recall};
+    use qaptr_provider::{
+        ProviderDescriptor, ProviderDetection, ProviderError, ProviderGate, ProviderInvocation,
+        RawProviderResponse,
+    };
+    use qaptr_vault::Vault;
+
+    struct UnusedCredentials;
+
+    impl CredentialPort for UnusedCredentials {
+        fn read(
+            &self,
+            _key: &CredentialKey,
+        ) -> qaptr_domain::Result<PortOutcome<Option<CredentialValue>>> {
+            panic!("credentials must not be read before preparation")
+        }
+
+        fn write(
+            &self,
+            _key: &CredentialKey,
+            _value: CredentialValue,
+        ) -> qaptr_domain::Result<PortOutcome<()>> {
+            panic!("credentials must not be written")
+        }
+
+        fn delete(&self, _key: &CredentialKey) -> qaptr_domain::Result<PortOutcome<()>> {
+            panic!("credentials must not be deleted")
+        }
+    }
+
+    struct UnusedOcr;
+    impl OcrPort for UnusedOcr {
+        fn recognize(
+            &self,
+            _capture: &qaptr_domain::CaptureId,
+        ) -> qaptr_domain::Result<PortOutcome<OcrResult>> {
+            panic!("OCR must not run before preparation")
+        }
+    }
+
+    struct UnusedVision;
+    impl VisionPort for UnusedVision {
+        fn detect(
+            &self,
+            _capture: &qaptr_domain::CaptureId,
+        ) -> qaptr_domain::Result<PortOutcome<VisionResult>> {
+            panic!("vision must not run before preparation")
+        }
+    }
+
+    struct UnusedDecoder;
+    impl crate::CaptureDecoder for UnusedDecoder {
+        fn decode(
+            &self,
+            _bundle: &qaptr_vault::OpenedBundle,
+        ) -> Result<qaptr_privacy::PreparationInput, crate::DecodeError> {
+            panic!("decoder must not run before preparation")
+        }
+    }
+
+    struct UnusedConsent;
+    impl crate::ConsentPort for UnusedConsent {
+        fn request(&self, _request: &crate::ConsentRequest) -> crate::ConsentDecision {
+            panic!("consent must not be requested after cancellation")
+        }
+    }
+
+    struct UnusedProvider {
+        descriptor: ProviderDescriptor,
+    }
+
+    impl qaptr_provider::ProviderAdapter for UnusedProvider {
+        fn descriptor(&self) -> &ProviderDescriptor {
+            &self.descriptor
+        }
+
+        fn detect(&self) -> Result<ProviderDetection, ProviderError> {
+            panic!("provider must not be detected after cancellation")
+        }
+
+        fn invoke(
+            &self,
+            _invocation: ProviderInvocation<'_>,
+        ) -> Result<RawProviderResponse, ProviderError> {
+            panic!("provider must not be invoked after cancellation")
+        }
+    }
+
+    #[test]
+    fn cancellation_before_retention_returns_without_preparation() {
+        let root =
+            std::env::temp_dir().join(format!("qaptr-session-cancel-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("test root");
+        let vault = Vault::new(root.join("vault")).expect("vault");
+        let store = Store::open(root.join("history.sqlite3")).expect("store");
+        let credentials = UnusedCredentials;
+        let privacy = PrivacyGate::new(measure_recall(&[], &[]).expect("recall"));
+        let ocr = UnusedOcr;
+        let vision = UnusedVision;
+        let decoder = UnusedDecoder;
+        let consent = UnusedConsent;
+        let clock = FixedClock::new(UNIX_EPOCH + Duration::from_secs(1));
+        let runner = AnalysisRunner::new(
+            &vault,
+            &credentials,
+            &store,
+            &privacy,
+            &ocr,
+            &vision,
+            None::<&ProviderGate<UnusedProvider>>,
+            &decoder,
+            &consent,
+            &clock,
+        );
+        let mut coordinator =
+            ReviewSessionCoordinator::new(&runner, &vault, &credentials, &store, &clock)
+                .with_retention_policy(RetentionPolicy::new(qaptr_domain::Duration::from_secs(1)));
+        let cancellation = coordinator.cancellation();
+        cancellation.cancel();
+        let mut states = Vec::new();
+
+        let report = coordinator
+            .start(
+                SessionId::new("cancel-before-retention").expect("session"),
+                &[],
+                |state| states.push(state.state_name()),
+            )
+            .expect("cancelled session");
+
+        assert!(matches!(report.provider, ProviderOutcome::Cancelled));
+        assert_eq!(states, ["ingesting", "cancelled"]);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cancellation_handle_is_shared_and_resettable() {
+        let first = SessionCancellation::new();
+        let second = first.clone();
+        assert!(!second.is_requested());
+        first.cancel();
+        assert!(second.is_requested());
+        second.reset();
+        assert!(!first.is_requested());
+    }
+
+    #[test]
+    fn progress_names_are_bridge_stable() {
+        assert_eq!(
+            ReviewProgress::Ingesting { captures_seen: 0 }.state_name(),
+            "ingesting"
+        );
+        assert_eq!(
+            ReviewProgress::Cancelled { captures_seen: 0 }.state_name(),
+            "cancelled"
+        );
+        assert_eq!(
+            ReviewProgress::Failed {
+                message: "x".to_owned()
+            }
+            .state_name(),
+            "failed"
+        );
+    }
+}

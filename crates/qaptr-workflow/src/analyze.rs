@@ -26,6 +26,7 @@ use qaptr_vault::{OpenedBundle, Vault, VaultError};
 use thiserror::Error;
 
 use crate::consent::{ConsentDecision, ConsentPort, ConsentRequest};
+use crate::document::{ConfidenceAssessment, WorkflowDocument, WorkflowError};
 use crate::observation::{DEFAULT_OBSERVATION_LIMIT, ObservationError, records_from_response};
 
 /// One sealed capture and its durable scalar metadata.
@@ -192,6 +193,9 @@ pub enum AnalysisError {
     /// A normalized response could not become durable observations.
     #[error("observation conversion failed: {0}")]
     Observation(#[source] ObservationError),
+    /// A provider workflow candidate could not become a canonical document.
+    #[error("workflow conversion failed: {0}")]
+    Workflow(#[source] WorkflowError),
 }
 
 /// The in-process analysis orchestrator owned by the review app.
@@ -396,6 +400,7 @@ where
         }
 
         let mut observations = Vec::new();
+        let mut workflow = None;
         for payload in &prepared {
             if cancellation.is_cancelled() {
                 return Ok(cancelled_report(
@@ -422,6 +427,28 @@ where
                     });
                 }
             };
+            if workflow.is_none() {
+                if let Some(candidate) = response.workflow() {
+                    let evidence = response
+                        .observations()
+                        .first()
+                        .map(|observation| {
+                            ConfidenceAssessment::scored(observation.confidence())
+                                .with_basis("Inherited from the first observed response item")
+                        })
+                        .unwrap_or_else(ConfidenceAssessment::unknown);
+                    workflow = Some(
+                        WorkflowDocument::from_candidate(
+                            &session_id,
+                            candidate,
+                            0,
+                            evidence,
+                            Some(payload.capture_id().clone()),
+                        )
+                        .map_err(AnalysisError::Workflow)?,
+                    );
+                }
+            }
             let remaining = self.observation_limit.saturating_sub(observations.len());
             observations.extend(
                 records_from_response(
@@ -436,10 +463,18 @@ where
         }
 
         let observations_written = observations.len();
+        let workflow_record = workflow
+            .as_ref()
+            .map(|workflow| workflow.to_record(created_at))
+            .transpose()
+            .map_err(AnalysisError::Workflow)?;
         self.store
             .transaction(|transaction| {
                 for observation in &observations {
                     transaction.put_observation(observation)?;
+                }
+                if let Some(workflow) = &workflow_record {
+                    transaction.put_workflow(workflow)?;
                 }
                 Ok(())
             })
