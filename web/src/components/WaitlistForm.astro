@@ -15,7 +15,6 @@ const emailId = `${formId}-email`;
   <div class="waitlist-form__shell">
     <div class="waitlist-form__row">
       <label class="visually-hidden" for={emailId}>Email address</label>
-      <ion-icon name="mail-outline" aria-hidden="true"></ion-icon>
       <input
         id={emailId}
         class="waitlist-form__input"
@@ -26,7 +25,7 @@ const emailId = `${formId}-email`;
         required
         aria-describedby={`${formId}-note`}
       />
-      <button class="waitlist-form__submit animate-ui-button" type="submit">
+      <button class="waitlist-form__submit animate-ui-button animate-ui-loading" type="submit">
         <span>Join the waitlist</span>
         <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon>
       </button>
@@ -86,7 +85,7 @@ const emailId = `${formId}-email`;
     min-height: 2.75rem;
     overflow: hidden;
     border: 1px solid var(--color-primary-action-fill);
-    border-radius: var(--radius-tag);
+    border-radius: var(--radius-button);
     background: var(--color-primary-action-fill);
     color: var(--color-canvas-white);
     padding: var(--spacing-8) var(--spacing-16);
@@ -115,13 +114,6 @@ const emailId = `${formId}-email`;
   .waitlist-form__submit span {
     position: relative;
     z-index: 1;
-  }
-
-  .waitlist-form__row > ion-icon {
-    align-self: center;
-    margin-left: var(--spacing-8);
-    color: var(--color-steel);
-    font-size: 1.05rem;
   }
 
   .waitlist-form__submit ion-icon {

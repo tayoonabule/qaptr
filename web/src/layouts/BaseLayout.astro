@@ -114,13 +114,6 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
         });
       });
 
-      document.querySelectorAll("[data-preview-tab]").forEach((tab) => {
-        tab.addEventListener("click", () => {
-          document.querySelectorAll("[data-preview-tab]").forEach((item) => item.setAttribute("aria-selected", String(item === tab)));
-          const status = document.querySelector("[data-preview-status]");
-          if (status instanceof HTMLElement) status.textContent = tab.getAttribute("data-preview-tab") === "sessions" ? "Ready to review" : "Preview only";
-        });
-      });
     </script>
 
     <style>
@@ -175,7 +168,7 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
       .site-header__cta {
         display: inline-flex;
         align-items: center;
-        min-height: 2.5rem;
+        min-height: 2.75rem;
         border: 1px solid var(--color-primary-action-fill);
         border-radius: var(--radius-button);
         background: var(--color-primary-action-fill);

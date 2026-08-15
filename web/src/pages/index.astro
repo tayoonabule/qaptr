@@ -33,7 +33,7 @@ import ArcDial from "../components/ArcDial.astro";
       </div>
     </div>
 
-    <figure class="workspace-preview canvas-particle-reveal reveal" aria-labelledby="workspace-preview-caption">
+    <figure class="workspace-preview reveal" aria-labelledby="workspace-preview-caption">
       <div class="workspace-preview__appbar">
         <div class="workspace-preview__brand">
           <span class="workspace-preview__brand-dot" aria-hidden="true"></span>
@@ -45,9 +45,9 @@ import ArcDial from "../components/ArcDial.astro";
       <div class="workspace-preview__body">
         <aside class="workspace-preview__sidebar" aria-label="Illustrative workspace navigation">
           <p class="meta workspace-preview__sidebar-label">Workspace</p>
-          <button class="workspace-preview__nav workspace-preview__nav--active animate-ui-tabs" type="button" data-preview-tab="sessions" aria-selected="true"><ion-icon name="albums-outline" aria-hidden="true"></ion-icon>Sessions</button>
-          <button class="workspace-preview__nav animate-ui-tabs" type="button" data-preview-tab="queue" aria-selected="false"><ion-icon name="list-outline" aria-hidden="true"></ion-icon>Review queue</button>
-          <button class="workspace-preview__nav animate-ui-tabs" type="button" data-preview-tab="settings" aria-selected="false"><ion-icon name="settings-outline" aria-hidden="true"></ion-icon>Settings</button>
+          <span class="workspace-preview__nav workspace-preview__nav--active"><ion-icon name="albums-outline" aria-hidden="true"></ion-icon>Sessions</span>
+          <span class="workspace-preview__nav"><ion-icon name="list-outline" aria-hidden="true"></ion-icon>Review queue</span>
+          <span class="workspace-preview__nav"><ion-icon name="settings-outline" aria-hidden="true"></ion-icon>Settings</span>
           <div class="workspace-preview__sidebar-foot">
             <span class="workspace-preview__privacy-dot" aria-hidden="true"></span>
             <ion-icon name="shield-outline" aria-hidden="true"></ion-icon>Private on this Mac
@@ -60,11 +60,11 @@ import ArcDial from "../components/ArcDial.astro";
               <p class="meta">Recent session</p>
               <h2>Working notes</h2>
             </div>
-            <span class="workspace-preview__status" data-preview-status><ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon>Ready to review</span>
+            <span class="workspace-preview__status"><ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon>Ready to review</span>
           </div>
 
           <div class="workspace-preview__summary">
-            <span class="workspace-preview__summary-mark animate-ui-tooltip" data-tooltip="Ordered activity" aria-hidden="true"><ion-icon name="list-circle-outline"></ion-icon></span>
+            <span class="workspace-preview__summary-mark" aria-hidden="true"><ion-icon name="list-circle-outline"></ion-icon></span>
             <div>
               <strong>Your activity, in order.</strong>
               <p>A plain-language record to skim before you share anything.</p>
@@ -121,7 +121,6 @@ import ArcDial from "../components/ArcDial.astro";
         <p>Qaptr turns background activity into small, legible moments you can trust before sharing.</p>
       </div>
       <div class="product-bento__intro-signal" aria-hidden="true">
-        <ion-icon name="sparkles-outline"></ion-icon>
         <span class="signal-dot signal-dot--blue"></span>
         <span class="signal-dot signal-dot--green"></span>
         <span class="signal-dot signal-dot--violet"></span>
@@ -196,7 +195,7 @@ import ArcDial from "../components/ArcDial.astro";
     </div>
   </section>
 
-  <section id="join" class="join join--paper canvas-liquid-glass reveal">
+  <section id="join" class="join join--paper reveal">
     <div class="wrap join__inner">
       <div>
         <p class="meta join__eyebrow"><ion-icon name="mail-unread-outline" aria-hidden="true"></ion-icon>Private beta for macOS</p>
@@ -223,7 +222,7 @@ import ArcDial from "../components/ArcDial.astro";
     .hero__eyebrow {
       display: inline-flex;
       align-items: center;
-      gap: var(--spacing-8);
+      gap: var(--spacing-4);
       margin-bottom: var(--spacing-16);
     }
 
@@ -252,8 +251,8 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .feature-pills {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: var(--spacing-8);
       margin: var(--spacing-28) 0 0;
       padding: 0;
@@ -264,7 +263,7 @@ import ArcDial from "../components/ArcDial.astro";
     .feature-pill {
       display: inline-flex;
       align-items: center;
-      gap: var(--spacing-8);
+      gap: var(--spacing-4);
       min-height: 2rem;
       border: 1px solid transparent;
       border-radius: var(--radius-tag);
@@ -275,6 +274,10 @@ import ArcDial from "../components/ArcDial.astro";
       font-weight: 500;
       white-space: nowrap;
       transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+    }
+
+    @media (max-width: 640px) {
+      .feature-pills { grid-template-columns: 1fr; }
     }
 
     .feature-pill:hover {
