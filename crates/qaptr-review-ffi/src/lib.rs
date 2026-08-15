@@ -2,10 +2,13 @@
 //!
 //! # Invariants
 //!
-//! - This bridge exposes only durable-history reads: opening the store and
-//!   returning a scalar JSON snapshot of observations, workflows, and quiet
-//!   exclusion notices. It has no operation that reads a vault bundle, an
-//!   image, a credential, or a provider response.
+//! - Before durable-history reads, this bridge can reconcile one capture
+//!   generation. Private key material is created or read only through the
+//!   review app's non-synchronizing Keychain adapter; only the matching public
+//!   key is written to the vault for the helper.
+//! - The bridge never opens a vault bundle and has no operation that returns an
+//!   image, credential, or provider response. History output remains scalar:
+//!   observations, workflow summaries, and quiet exclusion notices.
 //! - All values crossing this boundary are already scalar (ids, text,
 //!   confidence, and millisecond timestamps). No image bytes ever cross this
 //!   ABI, mirroring `qaptr-ffi`'s helper-side invariant in the opposite
@@ -15,6 +18,7 @@
 
 #![allow(unsafe_code)]
 
+mod bootstrap;
 mod support;
 mod system;
 
@@ -27,6 +31,49 @@ pub use system::{
 };
 
 use support::{copy_string, read_utf8};
+
+/// Reconciles the review app's private generation key with the public key used
+/// by the capture helper and returns a small, non-sensitive JSON result.
+///
+/// The private key is created or read only through the review app's local,
+/// non-synchronizing Keychain adapter. The public key is written only after the
+/// private half is safely present. Existing mismatched or orphaned public keys
+/// fail closed and are never silently replaced.
+///
+/// # Safety
+///
+/// Input pointers must reference their declared UTF-8 byte lengths. `output`
+/// must reference a writable buffer of `output_capacity` bytes when non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_key_bootstrap_json(
+    vault_root: *const u8,
+    vault_root_len: usize,
+    generation: *const u8,
+    generation_len: usize,
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let result = match (unsafe { read_utf8(vault_root, vault_root_len) }, unsafe {
+        read_utf8(generation, generation_len)
+    }) {
+        (Some(vault_root), Some(generation)) => {
+            match bootstrap::bootstrap_generation(vault_root, generation) {
+                Ok(disposition) => json!({
+                    "ready": true,
+                    "generation_id": generation,
+                    "disposition": match disposition {
+                        bootstrap::BootstrapDisposition::Existing => "existing",
+                        bootstrap::BootstrapDisposition::Created => "created",
+                        bootstrap::BootstrapDisposition::PublicKeyRestored => "public_key_restored",
+                    },
+                }),
+                Err(reason) => json!({ "ready": false, "reason": reason }),
+            }
+        }
+        _ => json!({ "ready": false, "reason": "bootstrap input is not valid UTF-8" }),
+    };
+    copy_string(&result.to_string(), output, output_capacity)
+}
 
 /// An opaque review-app-owned handle over the durable history store.
 pub struct QaptrStoreHandle {
@@ -185,6 +232,26 @@ mod tests {
         let bytes = [0xFF_u8, 0xFE, 0xFD];
         let handle = unsafe { qaptr_store_open(bytes.as_ptr(), bytes.len()) };
         assert!(handle.is_null());
+    }
+
+    #[test]
+    fn invalid_bootstrap_input_returns_non_sensitive_failure_json() {
+        let invalid = [0xFF_u8];
+        let generation = b"generation-1";
+        let mut output = vec![0_u8; 256];
+        let required = unsafe {
+            qaptr_key_bootstrap_json(
+                invalid.as_ptr(),
+                invalid.len(),
+                generation.as_ptr(),
+                generation.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        };
+        let value: Value = serde_json::from_slice(&output[..required - 1]).expect("result JSON");
+        assert_eq!(value["ready"], false);
+        assert_eq!(value["reason"], "bootstrap input is not valid UTF-8");
     }
 
     #[test]

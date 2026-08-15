@@ -4,6 +4,7 @@ import Foundation
 public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
     case libraryUnavailable
     case symbolMissing(String)
+    case secureBootstrapUnavailable(String)
     case storeUnavailable
     case snapshotUnavailable(String)
 
@@ -13,6 +14,8 @@ public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
             "the qaptr-review-ffi library could not be loaded"
         case let .symbolMissing(name):
             "missing bridge symbol: \(name)"
+        case let .secureBootstrapUnavailable(reason):
+            "secure capture setup unavailable: \(reason)"
         case .storeUnavailable:
             "the durable history store could not be opened"
         case let .snapshotUnavailable(reason):
@@ -30,6 +33,14 @@ private typealias StoreSnapshotFunction = @convention(c) (
 ) -> Int
 private typealias StoreLastErrorFunction = @convention(c) (
     UnsafeMutableRawPointer,
+    UnsafeMutableRawPointer?,
+    Int
+) -> Int
+private typealias KeyBootstrapFunction = @convention(c) (
+    UnsafeRawPointer?,
+    Int,
+    UnsafeRawPointer?,
+    Int,
     UnsafeMutableRawPointer?,
     Int
 ) -> Int
@@ -81,6 +92,7 @@ private final class ReviewFFILibrary: @unchecked Sendable {
     let storeDestroy: StoreDestroyFunction
     let storeSnapshot: StoreSnapshotFunction
     let storeLastError: StoreLastErrorFunction
+    let keyBootstrap: KeyBootstrapFunction
     let permissionState: PermissionStateFunction
     let permissionRequest: PermissionRequestFunction
     let loginItemStatus: LoginItemStatusFunction
@@ -105,6 +117,7 @@ private final class ReviewFFILibrary: @unchecked Sendable {
             self.storeDestroy = try Self.load("qaptr_store_destroy", from: handle)
             self.storeSnapshot = try Self.load("qaptr_store_snapshot_json", from: handle)
             self.storeLastError = try Self.load("qaptr_store_last_error", from: handle)
+            self.keyBootstrap = try Self.load("qaptr_key_bootstrap_json", from: handle)
             self.permissionState = try Self.load("qaptr_permission_state", from: handle)
             self.permissionRequest = try Self.load("qaptr_permission_request", from: handle)
             self.loginItemStatus = try Self.load("qaptr_login_item_status", from: handle)
@@ -139,8 +152,18 @@ public final class ReviewBridge: @unchecked Sendable {
     private let storeHandle: UnsafeMutableRawPointer
     private let bundleIdentifier: Data
 
-    public init(storePath: URL, bundleIdentifier: String) throws {
+    public init(
+        storePath: URL,
+        bundleIdentifier: String,
+        vaultPath: URL? = nil,
+        generationID: String = "generation-1"
+    ) throws {
         let library = try ReviewFFILibrary()
+        try Self.bootstrap(
+            library: library,
+            vaultPath: vaultPath ?? Self.defaultVaultPath(for: storePath),
+            generationID: generationID
+        )
         let pathData = Data(storePath.path.utf8)
         let handle: UnsafeMutableRawPointer? = pathData.withUnsafeBytes { bytes in
             guard let baseAddress = bytes.bindMemory(to: UInt8.self).baseAddress else {
@@ -154,6 +177,56 @@ public final class ReviewBridge: @unchecked Sendable {
         self.library = library
         self.storeHandle = handle
         self.bundleIdentifier = Data(bundleIdentifier.utf8)
+    }
+
+    static func defaultVaultPath(for storePath: URL) -> URL {
+        storePath.deletingLastPathComponent().appendingPathComponent("vault", isDirectory: true)
+    }
+
+    private static func bootstrap(
+        library: ReviewFFILibrary,
+        vaultPath: URL,
+        generationID: String
+    ) throws {
+        let vaultData = Data(vaultPath.path.utf8)
+        let generationData = Data(generationID.utf8)
+        var capacity = 256
+        while true {
+            var buffer = [UInt8](repeating: 0, count: capacity)
+            let required = vaultData.withUnsafeBytes { vaultBytes in
+                generationData.withUnsafeBytes { generationBytes in
+                    buffer.withUnsafeMutableBytes { outputBytes in
+                        library.keyBootstrap(
+                            vaultBytes.baseAddress,
+                            vaultData.count,
+                            generationBytes.baseAddress,
+                            generationData.count,
+                            outputBytes.baseAddress,
+                            capacity
+                        )
+                    }
+                }
+            }
+            guard required > 0 else {
+                throw ReviewBridgeError.secureBootstrapUnavailable("native bootstrap returned no result")
+            }
+            guard required <= capacity else {
+                capacity = required
+                continue
+            }
+            let data = Data(buffer.prefix(required - 1))
+            guard
+                let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let ready = root["ready"] as? Bool
+            else {
+                throw ReviewBridgeError.secureBootstrapUnavailable("native bootstrap returned invalid JSON")
+            }
+            guard ready else {
+                let reason = root["reason"] as? String ?? "unknown bootstrap failure"
+                throw ReviewBridgeError.secureBootstrapUnavailable(reason)
+            }
+            return
+        }
     }
 
     deinit {

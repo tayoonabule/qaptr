@@ -70,6 +70,7 @@ struct OnboardingView: View {
                 PrimaryActionButton(title: stage == .privacyConsent ? "Finish" : "Continue") {
                     advance()
                 }
+                .disabled(stage == .privacyConsent && model.loadError != nil)
             }
         }
         .padding(40)
@@ -233,6 +234,12 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
             Text("Nothing is sent until you say yes.")
                 .font(.system(size: 14, weight: .medium))
+            if model.loadError != nil {
+                Text("Secure capture setup could not be completed. Quit and reopen Qaptr before finishing onboarding.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.red)
+                    .padding(.top, 8)
+            }
         }
     }
 
@@ -253,6 +260,7 @@ struct OnboardingView: View {
         if let next = stage.next {
             go(to: next, direction: .forward)
         } else {
+            guard model.loadError == nil else { return }
             model.completeOnboarding()
         }
     }

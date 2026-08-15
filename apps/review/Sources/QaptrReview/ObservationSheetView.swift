@@ -10,6 +10,7 @@ struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
     let showSettings: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedObservation: QaptrObservation?
 
     var body: some View {
         ScrollView {
@@ -36,6 +37,9 @@ struct ObservationSheetView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color.qaptrSurface)
+        .sheet(item: $selectedObservation) { observation in
+            ObservationDetailView(observation: observation)
+        }
         .onAppear { model.refresh() }
         .task {
             while !Task.isCancelled {
@@ -100,7 +104,12 @@ struct ObservationSheetView: View {
     private var observationList: some View {
         VStack(alignment: .leading, spacing: 24) {
             ForEach(Array(model.snapshot.recentObservations.enumerated()), id: \.element.id) { index, observation in
-                ObservationRow(observation: observation, index: index, reduceMotion: reduceMotion)
+                ObservationRow(
+                    observation: observation,
+                    index: index,
+                    reduceMotion: reduceMotion,
+                    select: { selectedObservation = observation }
+                )
                 Divider()
             }
         }
@@ -109,13 +118,13 @@ struct ObservationSheetView: View {
 
 /// One observation row: title, plain summary, and an honest confidence line.
 ///
-/// No affordance here executes anything. Selecting an observation is reserved
-/// for a future "Qaptr in more detail" action (U18/U17), which this unit does
-/// not implement; the row is read-only in U20.
+/// Selecting a row opens only its already-durable scalar detail. It never opens
+/// a vault bundle, invokes a provider, launches a tool, or executes anything.
 private struct ObservationRow: View {
     let observation: QaptrObservation
     let index: Int
     let reduceMotion: Bool
+    let select: () -> Void
 
     /// Whether this row has finished (or skipped) its entrance. Seeded once
     /// per row *identity* via the initializer below, not recomputed from a
@@ -135,26 +144,32 @@ private struct ObservationRow: View {
     /// keeps its already-settled state and does not replay or snap.
     @State private var hasAppeared: Bool
 
-    init(observation: QaptrObservation, index: Int, reduceMotion: Bool) {
+    init(observation: QaptrObservation, index: Int, reduceMotion: Bool, select: @escaping () -> Void) {
         self.observation = observation
         self.index = index
         self.reduceMotion = reduceMotion
+        self.select = select
         _hasAppeared = State(initialValue: reduceMotion)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(observation.title)
-                .font(.system(size: 17, weight: .semibold))
-            Text(observation.summary)
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(observation.confidenceBand.label)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
+        Button(action: select) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(observation.title)
+                    .font(.system(size: 17, weight: .semibold))
+                Text(observation.summary)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(observation.confidenceBand.label) · View detail")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .opacity(hasAppeared ? 1 : 0)
         .offset(y: hasAppeared ? 0 : 4)
         .onAppear {
@@ -162,6 +177,58 @@ private struct ObservationRow: View {
             withAnimation(.easeOut(duration: 0.24).delay(Double(index) * 0.04)) {
                 hasAppeared = true
             }
+        }
+    }
+}
+
+/// Read-only provenance and confidence for one durable observation.
+private struct ObservationDetailView: View {
+    let observation: QaptrObservation
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                Text(observation.title)
+                    .font(.system(size: 26, weight: .semibold, design: .serif))
+                Spacer()
+                QuietButton(title: "Close") { dismiss() }
+            }
+
+            Text(observation.summary)
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                detailLine("Confidence", observation.confidenceBand.label)
+                detailLine("Session", observation.sessionID)
+                detailLine("Capture", observation.captureID ?? "Source capture expired")
+                detailLine(
+                    "Created",
+                    Date(timeIntervalSince1970: Double(observation.createdAtMillis) / 1_000)
+                        .formatted(date: .abbreviated, time: .standard)
+                )
+            }
+
+            Text("This view contains only durable scalar history. It does not open or export the original screenshot.")
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(32)
+        .frame(width: 520, alignment: .leading)
+        .background(Color.qaptrSurface)
+    }
+
+    private func detailLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .frame(width: 84, alignment: .leading)
+            Text(value)
+                .font(.system(size: 13))
+                .textSelection(.enabled)
         }
     }
 }

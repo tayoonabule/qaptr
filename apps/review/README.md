@@ -6,11 +6,16 @@ not Tauri. It hosts the Observation Sheet, Settings, and Onboarding.
 
 ## Security and ownership invariants
 
-- `qaptr-review-ffi` is loaded in-process as `libqaptr_review_ffi.dylib`. It
-  exposes only durable-history reads (`qaptr_store_snapshot_json`), permission
-  state/request, and login-item status/registration. It has no vault-open,
-  decrypt, or provider-invocation entry point, mirroring the capture helper's
-  `qaptr-ffi` boundary in the opposite direction.
+- `qaptr-review-ffi` is loaded in-process as `libqaptr_review_ffi.dylib`. Before
+  opening durable history, it reconciles the configured capture generation:
+  the private half is created or read only through the review app's local,
+  non-synchronizing Keychain namespace, and only the matching public half is
+  written into the vault for the helper. Orphaned or mismatched key halves fail
+  closed and are never silently replaced.
+- Beyond that bootstrap, the bridge exposes durable-history reads
+  (`qaptr_store_snapshot_json`), permission state/request, and login-item
+  status/registration. It has no vault-open, decrypt, provider-invocation,
+  tool-launch, or automation-execution entry point.
 - The review app is the sole owner of Keychain credentials, private
   generation keys, and durable SQLite history writes. The capture helper
   never opens this app's database and never touches the Keychain (KTD5,
@@ -22,7 +27,9 @@ not Tauri. It hosts the Observation Sheet, Settings, and Onboarding.
   `qaptr-provider-openrouter` directly from this unit.
 - Onboarding runs at most once per installation
   (`SettingsPreferences.onboardingCompleted`) and never requests a provider
-  before its final privacy-consent stage, matching KTD10.
+  before its final privacy-consent stage, matching KTD10. The final action is
+  disabled when secure generation bootstrap failed, so onboarding cannot claim
+  completion while the helper is unable to seal captures.
 
 ## Build
 

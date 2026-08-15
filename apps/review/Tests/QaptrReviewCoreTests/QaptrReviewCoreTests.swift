@@ -204,6 +204,14 @@ final class ReviewFFILibraryPathTests: XCTestCase {
         XCTAssertTrue(candidates.contains("/tmp/development/libqaptr_review_ffi.dylib"))
         XCTAssertEqual(candidates.filter { $0 == "/tmp/explicit/libqaptr_review_ffi.dylib" }.count, 1)
     }
+
+    func testSecureBootstrapUsesTheVaultBesideDurableHistory() {
+        let store = URL(fileURLWithPath: "/Users/example/Library/Application Support/Qaptr/history.sqlite3")
+        XCTAssertEqual(
+            ReviewBridge.defaultVaultPath(for: store).path,
+            "/Users/example/Library/Application Support/Qaptr/vault"
+        )
+    }
 }
 
 final class CacheLifetimeTests: XCTestCase {

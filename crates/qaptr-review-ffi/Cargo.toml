@@ -12,6 +12,8 @@ description = "The narrow C ABI used by the Qaptr review app"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
+age = "0.11.1"
+fs2 = "0.4.3"
 qaptr-domain = { path = "../qaptr-domain" }
 qaptr-macos = { path = "../qaptr-macos" }
 qaptr-policy = { path = "../qaptr-policy" }
