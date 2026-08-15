@@ -54,6 +54,7 @@ final class ReviewAppModel {
     var onboardingCompleted: Bool
 
     let preferences: SettingsPreferences
+    private let usesMockData: Bool
     private let bridge: ReviewBridge?
     private let progressReader: CaptureProgressReader
     private let controlStore: CaptureControlStore
@@ -65,22 +66,36 @@ final class ReviewAppModel {
         credentialStore: any ProviderCredentialStoring = KeychainProviderCredentialStore(),
         openRouterChecker: any OpenRouterChecking = OpenRouterConnectionChecker()
     ) {
+        #if DEBUG
+        self.usesMockData = DevMockData.enabled
+        #else
+        self.usesMockData = false
+        #endif
         self.preferences = preferences
         self.credentialStore = credentialStore
         self.openRouterChecker = openRouterChecker
+        #if DEBUG
+        self.onboardingCompleted = DevMockData.enabled || preferences.onboardingCompleted
+        #else
         self.onboardingCompleted = preferences.onboardingCompleted
+        #endif
         let storePath = defaultStorePath()
         self.progressReader = CaptureProgressReader(url: defaultCaptureProgressPath())
         self.controlStore = CaptureControlStore(url: defaultCaptureControlPath())
-        do {
-            try FileManager.default.createDirectory(
-                at: storePath.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            self.bridge = try ReviewBridge(storePath: storePath, bundleIdentifier: reviewBundleIdentifier)
-        } catch {
+        if usesMockData {
             self.bridge = nil
-            self.loadError = String(describing: error)
+            self.loadError = nil
+        } else {
+            do {
+                try FileManager.default.createDirectory(
+                    at: storePath.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                self.bridge = try ReviewBridge(storePath: storePath, bundleIdentifier: reviewBundleIdentifier)
+            } catch {
+                self.bridge = nil
+                self.loadError = String(describing: error)
+            }
         }
         refreshCaptureProgress()
         refreshSettings()
@@ -88,6 +103,16 @@ final class ReviewAppModel {
 
     /// Reloads the durable-history snapshot from `qaptr-store`.
     func refresh() {
+        if usesMockData {
+            #if DEBUG
+            snapshot = DevMockData.snapshot
+            reviewStatus = DevMockData.reviewStatus
+            reviewStatusError = nil
+            loadError = nil
+            refreshCaptureProgress()
+            #endif
+            return
+        }
         refreshCaptureProgress()
         guard let bridge else { return }
         do {
@@ -109,6 +134,14 @@ final class ReviewAppModel {
     /// Missing or corrupt status is shown as unavailable and never blocks the
     /// observation history from loading.
     func refreshCaptureProgress() {
+        if usesMockData {
+            #if DEBUG
+            captureProgress = DevMockData.captureProgress
+            captureIntervalSeconds = DevMockData.captureProgress.activeIntervalSeconds ?? CaptureIntervalPolicy.defaultSeconds
+            settings.intervalSeconds = captureIntervalSeconds
+            #endif
+            return
+        }
         captureProgress = (try? progressReader.read()) ?? .unavailable
         let control = (try? controlStore.read()) ?? .default
         captureIntervalSeconds = control.intervalSeconds
@@ -153,13 +186,39 @@ final class ReviewAppModel {
     /// Requests Screen Recording through the native prompt.
     func requestScreenRecording() {
         guard let bridge else { return }
-        settings.screenRecordingStatus = bridge.requestPermission(.screenCapture)
+        settings.screenRecordingStatus = .notDetermined
+        _ = bridge.requestPermission(.screenCapture)
+        refreshPermissionAfterSystemPrompt(.screenCapture)
     }
 
     /// Requests the optional accessibility-context permission.
     func requestAccessibilityContext() {
         guard let bridge else { return }
-        settings.accessibilityContextStatus = bridge.requestPermission(.accessibilityContext)
+        settings.accessibilityContextStatus = .notDetermined
+        _ = bridge.requestPermission(.accessibilityContext)
+        refreshPermissionAfterSystemPrompt(.accessibilityContext)
+    }
+
+    /// TCC writes its decision asynchronously after the native prompt closes.
+    /// Re-read a few times instead of rendering the stale pre-prompt value.
+    private func refreshPermissionAfterSystemPrompt(_ permission: BridgePermission) {
+        guard let bridge else { return }
+        Task { [weak self] in
+            for delay in [250_000_000, 750_000_000, 1_500_000_000] {
+                try? await Task.sleep(nanoseconds: UInt64(delay))
+                let status = bridge.permissionState(permission)
+                if status == .granted || delay == 1_500_000_000 {
+                    guard let self else { return }
+                    switch permission {
+                    case .screenCapture:
+                        self.settings.screenRecordingStatus = status
+                    case .accessibilityContext:
+                        self.settings.accessibilityContextStatus = status
+                    }
+                    return
+                }
+            }
+        }
     }
 
     /// Sets whether Qaptr starts at login.
@@ -241,6 +300,12 @@ final class ReviewAppModel {
     }
 
     private func refreshProviderConnection() {
+        if usesMockData {
+            #if DEBUG
+            providerConnection = .connected
+            #endif
+            return
+        }
         guard let provider = settings.provider else {
             providerConnection = .notConnected
             return

@@ -16,7 +16,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "QaptrReview",
-            dependencies: ["QaptrReviewCore"]
+            dependencies: ["QaptrReviewCore"],
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug))
+            ]
         ),
         .testTarget(
             name: "QaptrReviewCoreTests",
