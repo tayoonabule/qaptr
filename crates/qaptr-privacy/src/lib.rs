@@ -4,6 +4,11 @@
 //! provider-bound artifact is [`PreparedPayload`], which can only be created by
 //! [`PrivacyGate`]. Recognition, masking, coverage verification, and context
 //! sanitization all run locally before that artifact can exist.
+//!
+//! Image preparation uses an exact-image recognizer, binds detections to the
+//! image hash, and reruns recognition over the masked bytes. This proves that
+//! reported regions were removed; it does not prove discovery of material
+//! missed by U9's published 5/6 (0.833) recall result.
 
 pub mod classes;
 pub mod coverage;
