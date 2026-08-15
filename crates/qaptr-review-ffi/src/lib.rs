@@ -32,6 +32,9 @@ pub use system::{
 
 use support::{copy_string, read_utf8};
 
+const LIVE_ANALYSIS_UNAVAILABLE_REASON: &str =
+    "live provider analysis is not exposed by qaptr-review-ffi";
+
 /// Reconciles the review app's private generation key with the public key used
 /// by the capture helper and returns a small, non-sensitive JSON result.
 ///
@@ -145,21 +148,63 @@ pub unsafe extern "C" fn qaptr_store_snapshot_json(
     let Some(handle) = (unsafe { handle.as_mut() }) else {
         return 0;
     };
-    let snapshot = match handle.store.snapshot() {
+    let (snapshot, notices) = match read_store_view(handle) {
         Ok(value) => value,
         Err(error) => {
-            handle.last_error = error.to_string();
-            return 0;
-        }
-    };
-    let notices = match handle.store.notices() {
-        Ok(value) => value,
-        Err(error) => {
-            handle.last_error = error.to_string();
+            handle.last_error = error;
             return 0;
         }
     };
     let json = snapshot_to_json(&snapshot, &notices);
+    copy_string(&json.to_string(), output, output_capacity)
+}
+
+/// Copies a compact review status into a caller-provided buffer.
+///
+/// This endpoint reports durable-history availability and explicitly reports
+/// live analysis as unavailable. It never invents a provider, an active
+/// session, or an analysis result. The return value is the required buffer
+/// size, including the trailing NUL. A zero return means the handle was
+/// invalid or the durable view could not be read; call
+/// [`qaptr_store_last_error`] for details.
+///
+/// # Safety
+///
+/// `handle` must be a live handle. `output` must reference a writable buffer
+/// of `output_capacity` bytes when the capacity is non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_review_status_json(
+    handle: *mut QaptrStoreHandle,
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let Some(handle) = (unsafe { handle.as_mut() }) else {
+        return 0;
+    };
+    let (snapshot, notices) = match read_store_view(handle) {
+        Ok(value) => value,
+        Err(error) => {
+            handle.last_error = error;
+            return 0;
+        }
+    };
+    let history_available =
+        !(snapshot.observations.is_empty() && snapshot.workflows.is_empty() && notices.is_empty());
+    let json = json!({
+        "store": { "ready": true },
+        "review_session": {
+            "state": "ready",
+            "history_available": history_available,
+            "observation_count": snapshot.observations.len(),
+            "workflow_count": snapshot.workflows.len(),
+            "notice_count": notices.len(),
+        },
+        "analysis": {
+            "state": "unavailable",
+            "provider": Value::Null,
+            "reason": LIVE_ANALYSIS_UNAVAILABLE_REASON,
+        },
+    });
     copy_string(&json.to_string(), output, output_capacity)
 }
 
@@ -182,6 +227,14 @@ pub unsafe extern "C" fn qaptr_store_last_error(
         return 0;
     };
     copy_string(&handle.last_error, output, output_capacity)
+}
+
+fn read_store_view(
+    handle: &QaptrStoreHandle,
+) -> Result<(qaptr_store::HistorySnapshot, Vec<qaptr_store::NoticeRecord>), String> {
+    let snapshot = handle.store.snapshot().map_err(|error| error.to_string())?;
+    let notices = handle.store.notices().map_err(|error| error.to_string())?;
+    Ok((snapshot, notices))
 }
 
 fn snapshot_to_json(
@@ -315,6 +368,50 @@ mod tests {
         assert_eq!(
             notices[0]["text"],
             "1 capture was excluded because the application is excluded."
+        );
+
+        unsafe { qaptr_store_destroy(handle) };
+    }
+
+    #[test]
+    fn review_status_reports_history_without_claiming_provider_analysis() {
+        let root = tempfile::tempdir().expect("temporary root");
+        let db_path = root.path().join("history.sqlite3");
+        let path_bytes = db_path.to_string_lossy().into_owned();
+        let handle = unsafe { qaptr_store_open(path_bytes.as_bytes().as_ptr(), path_bytes.len()) };
+        assert!(!handle.is_null());
+
+        // SAFETY: the handle was just created and is used only from this thread.
+        let store_ref = unsafe { &(*handle).store };
+        store_ref
+            .put_observation(&qaptr_store::ObservationRecord {
+                id: ObservationId::new("observation-1").expect("observation id"),
+                capture_id: None,
+                session_id: SessionId::new("session-1").expect("session id"),
+                title: "Reviewed a document".to_owned(),
+                summary: "You reviewed a shared document.".to_owned(),
+                confidence: Confidence::new(0.72).expect("confidence"),
+                created_at: UnixMillis::from_millis(2_000),
+            })
+            .expect("observation insert");
+
+        let mut output = vec![0_u8; 1024];
+        let required =
+            unsafe { qaptr_review_status_json(handle, output.as_mut_ptr(), output.len()) };
+        assert!(required > 0 && required <= output.len());
+        let value: Value = serde_json::from_slice(&output[..required - 1]).expect("status JSON");
+
+        assert_eq!(value["store"]["ready"], true);
+        assert_eq!(value["review_session"]["state"], "ready");
+        assert_eq!(value["review_session"]["history_available"], true);
+        assert_eq!(value["review_session"]["observation_count"], 1);
+        assert_eq!(value["review_session"]["workflow_count"], 0);
+        assert_eq!(value["review_session"]["notice_count"], 0);
+        assert_eq!(value["analysis"]["state"], "unavailable");
+        assert!(value["analysis"]["provider"].is_null());
+        assert_eq!(
+            value["analysis"]["reason"],
+            LIVE_ANALYSIS_UNAVAILABLE_REASON
         );
 
         unsafe { qaptr_store_destroy(handle) };
