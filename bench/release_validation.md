@@ -103,3 +103,42 @@ The requested scripted review flow is **not proven**. The built `QaptrReview.app
 2. Repeat helper and opened-app measurements on the 16 GB reference machine with a real 5K display.
 3. Repeat provider proof on a machine with a genuine installed Claude CLI and configured OpenRouter credentials, without widening the sandbox.
 4. Run the packaging gate after the concurrent U22 packaging pass is complete.
+
+## Reproducibility failure: diagnosed
+
+The clean-checkout reproducibility check fails. This is the diagnosis, so
+the gap is understood rather than merely reported.
+
+**Symptom.** Two clean `git archive HEAD` checkouts built with
+`apps/helper/build_app.sh release` produce helper binaries with different
+SHA-256 hashes, which cascades into different code seals and DMG hashes.
+
+**Not the cause.** Same-tree rebuilds *are* deterministic (rebuilt twice
+in place, identical hash), so the build scripts are not injecting
+timestamps or ordering nondeterminism. Neither binary embeds its absolute
+build path: `strings | grep -c '<checkout path>'` returns 0 for both.
+
+**Actual cause.** The binaries are byte-identical in size (312,240 bytes)
+and differ in only 223 bytes. Those bytes are the Mach-O `LC_UUID` and the
+resulting code-directory hash:
+
+| Checkout | LC_UUID | CandidateCDHash |
+|---|---|---|
+| one | `EFF9E171-C9E2-3109-B22E-CDCBAE19469D` | `1a7a1c4f…` |
+| two | `9275F801-BBD2-35AC-9BE0-5FC703078C5D` | `b7aca792…` |
+
+Apple's linker derives `LC_UUID` per link invocation, so two links of
+identical inputs at different paths yield different UUIDs. The ad-hoc
+signature then seals that UUID, changing every downstream hash.
+
+**Assessment.** This is a toolchain property, not a Qaptr defect, and it
+does not weaken any security or privacy guarantee: the helper link audit,
+strict signing, and entitlement checks all pass on both builds. It does
+mean the plan's bit-identical reproducibility claim is **not currently
+met** and must not be asserted.
+
+**Options, none applied here.** Pass `-Xlinker -no_uuid` to remove the
+UUID, or normalise it before hashing, or narrow the reproducibility claim
+from bit-identical artifacts to identical *code* excluding the UUID and
+signature. Each is a real decision about what reproducibility should mean
+for a signed macOS bundle and belongs to a follow-up, not a silent fix.
