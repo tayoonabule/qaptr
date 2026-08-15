@@ -86,8 +86,12 @@ nags.
 - **Keyboard traversal and VoiceOver were exercised manually, not by an
   automated accessibility test.** SwiftUI's native controls (`Picker`,
   `TextField`, `Button`, `Toggle`) inherit standard focus-ring and VoiceOver
-  behavior for free; no custom-drawn control was introduced that would need
-  bespoke accessibility work.
+  behavior for free. The custom-drawn provider rows, cache-lifetime rail, and
+  onboarding permission/provider rows are hand-labeled with explicit
+  `accessibilityLabel`/`accessibilityValue` pairs so VoiceOver announces the
+  same selected/not-selected state a sighted person sees, but this remains a
+  manual/unit-tested guarantee rather than an automated UI-accessibility
+  audit.
 - **Reduced-motion is respected for the one animated transition** (the
   Observations/Settings toggle) by checking
   `accessibilityReduceMotion` and skipping `withAnimation` entirely when it is

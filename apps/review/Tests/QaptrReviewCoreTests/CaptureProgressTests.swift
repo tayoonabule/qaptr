@@ -30,6 +30,7 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         try Data("not json".utf8).write(to: reader.url)
         XCTAssertThrowsError(try reader.read())
         XCTAssertNil(CaptureProgressSnapshot.unavailable.captureCount)
+        XCTAssertEqual(CaptureProgressSnapshot.unavailable.readiness, .neverConfigured)
     }
 
     func testIntervalControlRoundTripsAsOneScalar() throws {
@@ -55,4 +56,113 @@ final class CaptureProgressSnapshotTests: XCTestCase {
             XCTAssertEqual(error as? CaptureControlError, .invalidInterval(6))
         }
     }
+
+    // MARK: - V1 schema round trip
+
+    func testV1FieldsRoundTripAndStayForwardCompatible() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-progress-v1-\(UUID().uuidString)")
+        let reader = CaptureProgressReader(url: root.appendingPathComponent("capture-progress.json"))
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        // A helper on a newer schema version with an unknown extra field.
+        // Decoding must not fail, and unrecognized data must not appear.
+        let json = """
+        {
+          "version": 2,
+          "revision": 9,
+          "state": "waiting",
+          "capture_count": 4,
+          "last_capture_at_ms": 900,
+          "last_attempted_at_ms": 850,
+          "started_at_ms": 100,
+          "updated_at_ms": 900,
+          "process_id": 42,
+          "selected_display_ids": ["display-2", "display-1"],
+          "active_interval_seconds": 60,
+          "failure_reason": "intermittent permission",
+          "some_future_field": {"nested": true}
+        }
+        """
+        try Data(json.utf8).write(to: reader.url)
+
+        let progress = try reader.read()
+        XCTAssertEqual(progress.version, 2)
+        XCTAssertEqual(progress.revision, 9)
+        XCTAssertEqual(progress.lastAttemptedAtMillis, 850)
+        XCTAssertEqual(progress.selectedDisplayIDs, ["display-2", "display-1"])
+        XCTAssertEqual(progress.activeIntervalSeconds, 60)
+        XCTAssertEqual(progress.failureReason, "intermittent permission")
+    }
+
+    func testLegacyStatusWithoutV1FieldsDecodesToSafeDefaults() throws {
+        let json = """
+        {"state":"waiting","capture_count":2,"last_capture_at_ms":300,"started_at_ms":100,"updated_at_ms":300,"process_id":42}
+        """
+        let progress = try JSONDecoder().decode(CaptureProgressSnapshot.self, from: Data(json.utf8))
+        XCTAssertEqual(progress.version, CaptureProgressSnapshot.schemaVersion)
+        XCTAssertEqual(progress.revision, 0)
+        XCTAssertNil(progress.lastAttemptedAtMillis)
+        XCTAssertEqual(progress.selectedDisplayIDs, [])
+        XCTAssertNil(progress.activeIntervalSeconds)
+        XCTAssertNil(progress.failureReason)
+    }
+
+    // MARK: - Readiness mapping (the six states the UI is allowed to show)
+
+    func testNeverConfiguredWhenCaptureCountIsAbsent() {
+        XCTAssertEqual(CaptureProgressSnapshot.unavailable.readiness, .neverConfigured)
+    }
+
+    func testPermissionDeniedReadiness() {
+        let snapshot = CaptureProgressSnapshot(state: .permissionRequired, captureCount: 0, processID: 1)
+        XCTAssertEqual(snapshot.readiness, .permissionDenied)
+    }
+
+    func testWaitingForFirstTickWhenStartingWithNoCapturesYet() {
+        let starting = CaptureProgressSnapshot(state: .starting, captureCount: 0, processID: 1)
+        XCTAssertEqual(starting.readiness, .waitingForFirstTick)
+
+        let waitingNoCaptures = CaptureProgressSnapshot(state: .waiting, captureCount: 0, processID: 1)
+        XCTAssertEqual(waitingNoCaptures.readiness, .waitingForFirstTick)
+    }
+
+    func testCapturingReadinessRequiresALiveHelperProcess() {
+        let alive = CaptureProgressSnapshot(state: .capturing, captureCount: 1, processID: Int64(ProcessInfo.processInfo.processIdentifier))
+        XCTAssertEqual(alive.readiness, .capturing)
+
+        // A capturing state left behind by a crashed process (an implausible
+        // PID) must not be reported as live activity.
+        let stale = CaptureProgressSnapshot(state: .capturing, captureCount: 1, processID: 999_999_999)
+        XCTAssertEqual(stale.readiness, .captureFailed)
+    }
+
+    func testCaptureFailedReadinessForErrorAndNoDisplayStates() {
+        let error = CaptureProgressSnapshot(state: .error, captureCount: 0, processID: 1, failureReason: "disk write failed")
+        XCTAssertEqual(error.readiness, .captureFailed)
+        XCTAssertEqual(error.actionableReason, "disk write failed")
+
+        let noDisplays = CaptureProgressSnapshot(state: .noDisplays, captureCount: 0, processID: 1)
+        XCTAssertEqual(noDisplays.readiness, .captureFailed)
+    }
+
+    func testCaptureReadyRequiresAtLeastOneSuccessfulCapture() {
+        let ready = CaptureProgressSnapshot(state: .waiting, captureCount: 5, processID: 1)
+        XCTAssertEqual(ready.readiness, .captureReady)
+        XCTAssertNil(ready.actionableReason)
+
+        let stoppedButHadCaptures = CaptureProgressSnapshot(state: .stopped, captureCount: 5, processID: nil)
+        XCTAssertEqual(stoppedButHadCaptures.readiness, .captureReady)
+    }
+
+    func testActionableReasonPrefersHelperSuppliedReasonOverGenericCopy() {
+        let snapshot = CaptureProgressSnapshot(
+            state: .permissionRequired,
+            captureCount: 0,
+            processID: 1,
+            failureReason: "Screen Recording permission not granted"
+        )
+        XCTAssertEqual(snapshot.actionableReason, "Screen Recording permission not granted")
+    }
 }
+
