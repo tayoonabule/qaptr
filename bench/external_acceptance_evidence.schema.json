@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Qaptr external acceptance evidence report",
+  "description": "Evidence-only report for external acceptance rows. A passed row requires every listed real-evidence kind and a scrub audit.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_kind",
+    "generated_at_utc",
+    "overall_status",
+    "passable",
+    "checks"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "report_kind": {
+      "const": "external_acceptance_preflight"
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "overall_status": {
+      "enum": ["passed", "failed", "blocked"]
+    },
+    "passable": {
+      "type": "boolean"
+    },
+    "input_redacted": {
+      "type": "boolean"
+    },
+    "validation_errors": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/check" }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "required": ["id", "status", "evidence_state", "evidence", "blockers"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "enum": [
+            "packaged_real_capture",
+            "openrouter_cli",
+            "vision_corpus",
+            "clean_machine_soak",
+            "signing_notarization"
+          ]
+        },
+        "status": {
+          "enum": ["passed", "failed", "blocked", "unverified"]
+        },
+        "evidence_state": {
+          "enum": ["actual", "blocked"]
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        },
+        "blockers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["kind", "provenance", "observed_at_utc", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "provenance": {
+          "enum": [
+            "external",
+            "controlled_external",
+            "local_measurement",
+            "fixture",
+            "contract",
+            "synthetic",
+            "unknown"
+          ]
+        },
+        "observed_at_utc": { "type": "string", "minLength": 1 },
+        "reference": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,180}$"
+        },
+        "summary": { "type": "string", "maxLength": 500 },
+        "metrics": { "type": "object" },
+        "artifact_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    }
+  }
+}
