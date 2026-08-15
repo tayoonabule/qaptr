@@ -47,7 +47,7 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         XCTAssertEqual(CaptureIntervalPolicy.normalized(1), 5)
         XCTAssertEqual(CaptureIntervalPolicy.normalized(7), 5)
         XCTAssertEqual(CaptureIntervalPolicy.normalized(8), 10)
-        XCTAssertEqual(CaptureIntervalPolicy.normalized(999), 300)
+        XCTAssertEqual(CaptureIntervalPolicy.normalized(9_999), 1_800)
         XCTAssertEqual(CaptureIntervalPolicy.humanized(5), "5 seconds")
         XCTAssertEqual(CaptureIntervalPolicy.humanized(60), "1 minute")
         XCTAssertEqual(CaptureIntervalPolicy.humanized(300), "5 minutes")
@@ -57,9 +57,9 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         }
     }
 
-    func testPresetChoicesCoverTheFullFiveSecondToFiveMinuteRange() {
+    func testPresetChoicesCoverTheFullFiveSecondToThirtyMinuteRange() {
         XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).first, 5)
-        XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).last, 300)
+        XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).last, 1_800)
         XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds), CaptureIntervalPreset.allCases.map(\.seconds).sorted())
     }
 

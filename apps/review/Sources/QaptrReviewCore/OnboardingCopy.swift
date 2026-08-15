@@ -26,7 +26,7 @@ public enum OnboardingCopy {
     /// States plainly that redaction happens on this Mac before anything
     /// leaves it.
     public static let localPreparationStatement =
-        "Qaptr hides text, faces, and barcodes on this Mac before any content is shared with a provider."
+        "Qaptr redacts likely personal information, such as email addresses and phone numbers, on this Mac before any content is shared with a provider."
 
     /// The privacy-consent stage's just-in-time consent statement (KTD10,
     /// AE9). Makes explicit that consent is asked again for every session,

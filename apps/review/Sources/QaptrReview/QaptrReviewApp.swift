@@ -2,6 +2,8 @@ import AppKit
 import Foundation
 import SwiftUI
 
+// Hallmark: Native macOS scene routes remain stable while review surfaces use the studied-DNA layout.
+
 /// Optional first-paint instrumentation, matching the U3 probe's timing
 /// contract so the same measurement script pattern applies to production.
 private func recordFirstPaintIfRequested() {
@@ -38,7 +40,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         let content = NSHostingView(rootView: RootView(model: model))
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 1040, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -109,7 +111,7 @@ struct QaptrReviewApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(model: appDelegate.model, showObservations: appDelegate.showMainWindow)
+            SettingsView(model: appDelegate.model)
         }
         .commands {
             CommandGroup(replacing: .appSettings) {

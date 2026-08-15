@@ -12,8 +12,7 @@ struct ProviderSetupSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        QaptrCard(padding: QaptrSpace.xl) {
-            VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+        VStack(alignment: .leading, spacing: QaptrSpace.lg) {
                 HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Connect OpenRouter")
@@ -34,6 +33,7 @@ struct ProviderSetupSheet: View {
 
             SecureField("OpenRouter key", text: $key)
                 .textFieldStyle(.qaptr)
+                .focusEffectDisabled()
                 .focused($keyFocused)
                 .disabled(model.providerConnection == .checking)
                 .accessibilityLabel("OpenRouter key")
@@ -82,10 +82,9 @@ struct ProviderSetupSheet: View {
                 Button("Done") { dismiss() }
                     .buttonStyle(.qaptrOutline)
             }
-            }
         }
+        .padding(QaptrSpace.xxl)
         .frame(width: 460)
-        .padding(QaptrSpace.sm)
-        .background(Color.qaptrPaperMist)
+        .background(Color.qaptrSurface)
     }
 }

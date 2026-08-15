@@ -33,7 +33,7 @@ extension CaptureProgressState: Codable {
 /// The canonical interval bounds shared by the review app, helper, and control file.
 public enum CaptureIntervalPolicy {
     public static let minimumSeconds = 5
-    public static let maximumSeconds = 300
+    public static let maximumSeconds = 1_800
     public static let stepSeconds = 5
     public static let defaultSeconds = 60
 
@@ -57,7 +57,7 @@ public enum CaptureIntervalPolicy {
 }
 
 /// The deliberate choices shown in the settings control. The underlying
-/// control file accepts every 5-second value from 5 seconds to 5 minutes.
+/// control file accepts every 5-second value from 5 seconds to 30 minutes.
 public enum CaptureIntervalPreset: Int, CaseIterable, Equatable, Sendable {
     case fiveSeconds = 5
     case fifteenSeconds = 15
@@ -83,9 +83,7 @@ public enum CaptureIntervalPreset: Int, CaseIterable, Equatable, Sendable {
         }
     }
 
-    /// Keeps the public choice set inside the canonical 5–300 second range.
-    /// The longer raw values remain decodable for source compatibility but are
-    /// not offered as new settings.
+    /// Keeps the public choice set inside the canonical 5-second to 30-minute range.
     public static let allCases: [CaptureIntervalPreset] = [
         .fiveSeconds,
         .fifteenSeconds,
@@ -93,6 +91,9 @@ public enum CaptureIntervalPreset: Int, CaseIterable, Equatable, Sendable {
         .oneMinute,
         .twoMinutes,
         .fiveMinutes,
+        .tenMinutes,
+        .fifteenMinutes,
+        .thirtyMinutes,
     ]
 
     public var displayName: String {

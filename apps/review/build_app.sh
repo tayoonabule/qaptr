@@ -44,7 +44,24 @@ cp "$review_dir/Resources/Info.plist" "$app_dir/Contents/Info.plist"
 cp "$swift_binary" "$app_dir/Contents/MacOS/QaptrReview"
 ffi_name=$(basename "$ffi_library")
 cp "$ffi_library" "$app_dir/Contents/Frameworks/$ffi_name"
-codesign --force --sign - "$app_dir" >/dev/null
+
+# Ad-hoc signatures identify the exact binary hash. That makes Keychain ask for
+# permission again after every rebuild. Prefer the user's stable Apple
+# Development identity when one is available, while keeping ad-hoc signing as
+# a fallback for CI and machines without a local certificate.
+signing_identity="${QAPTR_CODESIGN_IDENTITY:-}"
+if [[ -z "$signing_identity" ]]; then
+    signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(Apple Development:.*\)"/\1/p' \
+        | head -n 1)
+fi
+
+if [[ -n "$signing_identity" ]]; then
+    codesign --force --sign "$signing_identity" "$app_dir/Contents/Frameworks/$ffi_name" >/dev/null
+    codesign --force --sign "$signing_identity" "$app_dir" >/dev/null
+else
+    codesign --force --sign - "$app_dir" >/dev/null
+fi
 
 validate_load() {
     local library=$1

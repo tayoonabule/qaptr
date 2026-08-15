@@ -28,7 +28,21 @@ mkdir -p "$app_dir/Contents/MacOS"
 mkdir -p "$app_dir/Contents/Frameworks"
 cp "$helper_dir/Resources/Info.plist" "$app_dir/Contents/Info.plist"
 cp "$build_dir/QaptrHelper" "$app_dir/Contents/MacOS/QaptrHelper"
-cp "$rust_target/release/libqaptr_ffi.dylib" "$app_dir/Contents/Frameworks/libqaptr_ffi.dylib"
-codesign --force --sign - "$app_dir" >/dev/null
+ffi_name="libqaptr_ffi.dylib"
+cp "$rust_target/release/$ffi_name" "$app_dir/Contents/Frameworks/$ffi_name"
+
+signing_identity="${QAPTR_CODESIGN_IDENTITY:-}"
+if [[ -z "$signing_identity" ]]; then
+    signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(Apple Development:.*\)"/\1/p' \
+        | head -n 1)
+fi
+
+if [[ -n "$signing_identity" ]]; then
+    codesign --force --sign "$signing_identity" "$app_dir/Contents/Frameworks/$ffi_name" >/dev/null
+    codesign --force --sign "$signing_identity" "$app_dir" >/dev/null
+else
+    codesign --force --sign - "$app_dir" >/dev/null
+fi
 
 printf '%s\n' "$app_dir"

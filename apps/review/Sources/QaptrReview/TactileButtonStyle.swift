@@ -117,6 +117,10 @@ struct QaptrTextFieldStyle: TextFieldStyle {
             .padding(.horizontal, QaptrSpace.md)
             .padding(.vertical, QaptrSpace.sm)
             .background(Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.input, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: QaptrRadius.input, style: .continuous)
+                    .strokeBorder(Color.qaptrBorderStrong.opacity(0.7), lineWidth: 1)
+            }
     }
 }
 

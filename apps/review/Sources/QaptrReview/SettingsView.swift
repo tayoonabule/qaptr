@@ -11,25 +11,20 @@ import SwiftUI
 /// (`SettingsViewOpenRouterReadinessTests`) and must not change shape.
 struct SettingsView: View {
   @Bindable var model: ReviewAppModel
-  let showObservations: () -> Void
   @State private var newExcludedWindowTitle = ""
   @State private var showsProviderSetup = false
   @State private var showsApplicationPicker = false
   @State private var installedApplications: [InstalledApplication] = []
   @State private var selectedCategory: SettingsCategory = .capture
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: QaptrSpace.lg) {
         header
-
-        HStack(alignment: .top, spacing: QaptrSpace.xl) {
-          categoryRail
-            .frame(width: 176, alignment: .leading)
-
-          focusedEditor
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        categoryTabs
+        focusedEditor
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
       .padding(QaptrSpace.xl)
       .frame(maxWidth: 900, alignment: .leading)
@@ -37,6 +32,9 @@ struct SettingsView: View {
     }
     .background(Color.qaptrSurface)
     .onAppear { model.refreshSettings() }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active { model.refreshSettings() }
+    }
     .task {
       if installedApplications.isEmpty {
         installedApplications = ApplicationCatalog.load()
@@ -87,37 +85,22 @@ struct SettingsView: View {
           .foregroundStyle(Color.qaptrInkSoft)
           .fixedSize(horizontal: false, vertical: true)
       }
-      Spacer(minLength: QaptrSpace.lg)
-      Button("Observations", action: showObservations)
-        .buttonStyle(.qaptrOutline)
     }
     .padding(.bottom, QaptrSpace.md)
   }
 
-  private var categoryRail: some View {
-    VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-      Text("INDEX")
-        .font(QaptrType.meta(10.5))
-        .tracking(1)
-        .foregroundStyle(Color.qaptrInkMuted)
-        .padding(.bottom, QaptrSpace.xs)
-
+  private var categoryTabs: some View {
+    HStack(spacing: QaptrSpace.xs) {
       ForEach(SettingsCategory.allCases) { category in
         Button {
           selectedCategory = category
         } label: {
-          VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-            Text(category.rawValue.uppercased())
-              .font(QaptrType.meta(10.5))
-              .tracking(0.85)
-            Text(category.detail)
-              .font(QaptrType.caption(10.5))
-              .fixedSize(horizontal: false, vertical: true)
-          }
+          Text(category.rawValue)
+            .font(QaptrType.body(12.5))
+            .fontWeight(selectedCategory == category ? .semibold : .regular)
           .foregroundStyle(selectedCategory == category ? Color.qaptrInk : Color.qaptrInkSoft)
-          .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.horizontal, QaptrSpace.sm)
-          .padding(.vertical, QaptrSpace.xs)
+          .padding(.vertical, QaptrSpace.sm)
           .background(
             selectedCategory == category ? Color.qaptrAccentTint : Color.clear,
             in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
@@ -137,9 +120,12 @@ struct SettingsView: View {
         .accessibilityValue(selectedCategory == category ? "Selected" : "Not selected")
       }
     }
-    .padding(.trailing, QaptrSpace.xl)
-    .overlay(alignment: .trailing) {
-      Rectangle().fill(Color.qaptrHairline).frame(width: 1)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(QaptrSpace.xs)
+    .background(Color.qaptrPaperMist.opacity(0.5), in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+        .strokeBorder(Color.qaptrHairline, lineWidth: 1)
     }
   }
 
@@ -735,10 +721,12 @@ private struct ExclusionEditor: View {
       HStack(spacing: QaptrSpace.md) {
         TextField(placeholder, text: $newValue)
           .textFieldStyle(.qaptr)
+          .frame(height: 36)
           .accessibilityLabel(title)
           .onSubmit(addEntry)
         Button("Add", action: addEntry)
           .buttonStyle(.qaptrOutline)
+          .frame(height: 36)
           .disabled(newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
     }

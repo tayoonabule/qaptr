@@ -78,6 +78,122 @@ button {
   text-transform: uppercase;
 }
 
+ion-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  font-size: 1rem;
+  vertical-align: -0.16em;
+}
+
+.meta ion-icon {
+  margin-right: var(--spacing-4);
+  font-size: 0.95em;
+  vertical-align: -0.12em;
+}
+
+.feature-pill ion-icon {
+  color: var(--color-tangerine);
+  font-size: 1.05rem;
+}
+
+.feature-pill--green ion-icon { color: var(--color-vivid-green); }
+.feature-pill--violet ion-icon { color: var(--color-lavender); }
+
+.workspace-preview__mode ion-icon,
+.workspace-preview__nav ion-icon,
+.workspace-preview__status ion-icon,
+.workspace-preview__sample ion-icon {
+  margin-right: var(--spacing-4);
+  font-size: 0.95rem;
+  vertical-align: -0.14em;
+}
+
+.workspace-preview__summary-mark {
+  display: grid;
+  place-items: center;
+}
+
+.workspace-preview__summary-mark ion-icon {
+  color: var(--color-electric-blue);
+  font-size: 1.15rem;
+}
+
+.workspace-preview__row-marker {
+  color: var(--color-vivid-green);
+  font-size: 1rem;
+}
+
+.canvas-particle-reveal {
+  position: relative;
+  isolation: isolate;
+}
+
+.canvas-particle-reveal::before,
+.canvas-particle-reveal::after {
+  position: absolute;
+  z-index: -1;
+  width: 14rem;
+  height: 14rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(37 99 235 / 0.14), transparent 68%);
+  content: "";
+  pointer-events: none;
+  animation: canvas-drift 9s var(--ease-in-out) infinite alternate;
+}
+
+.canvas-particle-reveal::before { top: -6rem; right: -5rem; }
+.canvas-particle-reveal::after { bottom: -8rem; left: 18%; animation-delay: -3s; }
+
+.canvas-liquid-glass {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.canvas-liquid-glass::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.58), rgb(219 234 255 / 0.24));
+  content: "";
+  pointer-events: none;
+}
+
+.radiant-fluid {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.radiant-fluid::before {
+  position: absolute;
+  inset: -35%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgb(234 88 12 / 0.2), transparent 40%),
+    radial-gradient(ellipse at 70% 60%, rgb(245 158 11 / 0.14), transparent 38%);
+  content: "";
+  filter: blur(24px);
+  animation: radiant-fluid 14s var(--ease-in-out) infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes canvas-drift {
+  to { transform: translate3d(-1.5rem, 1rem, 0) scale(1.08); }
+}
+
+@keyframes radiant-fluid {
+  to { transform: translate3d(4%, -3%, 0) rotate(4deg) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-particle-reveal::before,
+  .canvas-particle-reveal::after,
+  .radiant-fluid::before {
+    animation: none;
+  }
+}
+
 .wrap {
   width: 100%;
   max-width: 75rem;

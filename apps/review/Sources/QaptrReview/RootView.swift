@@ -19,10 +19,10 @@ struct ContentView: View {
         .frame(width: 1)
       ZStack {
         if showsSettings {
-          SettingsView(model: model, showObservations: toggleSurface)
+          SettingsView(model: model)
             .transition(.opacity)
         } else {
-          ObservationSheetView(model: model, showSettings: toggleSurface)
+          ObservationSheetView(model: model)
             .transition(.opacity)
         }
       }
@@ -101,10 +101,6 @@ struct ContentView: View {
     }
     .buttonStyle(.plain)
     .accessibilityAddTraits(selected ? .isSelected : [])
-  }
-
-  private func toggleSurface() {
-    setSurface(!showsSettings)
   }
 
   private func setSurface(_ settings: Bool) {

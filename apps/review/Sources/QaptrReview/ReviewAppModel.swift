@@ -187,7 +187,10 @@ final class ReviewAppModel {
     func requestScreenRecording() {
         guard let bridge else { return }
         settings.screenRecordingStatus = .notDetermined
-        _ = bridge.requestPermission(.screenCapture)
+        let requestedStatus = bridge.requestPermission(.screenCapture)
+        if requestedStatus != .unavailable {
+            settings.screenRecordingStatus = requestedStatus
+        }
         refreshPermissionAfterSystemPrompt(.screenCapture)
     }
 
@@ -195,7 +198,10 @@ final class ReviewAppModel {
     func requestAccessibilityContext() {
         guard let bridge else { return }
         settings.accessibilityContextStatus = .notDetermined
-        _ = bridge.requestPermission(.accessibilityContext)
+        let requestedStatus = bridge.requestPermission(.accessibilityContext)
+        if requestedStatus != .unavailable {
+            settings.accessibilityContextStatus = requestedStatus
+        }
         refreshPermissionAfterSystemPrompt(.accessibilityContext)
     }
 

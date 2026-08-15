@@ -17,6 +17,8 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="icon" href="data:," />
+    <script is:inline type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script is:inline nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -24,10 +26,13 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
     <header class="site-header">
       <div class="wrap site-header__row">
         <a class="site-header__mark" href="/" aria-label="Qaptr home">
-          <span class="site-header__mark-dot" aria-hidden="true"></span>
+          <ion-icon name="aperture-outline" aria-hidden="true"></ion-icon>
           <span>Qaptr</span>
         </a>
-        <a class="site-header__cta" href="/#join">Join the waitlist</a>
+        <a class="site-header__cta" href="/#join" data-cursor-label="Join">
+          <span>Join the waitlist</span>
+          <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon>
+        </a>
       </div>
     </header>
 
@@ -38,15 +43,18 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
     <footer class="site-footer">
       <div class="wrap site-footer__row">
         <span class="site-footer__mark">
-          <span class="site-footer__mark-dot" aria-hidden="true"></span>
+          <ion-icon name="aperture-outline" aria-hidden="true"></ion-icon>
           Qaptr
         </span>
         <p class="meta site-footer__privacy">
+          <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>
           We only ever store the email you submit. No tracking, no third parties.
         </p>
         <span class="meta">{new Date().getFullYear()}</span>
       </div>
     </footer>
+
+    <div class="cursor-follow" aria-hidden="true"><span></span></div>
 
     <script>
       // Progressive enhancement only. The page is fully functional and
@@ -107,6 +115,36 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
           if (label) label.textContent = "Joining…";
         });
       });
+
+      const cursorFollow = document.querySelector(".cursor-follow");
+      const cursorLabel = cursorFollow?.querySelector("span");
+      if (!prefersReduced && cursorFollow instanceof HTMLElement && cursorLabel instanceof HTMLElement && window.matchMedia("(pointer: fine)").matches) {
+        let cursorFrame = 0;
+        let cursorX = 0;
+        let cursorY = 0;
+        const moveCursor = (event: PointerEvent) => {
+          cursorX = event.clientX;
+          cursorY = event.clientY;
+          if (!cursorFrame) {
+            cursorFrame = window.requestAnimationFrame(() => {
+              cursorFrame = 0;
+              cursorFollow.style.transform = `translate3d(${cursorX + 16}px, ${cursorY + 16}px, 0)`;
+            });
+          }
+        };
+        const showCursor = (event: PointerEvent) => {
+          const target = event.target instanceof Element ? event.target.closest("[data-cursor-label]") : null;
+          if (!(target instanceof HTMLElement)) return;
+          cursorLabel.textContent = target.dataset.cursorLabel || "";
+          cursorFollow.classList.add("is-active");
+        };
+        const hideCursor = (event: PointerEvent) => {
+          if (event.target instanceof Element && event.target.closest("[data-cursor-label]")) cursorFollow.classList.remove("is-active");
+        };
+        document.addEventListener("pointermove", moveCursor, { passive: true });
+        document.addEventListener("pointerover", showCursor);
+        document.addEventListener("pointerout", hideCursor);
+      }
     </script>
 
     <style>
@@ -143,6 +181,47 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
         height: 8px;
         border-radius: 50%;
         background: var(--color-electric-blue);
+      }
+
+      .site-header__mark ion-icon,
+      .site-footer__mark ion-icon {
+        color: var(--color-electric-blue);
+        font-size: 1.15rem;
+      }
+
+      .site-header__cta ion-icon,
+      .site-footer__privacy ion-icon {
+        margin-left: var(--spacing-8);
+        font-size: 1rem;
+        vertical-align: -0.15em;
+      }
+
+      .cursor-follow {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        min-width: 3.5rem;
+        min-height: 2rem;
+        border: 1px solid var(--color-electric-blue);
+        border-radius: var(--radius-tag);
+        background: var(--color-canvas-white);
+        color: var(--color-deep-sapphire);
+        font-family: var(--font-geist-mono);
+        font-size: var(--text-caption);
+        letter-spacing: var(--tracking-meta);
+        opacity: 0;
+        pointer-events: none;
+        transform: translate3d(-100px, -100px, 0);
+        transition: opacity 160ms var(--ease-out);
+      }
+
+      .cursor-follow.is-active { opacity: 1; }
+
+      @media (prefers-reduced-motion: reduce), (pointer: coarse) {
+        .cursor-follow { display: none; }
       }
 
       .site-header__cta {

@@ -1,10 +1,11 @@
 import QaptrReviewCore
 import SwiftUI
 
+// Hallmark · studied-DNA: Micro live-site · work plane: row ledger · no stacked dashboard cards
+
 /// The primary surface: a small, honest list of recent observations.
 struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
-    let showSettings: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedObservation: QaptrObservation?
 
@@ -12,19 +13,13 @@ struct ObservationSheetView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                if model.reviewStatus != nil || model.reviewStatusError != nil {
-                    QaptrCard(padding: QaptrSpace.lg) {
-                        reviewStatusSummary
-                    }
-                    .padding(.top, QaptrSpace.md)
-                }
 
                 if model.loadError != nil {
                     ErrorStateView(retry: model.refresh)
-                        .padding(.top, QaptrSpace.lg)
+                        .padding(.top, QaptrSpace.xl)
                 } else {
-                    captureProgress
-                        .padding(.top, QaptrSpace.lg)
+                    statusLedger
+                        .padding(.top, QaptrSpace.xl)
                     if model.snapshot.observations.isEmpty {
                         EmptyStateView(progress: model.captureProgress)
                             .padding(.top, QaptrSpace.xl)
@@ -44,8 +39,9 @@ struct ObservationSheetView: View {
                         .padding(.top, QaptrSpace.xl)
                 }
             }
-            .padding(QaptrSpace.lg)
-            .frame(maxWidth: 680, alignment: .leading)
+            .padding(.horizontal, QaptrSpace.xxxl)
+            .padding(.vertical, QaptrSpace.xxl)
+            .frame(maxWidth: 1080, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .background(Color.qaptrSurface)
@@ -63,7 +59,10 @@ struct ObservationSheetView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: QaptrSpace.lg) {
+        VStack(alignment: .leading, spacing: QaptrSpace.md) {
+            Capsule()
+                .fill(Color.qaptrSignalGradient)
+                .frame(height: 4)
             VStack(alignment: .leading, spacing: QaptrSpace.xs) {
                 HStack(spacing: QaptrSpace.xs) {
                     Circle()
@@ -74,20 +73,54 @@ struct ObservationSheetView: View {
                         .tracking(1.2)
                         .foregroundStyle(Color.qaptrInkSoft)
                 }
+                Text("REVIEW WORKSPACE")
+                    .font(QaptrType.meta(10.5))
+                    .tracking(1.2)
+                    .foregroundStyle(Color.qaptrInkMuted)
                 Text(headerTitle)
-                    .font(QaptrType.display())
+                    .font(QaptrType.editorial(38))
                     .foregroundStyle(Color.qaptrInk)
+                Text("A readable record of what happened on this Mac.")
+                    .font(QaptrType.body(14))
+                    .foregroundStyle(Color.qaptrInkSoft)
             }
-            Spacer(minLength: QaptrSpace.lg)
-            Button("Settings", action: showSettings)
-                .buttonStyle(.qaptrOutline)
+            HStack(alignment: .firstTextBaseline) {
+                Text("OBSERVATION LEDGER")
+                    .font(QaptrType.meta(10))
+                    .tracking(1.1)
+                    .foregroundStyle(Color.qaptrInkMuted)
+                Spacer()
+            }
         }
-        .padding(QaptrSpace.lg)
-        .background(Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.feature, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: QaptrRadius.feature, style: .continuous)
-                .strokeBorder(Color.qaptrHairline, lineWidth: 1)
+        .padding(.bottom, QaptrSpace.lg)
+    }
+
+    private var statusLedger: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ledgerHeading("STATUS")
+            captureProgress
+            if model.reviewStatus != nil || model.reviewStatusError != nil {
+                ledgerRule
+                ledgerHeading("HISTORY")
+                reviewStatusSummary
+                    .padding(.bottom, QaptrSpace.md)
+            }
         }
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.qaptrHairline).frame(height: 1)
+        }
+    }
+
+    private func ledgerHeading(_ title: String) -> some View {
+        Text(title)
+            .font(QaptrType.meta(10))
+            .tracking(1.1)
+            .foregroundStyle(Color.qaptrInkMuted)
+            .padding(.vertical, QaptrSpace.sm)
+    }
+
+    private var ledgerRule: some View {
+        Divider().overlay(Color.qaptrHairline)
     }
 
     private var headerTitle: String {
@@ -98,15 +131,18 @@ struct ObservationSheetView: View {
     }
 
     private var captureProgress: some View {
-        QaptrCard {
-            VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+            Text("CAPTURE STATUS")
+                .font(QaptrType.meta(10.5))
+                .tracking(1)
+                .foregroundStyle(Color.qaptrInkMuted)
             HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.xxl) {
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Screenshots captured")
                         .font(QaptrType.meta())
                         .foregroundStyle(Color.qaptrInkSoft)
                     Text(model.captureProgress.captureCount.map(String.init) ?? "Not available")
-                        .font(QaptrType.headline(21))
+                        .font(QaptrType.display(28))
                         .foregroundStyle(Color.qaptrInk)
                 }
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
@@ -137,8 +173,8 @@ struct ObservationSheetView: View {
                 .font(QaptrType.caption())
                 .foregroundStyle(Color.qaptrInkSoft)
                 .fixedSize(horizontal: false, vertical: true)
-            }
         }
+        .padding(.vertical, QaptrSpace.md)
     }
 
     private var captureConfigurationSummary: String {
@@ -188,17 +224,23 @@ struct ObservationSheetView: View {
     }
 
     private var observationList: some View {
-        VStack(alignment: .leading, spacing: QaptrSpace.md) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(model.snapshot.recentObservations.enumerated()), id: \.element.id) { index, observation in
-                QaptrCard(padding: QaptrSpace.lg) {
-                    ObservationRow(
-                        observation: observation,
-                        index: index,
-                        reduceMotion: reduceMotion,
-                        select: { selectedObservation = observation }
-                    )
+                ObservationRow(
+                    observation: observation,
+                    index: index,
+                    reduceMotion: reduceMotion,
+                    select: { selectedObservation = observation }
+                )
+                .padding(.horizontal, QaptrSpace.xl)
+                .padding(.vertical, QaptrSpace.xxl)
+                if index < model.snapshot.recentObservations.count - 1 {
+                    Divider().overlay(Color.qaptrHairline)
                 }
             }
+        }
+        .overlay {
+            Rectangle().strokeBorder(Color.qaptrHairline, lineWidth: 1)
         }
     }
 }
@@ -315,7 +357,7 @@ private struct ObservationDetailView: View {
                 .font(QaptrType.caption())
                 .foregroundStyle(Color.qaptrInkSoft)
         }
-        .padding(QaptrSpace.xxl)
+        .padding(QaptrSpace.xxxl)
         .frame(width: 480, alignment: .leading)
         .background(Color.qaptrSurface)
     }

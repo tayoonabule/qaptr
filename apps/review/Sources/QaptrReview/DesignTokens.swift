@@ -1,30 +1,34 @@
 import SwiftUI
 
+// Hallmark · studied-DNA: Micro live-site · macrostructure: workbench ledger
+// Pre-emit critique: philosophy 5 · hierarchy 5 · execution 4 · specificity 5 · restraint 5 · variety 4
+
 /// Qaptr's shared design tokens for the native utility surfaces.
 ///
-/// The native app intentionally stays on the light product canvas: white
-/// surfaces, hairline borders, compact 4pt spacing, and one blue interaction
-/// accent. Cards use borders rather than decorative gradients or heavy shadow.
+/// The palette follows Micro's warm-paper work plane with an Azure-to-Teal
+/// signal. Existing names remain intentionally stable because settings,
+/// onboarding, and provider sheets consume this compatibility surface.
 enum QaptrHex {
-    static let canvasWhite = NSColor(qaptrHex: 0xFF_FF_FF)
-    static let paperMist = NSColor(qaptrHex: 0xF5_F5_F5)
-    static let ash = NSColor(qaptrHex: 0xE5_E5_E5)
-    static let smoke = NSColor(qaptrHex: 0xD4_D4_D4)
-    static let pebble = NSColor(qaptrHex: 0xC8_C8_C8)
-    static let midnightInk = NSColor(qaptrHex: 0x0A_0A_0A)
-    static let charcoal = NSColor(qaptrHex: 0x17_17_17)
-    static let graphite = NSColor(qaptrHex: 0x26_26_26)
-    static let slate = NSColor(qaptrHex: 0x40_40_40)
-    static let steel = NSColor(qaptrHex: 0x52_52_52)
-    static let fog = NSColor(qaptrHex: 0x73_73_73)
-    static let silver = NSColor(qaptrHex: 0xA3_A3_A3)
-    static let electricBlue = NSColor(qaptrHex: 0x25_63_EB)
-    static let deepSapphire = NSColor(qaptrHex: 0x1E_40_AF)
-    static let softMint = NSColor(qaptrHex: 0xDC_FC_E7)
-    static let vividGreen = NSColor(qaptrHex: 0x16_A3_4A)
-    static let tangerine = NSColor(qaptrHex: 0xEA_58_0C)
-    static let lavender = NSColor(qaptrHex: 0x7C_3A_ED)
+    static let canvasWhite = NSColor(qaptrHex: 0xF8_FA_FB)
+    static let paperMist = NSColor(qaptrHex: 0xEE_F3_F5)
+    static let ash = NSColor(qaptrHex: 0xD9_E3_E7)
+    static let smoke = NSColor(qaptrHex: 0xBF_CE_D3)
+    static let pebble = NSColor(qaptrHex: 0xA8_B9_BF)
+    static let midnightInk = NSColor(qaptrHex: 0x12_2B_35)
+    static let charcoal = NSColor(qaptrHex: 0x1D_38_42)
+    static let graphite = NSColor(qaptrHex: 0x31_4D_57)
+    static let slate = NSColor(qaptrHex: 0x4A_62_69)
+    static let steel = NSColor(qaptrHex: 0x5E_72_76)
+    static let fog = NSColor(qaptrHex: 0x7B_8A_8B)
+    static let silver = NSColor(qaptrHex: 0xA7_B1_AE)
+    static let electricBlue = NSColor(qaptrHex: 0x1B_77_F2)
+    static let deepSapphire = NSColor(qaptrHex: 0x0E_55_BB)
+    static let softMint = NSColor(qaptrHex: 0xD7_F0_E8)
+    static let vividGreen = NSColor(qaptrHex: 0x0B_8F_7A)
+    static let tangerine = NSColor(qaptrHex: 0xD9_6B_38)
+    static let lavender = NSColor(qaptrHex: 0x6D_66_B2)
     static let error = NSColor(qaptrHex: 0xB4_23_18)
+    static let teal = NSColor(qaptrHex: 0x00_9E_9A)
 }
 
 private extension NSColor {
@@ -66,6 +70,11 @@ extension Color {
     static let qaptrInputBorder = Color(nsColor: QaptrHex.midnightInk)
     static let qaptrAccent = Color(nsColor: QaptrHex.electricBlue)
     static let qaptrAccentStrong = Color(nsColor: QaptrHex.deepSapphire)
+    static let qaptrSignalGradient = LinearGradient(
+        colors: [Color(nsColor: QaptrHex.electricBlue), Color(red: 0.302, green: 0.608, blue: 1.0), Color(nsColor: QaptrHex.teal)],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
     static let qaptrAccentInk = Color.white
     static let qaptrPrimaryAction = Color(nsColor: QaptrHex.midnightInk)
     static let qaptrSuccess = Color(nsColor: QaptrHex.vividGreen)
@@ -78,6 +87,8 @@ extension Color {
     static let qaptrAccentTint = Color(nsColor: QaptrHex.electricBlue).opacity(0.10)
     static let qaptrAccentTintStrong = Color(nsColor: QaptrHex.electricBlue).opacity(0.16)
     static let qaptrLive = Color(nsColor: QaptrHex.vividGreen)
+    static let qaptrTeal = Color(nsColor: QaptrHex.teal)
+    static let qaptrPaper = Color(nsColor: QaptrHex.canvasWhite)
 }
 
 enum QaptrRadius {
@@ -90,23 +101,30 @@ enum QaptrRadius {
 /// The compact 4pt spacing scale used by every native surface.
 enum QaptrSpace {
     static let xxs: CGFloat = 4
-    static let xs: CGFloat = 4
-    static let sm: CGFloat = 8
-    static let md: CGFloat = 12
-    static let lg: CGFloat = 16
-    static let xl: CGFloat = 24
-    static let xxl: CGFloat = 32
-    static let xxxl: CGFloat = 48
+    static let xs: CGFloat = 6
+    static let sm: CGFloat = 10
+    static let md: CGFloat = 14
+    static let lg: CGFloat = 20
+    static let xl: CGFloat = 28
+    static let xxl: CGFloat = 40
+    static let xxxl: CGFloat = 56
 }
 
-/// Satoshi-like medium display voice with a system sans body voice.
+/// A crisp system sans display voice with a system sans body voice. The native
+/// app should feel precise and editorial, not soft or toy-like.
 enum QaptrType {
+    /// Distinct editorial display role. New York is a native macOS serif and
+    /// safely falls back to the platform system serif when unavailable.
+    static func editorial(_ size: CGFloat = 30) -> Font {
+        .system(size: size, weight: .regular, design: .serif)
+    }
+
     static func display(_ size: CGFloat = 30) -> Font {
-        .system(size: size, weight: .medium, design: .rounded)
+        editorial(size)
     }
 
     static func headline(_ size: CGFloat = 20) -> Font {
-        .system(size: size, weight: .medium, design: .rounded)
+        .system(size: size, weight: .medium, design: .default)
     }
 
     static func title(_ size: CGFloat = 14) -> Font {
@@ -140,7 +158,7 @@ struct QaptrCard<Content: View>: View {
     let padding: CGFloat
     @ViewBuilder let content: Content
 
-    init(padding: CGFloat = QaptrSpace.lg, @ViewBuilder content: () -> Content) {
+    init(padding: CGFloat = QaptrSpace.xl, @ViewBuilder content: () -> Content) {
         self.padding = padding
         self.content = content()
     }

@@ -7,7 +7,7 @@ import ArcDial from "../components/ArcDial.astro";
 <BaseLayout title="Qaptr — private beta for macOS">
   <section class="hero wrap">
     <div class="hero__content">
-      <p class="meta hero__eyebrow reveal">Private beta &middot; macOS</p>
+      <p class="meta hero__eyebrow reveal"><ion-icon name="sparkles-outline" aria-hidden="true"></ion-icon>Private beta &middot; macOS</p>
       <h1 class="hero__headline reveal">Qaptr keeps the ten minutes you forget you spent.</h1>
       <p class="hero__subhead reveal">
         A quiet macOS companion that captures what you did, so the record exists before you need it.
@@ -15,15 +15,15 @@ import ArcDial from "../components/ArcDial.astro";
 
       <ul class="feature-pills reveal" aria-label="Qaptr product principles">
         <li class="feature-pill feature-pill--orange">
-          <span class="feature-pill__dot" aria-hidden="true"></span>
+          <ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon>
           Private by default
         </li>
         <li class="feature-pill feature-pill--green">
-          <span class="feature-pill__dot" aria-hidden="true"></span>
+          <ion-icon name="camera-outline" aria-hidden="true"></ion-icon>
           Capture on your terms
         </li>
         <li class="feature-pill feature-pill--violet">
-          <span class="feature-pill__dot" aria-hidden="true"></span>
+          <ion-icon name="eye-outline" aria-hidden="true"></ion-icon>
           Review before sharing
         </li>
       </ul>
@@ -33,24 +33,24 @@ import ArcDial from "../components/ArcDial.astro";
       </div>
     </div>
 
-    <figure class="workspace-preview reveal" aria-labelledby="workspace-preview-caption">
+    <figure class="workspace-preview canvas-particle-reveal reveal" aria-labelledby="workspace-preview-caption" data-cursor-label="Preview">
       <div class="workspace-preview__appbar">
         <div class="workspace-preview__brand">
           <span class="workspace-preview__brand-dot" aria-hidden="true"></span>
           <span>Qaptr</span>
         </div>
-        <span class="workspace-preview__mode">Capture-only mode</span>
+          <span class="workspace-preview__mode"><ion-icon name="laptop-outline" aria-hidden="true"></ion-icon>Capture-only mode</span>
       </div>
 
       <div class="workspace-preview__body">
         <aside class="workspace-preview__sidebar" aria-label="Illustrative workspace navigation">
           <p class="meta workspace-preview__sidebar-label">Workspace</p>
-          <span class="workspace-preview__nav workspace-preview__nav--active">Sessions</span>
-          <span class="workspace-preview__nav">Review queue</span>
-          <span class="workspace-preview__nav">Settings</span>
+          <span class="workspace-preview__nav workspace-preview__nav--active"><ion-icon name="albums-outline" aria-hidden="true"></ion-icon>Sessions</span>
+          <span class="workspace-preview__nav"><ion-icon name="list-outline" aria-hidden="true"></ion-icon>Review queue</span>
+          <span class="workspace-preview__nav"><ion-icon name="settings-outline" aria-hidden="true"></ion-icon>Settings</span>
           <div class="workspace-preview__sidebar-foot">
             <span class="workspace-preview__privacy-dot" aria-hidden="true"></span>
-            Private on this Mac
+            <ion-icon name="shield-outline" aria-hidden="true"></ion-icon>Private on this Mac
           </div>
         </aside>
 
@@ -60,11 +60,11 @@ import ArcDial from "../components/ArcDial.astro";
               <p class="meta">Recent session</p>
               <h2>Working notes</h2>
             </div>
-            <span class="workspace-preview__status">Ready to review</span>
+            <span class="workspace-preview__status"><ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon>Ready to review</span>
           </div>
 
           <div class="workspace-preview__summary">
-            <span class="workspace-preview__summary-mark" aria-hidden="true"></span>
+            <span class="workspace-preview__summary-mark" aria-hidden="true"><ion-icon name="list-circle-outline"></ion-icon></span>
             <div>
               <strong>Your activity, in order.</strong>
               <p>A plain-language record to skim before you share anything.</p>
@@ -73,22 +73,22 @@ import ArcDial from "../components/ArcDial.astro";
 
           <div class="workspace-preview__rows" aria-label="Illustrative session activity">
             <div class="workspace-preview__row">
-              <span class="workspace-preview__row-marker" aria-hidden="true"></span>
+              <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
               <span>Drafted a project brief</span>
               <span class="meta">Captured</span>
             </div>
             <div class="workspace-preview__row">
-              <span class="workspace-preview__row-marker" aria-hidden="true"></span>
+              <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
               <span>Reviewed reference notes</span>
               <span class="meta">Captured</span>
             </div>
             <div class="workspace-preview__row">
-              <span class="workspace-preview__row-marker" aria-hidden="true"></span>
+              <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
               <span>Prepared the next step</span>
               <span class="meta">Captured</span>
             </div>
           </div>
-          <p class="workspace-preview__sample meta">Illustrative workspace preview</p>
+          <p class="workspace-preview__sample meta"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>Illustrative workspace preview</p>
         </div>
       </div>
       <figcaption id="workspace-preview-caption" class="workspace-preview__caption">
@@ -97,10 +97,10 @@ import ArcDial from "../components/ArcDial.astro";
     </figure>
   </section>
 
-  <section class="dial-section blueprint-surface reveal">
+  <section class="dial-section blueprint-surface radiant-fluid reveal">
     <div class="wrap dial-section__inner">
       <div class="dial-section__intro">
-        <p class="meta">Capture interval</p>
+        <p class="meta"><ion-icon name="timer-outline" aria-hidden="true"></ion-icon>Capture interval</p>
         <h2>Set the rhythm once.</h2>
         <p>Qaptr stays quiet in the background and keeps the interval you choose.</p>
       </div>
@@ -121,6 +121,7 @@ import ArcDial from "../components/ArcDial.astro";
         <p>Qaptr turns background activity into small, legible moments you can trust before sharing.</p>
       </div>
       <div class="product-bento__intro-signal" aria-hidden="true">
+        <ion-icon name="sparkles-outline"></ion-icon>
         <span class="signal-dot signal-dot--blue"></span>
         <span class="signal-dot signal-dot--green"></span>
         <span class="signal-dot signal-dot--violet"></span>
@@ -132,7 +133,7 @@ import ArcDial from "../components/ArcDial.astro";
     <div class="product-bento__grid">
       <article class="product-card passage product-card--capture">
         <div class="product-card__copy">
-          <p class="meta">01 · Capture</p>
+          <p class="meta"><ion-icon name="time-outline" aria-hidden="true"></ion-icon>01 · Capture</p>
           <h3>The shape of your working day.</h3>
           <p>Apps and windows become a plain-language trail, without timers or after-the-fact forms.</p>
         </div>
@@ -146,20 +147,20 @@ import ArcDial from "../components/ArcDial.astro";
 
       <article class="product-card passage product-card--privacy">
         <div class="product-card__copy">
-          <p class="meta">02 · Consent</p>
+          <p class="meta"><ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>02 · Consent</p>
           <h3>Nothing leaves without a yes.</h3>
           <p>Local-first capture stays quiet until you decide what belongs in the record.</p>
         </div>
         <div class="privacy-orbit" aria-hidden="true">
           <span class="privacy-orbit__ring"></span>
-          <span class="privacy-orbit__lock">⌑</span>
+          <span class="privacy-orbit__lock"><ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon></span>
           <span class="privacy-orbit__label">Private on this Mac</span>
         </div>
       </article>
 
       <article class="product-card passage product-card--document">
         <div class="product-card__copy">
-          <p class="meta">03 · Review</p>
+          <p class="meta"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>03 · Review</p>
           <h3>A record you can hand to tomorrow.</h3>
           <p>Skim the sequence before a standup, a review, or the next time you wonder where the morning went.</p>
         </div>
@@ -174,7 +175,7 @@ import ArcDial from "../components/ArcDial.astro";
 
       <article class="product-card product-card--handoff">
         <div class="product-card__copy">
-          <p class="meta">04 · Handoff</p>
+          <p class="meta"><ion-icon name="share-social-outline" aria-hidden="true"></ion-icon>04 · Handoff</p>
           <h3>Keep the useful part. Leave the rest behind.</h3>
           <p>Review a clear sequence, then choose what belongs in a standup, a review, or your future notes.</p>
         </div>
@@ -191,10 +192,10 @@ import ArcDial from "../components/ArcDial.astro";
     </div>
   </section>
 
-  <section id="join" class="join join--paper reveal">
+  <section id="join" class="join join--paper canvas-liquid-glass reveal" data-cursor-label="Start here">
     <div class="wrap join__inner">
       <div>
-        <p class="meta join__eyebrow">Private beta for macOS</p>
+        <p class="meta join__eyebrow"><ion-icon name="mail-unread-outline" aria-hidden="true"></ion-icon>Private beta for macOS</p>
         <h2 class="join__headline">Be the first to try it.</h2>
         <p class="join__body">A short note when your invite is ready. Nothing else.</p>
       </div>

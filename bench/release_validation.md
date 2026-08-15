@@ -1,16 +1,16 @@
 # U23 release validation
 
-**Run:** `2026-08-15T03:00:22Z`
+**Run:** `2026-08-15T03:22:02Z`
 **Overall:** **BLOCKED**
-**Output directory:** `/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z`
+**Output directory:** `/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z`
 
 This report is intentionally evidence-first. `UNVERIFIED` is not a pass or a fail; it means this machine cannot prove the release claim. A blocked release is reported as blocked rather than being made green by weakening a gate.
 
 ## Machine configuration
 
 ```text
-validated_commit=484de89cf9b386c799cc7ebb0313e1aea2ecc02d
-date_utc=2026-08-15T02:58:49Z
+validated_commit=8919bd6fd2dd69e5d42a3f92a80954be610a5ace
+date_utc=2026-08-15T03:19:46Z
 uname=Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Jul 14 21:40:57 PDT 2026; root:xnu-13432.0.94.501.4~1/RELEASE_ARM64_T8142 arm64
 arch=arm64
 sw_vers:
@@ -55,42 +55,42 @@ Graphics/Displays:
 | Gate | Result | Evidence |
 |---|---|---|
 | `fixture_session` | **PASS** | captures=24 image_size=1600x1000 manifest=/Users/light/Documents/GitHub/qaptr/fixtures/session/manifest.csv |
-| `rust_format` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/rust_format.log |
-| `rust_lint` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/rust_lint.log |
-| `rust_tests` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/rust_tests.log |
-| `rust_docs` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/rust_docs.log |
-| `macos_os_integration` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/macos_os_integration.log |
-| `helper_tests` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/helper_tests.log |
-| `real_vision_preparation` | **FAIL** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/real_vision_preparation.log |
-| `image_provenance` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/image_provenance.log |
-| `history_encoding` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/history_encoding.log |
-| `fresh_store_bootstrap` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/fresh_store_bootstrap.log |
+| `rust_format` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/rust_format.log |
+| `rust_lint` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/rust_lint.log |
+| `rust_tests` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/rust_tests.log |
+| `rust_docs` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/rust_docs.log |
+| `macos_os_integration` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/macos_os_integration.log |
+| `helper_tests` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/helper_tests.log |
+| `real_vision_preparation` | **FAIL** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/real_vision_preparation.log |
+| `image_provenance` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/image_provenance.log |
+| `history_encoding` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/history_encoding.log |
+| `fresh_store_bootstrap` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/fresh_store_bootstrap.log |
 | `fresh_install_bootstrap` | **UNVERIFIED** | no clean-machine packaged-app install, permission, login-item, and first-review-state driver exists |
 | `review_session_driver` | **FAIL** | current review app has capture-progress/settings and read-only durable history, but no analyze/detail/workflow/export driver exists |
-| `review_budget_smoke_1` | **FAIL** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/review_smoke_1.log |
-| `review_budget_smoke_2` | **FAIL** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/review_smoke_2.log |
-| `review_budget_smoke_3` | **FAIL** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/review_smoke_3.log |
-| `helper_soak` | **PASS** | median_mib=5.922 peak_mib=5.969 skips=0 log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/helper_soak.log |
-| `privacy_payload_proof` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/privacy_payload_proof.log |
-| `privacy_gate_refusal` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/privacy_gate_refusal.log |
-| `privacy_corpus` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/privacy_corpus.log |
-| `provider_contract` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/provider_contract.log |
-| `openrouter_contract` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/openrouter_contract.log |
-| `cli_contract` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/cli_contract.log |
-| `provider_codex_real_detection` | **PASS** | Codex CLI 0.147.0 installed and sandboxed detection passed log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/provider_codex.log |
-| `provider_jcode_real_detection` | **PASS** | Jcode CLI 0.75.23 installed and sandboxed detection passed log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/provider_jcode.log |
-| `provider_claude_real_detection` | **UNVERIFIED** | genuine Claude CLI and version reached; sandbox cannot verify Keychain-backed auth without granting Keychain access log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/provider_claude.log |
+| `review_budget_smoke_1` | **PASS** | median_mib=7.508 peak_mib=7.719 samples=20 log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/review_smoke_1.log |
+| `review_budget_smoke_2` | **PASS** | median_mib=7.501 peak_mib=7.735 samples=20 log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/review_smoke_2.log |
+| `review_budget_smoke_3` | **PASS** | median_mib=7.477 peak_mib=7.688 samples=20 log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/review_smoke_3.log |
+| `helper_soak` | **PASS** | median_mib=5.719 peak_mib=5.766 skips=0 log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/helper_soak.log |
+| `privacy_payload_proof` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/privacy_payload_proof.log |
+| `privacy_gate_refusal` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/privacy_gate_refusal.log |
+| `privacy_corpus` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/privacy_corpus.log |
+| `provider_contract` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/provider_contract.log |
+| `openrouter_contract` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/openrouter_contract.log |
+| `cli_contract` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/cli_contract.log |
+| `provider_codex_real_detection` | **PASS** | Codex CLI 0.147.0 installed and sandboxed detection passed log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/provider_codex.log |
+| `provider_jcode_real_detection` | **PASS** | Jcode CLI 0.75.23 installed and sandboxed detection passed log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/provider_jcode.log |
+| `provider_claude_real_detection` | **UNVERIFIED** | genuine Claude CLI and version reached; sandbox cannot verify Keychain-backed auth without granting Keychain access log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/provider_claude.log |
 | `provider_openrouter_real_detection` | **UNVERIFIED** | no OpenRouter credential is configured; only the in-process contract is proven |
-| `helper_link_audit` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/helper_link_audit.log |
+| `helper_link_audit` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/helper_link_audit.log |
 | `export_snapshots` | **UNVERIFIED** | cargo-insta is not installed on this machine |
-| `web_checks` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/web_checks.log |
-| `web_accessibility` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/logs/web_accessibility.log |
+| `web_checks` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/web_checks.log |
+| `web_accessibility` | **PASS** | log=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/logs/web_accessibility.log |
 | `packaging` | **UNVERIFIED** | not run by U23; dry-run is credential-free, but Developer ID signing, notarization, stapling, Gatekeeper, and fresh-profile persistence still require release credentials and a clean runner |
 
 ## Measurements and interpretation
 
 - **Helper:** U4 previously measured **5.860 MiB median**, **5.922 MiB peak**, 118 captures, and zero skipped ticks on a 600-second accelerated soak. U23 also runs `capture_soak.sh` through the single entry point; its exact current summary is in the gate log above. Both are far below the 50 MiB budget, but neither is a 12-hour run on the 16 GB plus 5K reference machine.
-- **U23 helper soak:** `capture_soak.sh` measured duration_seconds=36;samples=34;median_phys_footprint_bytes=6210184.000;median_phys_footprint_mib=5.922;peak_phys_footprint_bytes=6259336;peak_phys_footprint_mib=5.969;captures=14;median_capture_latency_ms=49.598;peak_capture_latency_ms=141.180;median_single_capture_latency_ms=50.659;peak_single_capture_latency_ms=141.180;median_multiple_capture_latency_ms=39.957;peak_multiple_capture_latency_ms=50.030;median_single_set_latency_ms=51.172;peak_single_set_latency_ms=164.159;median_multiple_set_latency_ms=40.014;peak_multiple_set_latency_ms=53.935;ticks=7;skips=0;median_tick_latency_ms=131.367;peak_tick_latency_ms=240.503;results_dir=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T025849Z/helper_soak;
+- **U23 helper soak:** `capture_soak.sh` measured duration_seconds=36;samples=34;median_phys_footprint_bytes=5997192.000;median_phys_footprint_mib=5.719;peak_phys_footprint_bytes=6046344;peak_phys_footprint_mib=5.766;captures=14;median_capture_latency_ms=43.708;peak_capture_latency_ms=135.074;median_single_capture_latency_ms=49.867;peak_single_capture_latency_ms=135.074;median_multiple_capture_latency_ms=40.279;peak_multiple_capture_latency_ms=42.353;median_single_set_latency_ms=50.003;peak_single_set_latency_ms=168.933;median_multiple_set_latency_ms=41.783;peak_multiple_set_latency_ms=45.783;ticks=7;skips=0;median_tick_latency_ms=133.859;peak_tick_latency_ms=242.649;results_dir=/Users/light/Documents/GitHub/qaptr/bench/results/release_validation_20260815T031946Z/helper_soak;
 - **Opened app:** the three runs above are real production-app smoke measurements composed from `review_budget.sh`. They are not the required full 10-minute session. U20's prior smoke result was **29.118 MiB median** and **30.032 MiB peak**.
 - **Real Vision preparation:** the temporary harness attempts to use the committed 24-capture manifest, real `MacOcr` and `MacVision`, masking, sanitization, coverage verification, and `PreparedPayload` proof assembly. The current run records a failure when masked-image recognition verification is not configured; no preparation latency pass is claimed. U12's **0.019 ms** figure is composition overhead only and is not used as pipeline latency.
 - **Recall:** preserve the U9 disclosure of **5/6 = 0.833**. The known miss is the low-contrast text region in `low_contrast.png`; this is not a claim of perfect detection.
@@ -118,10 +118,4 @@ The empty-store migration is covered by `migration_from_empty_produces_the_allow
 
 ## Reproducibility limitation
 
-The clean-checkout reproducibility check is not passing. Two clean `git archive
-HEAD` checkouts produce helper binaries with different Mach-O `LC_UUID` values;
-the ad-hoc code seal and downstream bundle/DMG hashes therefore differ.
-Same-tree rebuilds are deterministic, helper/link/entitlement audits pass, and
-no absolute checkout path is embedded. This is a toolchain/reproducibility-policy
-gap, not evidence of a privacy or signing failure; the bit-identical artifact
-claim remains **UNVERIFIED** until the UUID policy is resolved.
+The clean-checkout reproducibility check is not passing. Two clean `git archive HEAD` checkouts produce helper binaries with different Mach-O `LC_UUID` values; the ad-hoc code seal and downstream bundle/DMG hashes therefore differ. Same-tree rebuilds are deterministic, helper/link/entitlement audits pass, and no absolute checkout path is embedded. This is a toolchain/reproducibility-policy gap, not evidence of a privacy or signing failure; the bit-identical artifact claim remains **UNVERIFIED** until the UUID policy is resolved.
