@@ -168,6 +168,35 @@ This refuses a dirty checkout, archives `HEAD` twice, runs the complete dry-run
 in both clean trees, and compares hashes for every bundle file and the DMG. It is
 also part of the manual release workflow.
 
+### Explicit packaged capture and review evidence
+
+`bench/scripts/release_validate.sh` never treats a process launch, first paint,
+or idle scalar progress as proof of the release session. It records the external
+gate as `BLOCKED` unless both of these environment variables point to evidence
+records produced by a real packaged-app run:
+
+```sh
+U23_HELPER_CAPTURE_EVIDENCE=/path/helper-capture.json \
+U23_REVIEW_RESULT_EVIDENCE=/path/review-result.json \
+bash bench/scripts/release_validate.sh
+```
+
+The independently testable contract is implemented by
+`bench/scripts/validate_release_evidence.sh` and exercised by
+`bench/scripts/test_validate_release_evidence.sh`. The helper record must
+explicitly identify a runtime packaged-helper sealed capture, granted Screen
+Recording permission, a present display, login-item startup, visible scalar
+status, a capture id/count/timestamp, and an available sealed bundle. The review
+record must explicitly identify a runtime packaged-review result, completed
+analysis, at least one observation, a result timestamp, the matching capture id,
+and a provider evidence state of `verified` or `not_required`.
+
+The validator only checks caller-supplied records. It does not launch either
+app, grant permission, inspect credentials, create bundles, or synthesize a
+review result. Missing evidence or an explicit unavailable permission,
+hardware, or provider state is `BLOCKED`; malformed or contradictory records
+are `FAIL`. Neither status is a release pass.
+
 The current clean-checkout comparison is not passing: identical source inputs
 produce different helper `LC_UUID` values, which change the ad-hoc code seal and
 downstream bundle/DMG hashes. Same-tree rebuilds are deterministic, and the

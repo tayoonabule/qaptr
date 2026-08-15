@@ -23,6 +23,7 @@ machine_file="$output_dir/machine.txt"
 
 failures=0
 unverified=0
+blocked=0
 
 record() {
     local name=$1
@@ -32,6 +33,7 @@ record() {
     case "$status" in
         FAIL) failures=$((failures + 1)) ;;
         UNVERIFIED) unverified=$((unverified + 1)) ;;
+        BLOCKED) blocked=$((blocked + 1)) ;;
     esac
 }
 
@@ -288,13 +290,13 @@ run_provider_detection() {
 
 write_report() {
     local overall="PASS"
-    [[ "$failures" -eq 0 && "$unverified" -eq 0 ]] || overall="BLOCKED"
+    [[ "$failures" -eq 0 && "$unverified" -eq 0 && "$blocked" -eq 0 ]] || overall="BLOCKED"
     {
         printf '# U23 release validation\n\n'
         printf '**Run:** `%s`\n' "$(date -u +%FT%TZ)"
         printf '**Overall:** **%s**\n' "$overall"
         printf '**Output directory:** `%s`\n\n' "$output_dir"
-        printf 'This report is intentionally evidence-first. `UNVERIFIED` is not a pass or a fail; it means this machine cannot prove the release claim. A blocked release is reported as blocked rather than being made green by weakening a gate.\n\n'
+        printf 'This report is intentionally evidence-first. `UNVERIFIED` is not a pass or a fail; it means this machine cannot prove the release claim. `BLOCKED` means required external evidence was not supplied or is explicitly unavailable. A blocked release is reported as blocked rather than being made green by weakening a gate.\n\n'
         printf '## Machine configuration\n\n```text\n'
         printf 'validated_commit=%s\n' "$validated_commit"
         cat "$machine_file"
@@ -357,6 +359,39 @@ run_gate history_encoding cargo test --manifest-path "$repo_root/crates/qaptr-re
 run_gate fresh_store_bootstrap cargo test -p qaptr-store --test store migration_from_empty_produces_the_allowlisted_schema -- --nocapture
 record fresh_install_bootstrap UNVERIFIED "no clean-machine packaged-app install, permission, login-item, and first-review-state driver exists"
 
+run_external_release_evidence() {
+    local helper_evidence="${U23_HELPER_CAPTURE_EVIDENCE:-}"
+    local review_evidence="${U23_REVIEW_RESULT_EVIDENCE:-}"
+    local log="$log_dir/release_evidence.log"
+
+    if [[ -z "$helper_evidence" || -z "$review_evidence" ]]; then
+        : > "$log"
+        record helper_capture_evidence BLOCKED "set U23_HELPER_CAPTURE_EVIDENCE to a real packaged-helper evidence record log=$log"
+        record review_result_evidence BLOCKED "set U23_REVIEW_RESULT_EVIDENCE to a real review-session evidence record log=$log"
+        return 1
+    fi
+
+    if bash "$repo_root/bench/scripts/validate_release_evidence.sh" \
+        --helper-capture "$helper_evidence" --review-result "$review_evidence" >"$log" 2>&1; then
+        helper_status=$(sed -n 's/.*helper_capture=\([^ ]*\).*/\1/p' "$log" | tail -n1)
+        review_status=$(sed -n 's/.*review_result=\([^ ]*\).*/\1/p' "$log" | tail -n1)
+        record helper_capture_evidence "${helper_status:-FAIL}" "log=$log"
+        record review_result_evidence "${review_status:-FAIL}" "log=$log"
+        return 0
+    fi
+
+    helper_status=$(sed -n 's/.*helper_capture=\([^ ]*\).*/\1/p' "$log" | tail -n1)
+    review_status=$(sed -n 's/.*review_result=\([^ ]*\).*/\1/p' "$log" | tail -n1)
+    record helper_capture_evidence "${helper_status:-FAIL}" "log=$log"
+    record review_result_evidence "${review_status:-FAIL}" "log=$log"
+    return 1
+}
+
+# A launch and first-paint signal is intentionally never enough. This gate only
+# passes when a caller supplies explicit runtime evidence for both a sealed
+# helper capture and a completed review result tied to that capture.
+run_external_release_evidence
+
 # The existing review-budget harness is intentionally reused. Its current scope
 # is an idle smoke launch, so the full scripted-session gate is kept separate.
 record review_session_driver FAIL "current review app has capture-progress/settings and read-only durable history, but no analyze/detail/workflow/export driver exists"
@@ -417,7 +452,7 @@ fi
 record packaging UNVERIFIED "not run by U23; dry-run is credential-free, but Developer ID signing, notarization, stapling, Gatekeeper, and fresh-profile persistence still require release credentials and a clean runner"
 
 write_report
-printf 'U23 release validation: failures=%s unverified=%s report=%s output=%s\n' "$failures" "$unverified" "$report_path" "$output_dir"
-if [[ "$failures" -ne 0 || "$unverified" -ne 0 ]]; then
+printf 'U23 release validation: failures=%s unverified=%s blocked=%s report=%s output=%s\n' "$failures" "$unverified" "$blocked" "$report_path" "$output_dir"
+if [[ "$failures" -ne 0 || "$unverified" -ne 0 || "$blocked" -ne 0 ]]; then
     exit 1
 fi
