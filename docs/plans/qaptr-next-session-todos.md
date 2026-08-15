@@ -20,7 +20,7 @@
 - [ ] Record the exact app, helper, Rust workspace, and Swift package revisions under test.
 - [x] Run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --workspace`, `cargo doc --workspace --no-deps`, and `swift test --package-path apps/helper`. All commands passed on 2026-08-15 after the Vision helper cold-start correction; the helper suite ran 20 tests.
 - [x] Run `swift test --package-path apps/review` and record any existing failures independently from new work. The full review package passed 65 tests on 2026-08-15 after restoring the missing view layer; no existing test failure remains.
-- [ ] Confirm fixture inventory and document which fixture captures can exercise real local preparation.
+- [x] Confirm fixture inventory and document which fixture captures can exercise real local preparation. `fixtures/session/manifest.csv` enumerates 24 1600×1000 logical captures across the existing `text`, `rotated`, `no_text`, `single_color`, `low_contrast`, and `qr` Vision fixture sources; `fixtures/session/README.md` records that the repeated sources are intentional and are suitable for the real local Vision preparation measurement.
 
 ### 0.2 Prove packaged capture behavior
 - [x] Build the packaged helper and review app with the normal packaging entrypoint. `bench/scripts/packaged_fixture_smoke.sh` invokes `packaging/release.sh --dry-run` by default and validates the resulting hierarchy.
