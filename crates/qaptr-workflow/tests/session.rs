@@ -12,6 +12,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::{
     Mutex,
     atomic::{AtomicU64, Ordering},
@@ -108,11 +109,15 @@ impl CredentialPort for MemoryCredentials {
 
 struct Decoder {
     contexts: HashMap<String, ContextSnapshot>,
+    decoded: Rc<Cell<usize>>,
 }
 
 impl Decoder {
     fn with_contexts(contexts: HashMap<String, ContextSnapshot>) -> Self {
-        Self { contexts }
+        Self {
+            contexts,
+            decoded: Rc::new(Cell::new(0)),
+        }
     }
 }
 
@@ -127,6 +132,7 @@ impl CaptureDecoder for Decoder {
             .get(capture_id.as_str())
             .cloned()
             .ok_or_else(|| DecodeError::InvalidInput("missing test context".to_owned()))?;
+        self.decoded.set(self.decoded.get() + 1);
         Ok(PreparationInput::new(capture_id, context))
     }
 }
@@ -153,10 +159,19 @@ struct RecordingProvider {
     descriptor: ProviderDescriptor,
     detections: Cell<u32>,
     invocations: Cell<u32>,
+    expected_preparations: Option<(Rc<Cell<usize>>, usize)>,
 }
 
 impl RecordingProvider {
     fn new() -> Self {
+        Self::with_preparation_counter(None)
+    }
+
+    fn new_with_preparation_counter(prepared: Rc<Cell<usize>>, expected: usize) -> Self {
+        Self::with_preparation_counter(Some((prepared, expected)))
+    }
+
+    fn with_preparation_counter(expected_preparations: Option<(Rc<Cell<usize>>, usize)>) -> Self {
         let id = ProviderId::new("fake-provider").expect("provider id");
         let descriptor = ProviderDescriptor::new(
             id,
@@ -170,6 +185,7 @@ impl RecordingProvider {
             descriptor,
             detections: Cell::new(0),
             invocations: Cell::new(0),
+            expected_preparations,
         }
     }
 }
@@ -181,6 +197,9 @@ impl ProviderAdapter for RecordingProvider {
 
     fn detect(&self) -> Result<ProviderDetection, ProviderError> {
         self.detections.set(self.detections.get() + 1);
+        if let Some((prepared, expected)) = &self.expected_preparations {
+            assert_eq!(prepared.get(), *expected);
+        }
         let executable =
             ExecutablePath::new("/usr/local/bin/fake-provider").expect("absolute path");
         Ok(ProviderDetection::installed(
@@ -242,6 +261,11 @@ struct Harness {
 
 impl Harness {
     fn new(capture_id: &str, context: ContextSnapshot) -> (Self, CaptureRecordInput) {
+        let (harness, mut captures) = Self::new_many(vec![(capture_id, context)]);
+        (harness, captures.pop().expect("one capture"))
+    }
+
+    fn new_many(captures: Vec<(&str, ContextSnapshot)>) -> (Self, Vec<CaptureRecordInput>) {
         let temp = TempRoot::new();
         let vault = Vault::new(temp.path().join("vault")).expect("vault");
         let credentials = MemoryCredentials::default();
@@ -256,29 +280,33 @@ impl Harness {
         vault
             .register_public_key(keys.generation_id(), keys.public_key())
             .expect("public key");
-        let capture = CaptureId::new(capture_id).expect("capture id");
-        vault
-            .seal(
-                &BundleInput::new(
-                    capture.clone(),
-                    keys.generation_id().clone(),
-                    b"test image bytes".to_vec(),
-                    SampledContext::new(br#"{"application":"Editor"}"#.to_vec()),
-                    Vec::new(),
-                ),
-                keys.public_key(),
-            )
-            .expect("seal capture");
         let store = Store::open(temp.path().join("history.sqlite3")).expect("store");
-        let mut contexts = HashMap::new();
-        contexts.insert(capture_id.to_owned(), context);
-        let record = CaptureRecord {
-            id: capture,
-            captured_at: UnixMillis::from_millis(10),
-            vault_record_id: capture_id.to_owned(),
-            context_summary: Some("Editor".to_owned()),
-        };
-        let runner_input = CaptureRecordInput::new(record);
+        let mut decoder_contexts = HashMap::new();
+        let runner_inputs = captures
+            .into_iter()
+            .map(|(capture_id, context)| {
+                let capture = CaptureId::new(capture_id).expect("capture id");
+                vault
+                    .seal(
+                        &BundleInput::new(
+                            capture.clone(),
+                            keys.generation_id().clone(),
+                            b"test image bytes".to_vec(),
+                            SampledContext::new(br#"{"application":"Editor"}"#.to_vec()),
+                            Vec::new(),
+                        ),
+                        keys.public_key(),
+                    )
+                    .expect("seal capture");
+                decoder_contexts.insert(capture_id.to_owned(), context);
+                CaptureRecordInput::new(CaptureRecord {
+                    id: capture,
+                    captured_at: UnixMillis::from_millis(10),
+                    vault_record_id: capture_id.to_owned(),
+                    context_summary: Some("Editor".to_owned()),
+                })
+            })
+            .collect();
         (
             Self {
                 _temp: temp,
@@ -289,9 +317,9 @@ impl Harness {
                 ocr: FakeOcr,
                 vision: FakeVision,
                 clock: FixedClock::new(UNIX_EPOCH + Duration::from_secs(10)),
-                decoder: Decoder::with_contexts(contexts),
+                decoder: Decoder::with_contexts(decoder_contexts),
             },
-            runner_input,
+            runner_inputs,
         )
     }
 }
@@ -363,6 +391,101 @@ fn eligible_sealed_capture_prepares_before_any_provider_request() {
         coordinator.last_capture_ids(),
         vec![CaptureId::new("coordinator-granted").expect("capture id")]
     );
+}
+
+/// The checklist 2.4 vertical slice exercises twenty-four sealed captures
+/// through the real vault, privacy, adapter, and coordinator boundaries.
+#[test]
+fn twenty_four_captures_prepare_before_provider_and_keep_safe_observations() {
+    let excluded_id = "coordinator-capture-12";
+    let captures = (0..24)
+        .map(|index| {
+            let id = format!("coordinator-capture-{index:02}");
+            let context = if id == excluded_id {
+                ContextSnapshot::new(
+                    Some("Editor".to_owned()),
+                    Some("unsafe\u{0000}title".to_owned()),
+                    None,
+                    None,
+                )
+            } else {
+                safe_context()
+            };
+            (id, context)
+        })
+        .collect::<Vec<_>>();
+    let capture_refs = captures
+        .iter()
+        .map(|(id, context)| (id.as_str(), context.clone()))
+        .collect();
+    let (harness, captures) = Harness::new_many(capture_refs);
+    let adapter = RecordingProvider::new_with_preparation_counter(
+        harness.decoder.decoded.clone(),
+        captures.len(),
+    );
+    let provider = ProviderGate::new(adapter);
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let runner = qaptr_workflow::AnalysisRunner::new(
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.privacy,
+        &harness.ocr,
+        &harness.vision,
+        Some(&provider),
+        &harness.decoder,
+        &consent,
+        &harness.clock,
+    )
+    .with_observation_limit(24);
+    let mut coordinator = ReviewSessionCoordinator::new(
+        &runner,
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.clock,
+    );
+
+    let mut states = Vec::new();
+    let report = coordinator
+        .start(session_id("coordinator-24-captures"), &captures, |state| {
+            states.push(state.state_name())
+        })
+        .expect("coordinator session");
+
+    assert_eq!(
+        states,
+        vec!["ingesting", "preparing", "analyzing", "completed"]
+    );
+    assert_eq!(harness.decoder.decoded.get(), 24);
+    assert_eq!(report.captures_seen, 24);
+    assert_eq!(report.prepared_captures, 23);
+    assert_eq!(report.excluded_captures, 1);
+    assert_eq!(report.observations_written, 23);
+    assert_eq!(
+        report
+            .exclusion_notice
+            .as_ref()
+            .map(|notice| (notice.count(), notice.text())),
+        Some((
+            1,
+            "1 capture was excluded because it could not be safely prepared.".to_owned()
+        ))
+    );
+    assert!(matches!(report.provider, ProviderOutcome::Completed { .. }));
+    assert_eq!(provider.adapter().detections.get(), 1);
+    assert_eq!(provider.adapter().invocations.get(), 23);
+    assert_eq!(consent.requests.get(), 1);
+
+    let snapshot = harness.store.snapshot().expect("snapshot");
+    assert_eq!(snapshot.captures.len(), 24);
+    assert_eq!(snapshot.observations.len(), 23);
+    assert!(snapshot.observations.iter().all(|observation| {
+        observation
+            .capture_id
+            .as_ref()
+            .is_some_and(|capture_id| capture_id.as_str() != excluded_id)
+    }));
 }
 
 /// Declined consent keeps everything local: the provider is detected (the
