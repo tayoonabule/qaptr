@@ -71,9 +71,9 @@ and computed-style/DOM inspection of typography, color, and motion.
   a background fill, a button color, or a gradient stop.
 - **One literal, sculptural diagram instead of a feature-icon row.** In place
   of a three-icon "how it works" grid, Qaptr renders a single large arc dial
-  (inline SVG, no canvas/WebGL) that sweeps from "sparse" to "detailed"
-  capture cadence, echoing the compositional idea of shopify.design's 26-second
-  dial: one number, one honest picture, full width, no card around it.
+  (inline SVG, no canvas/WebGL) that shows the configurable 5–300 second
+  capture interval, echoing the compositional idea of shopify.design's
+  26-second dial: one number, one honest picture, full width, no card around it.
 - **Editorial rag instead of a card grid for the body sections.** The three
   content sections (what it captures, what it never captures, how the
   workflow document is used) are set as wide asymmetric text columns with a
@@ -128,7 +128,7 @@ and computed-style/DOM inspection of typography, color, and motion.
    serif subhead, and the inline email form (server-rendered, no-JS
    functional) directly under the fold — the primary conversion action is
    visible without scrolling on a laptop viewport.
-3. **Arc diagram section** — the sparse-to-detailed capture dial, full width,
+3. **Arc diagram section** — the 5–300 second capture-interval dial, full width,
    amber accent, with a two-sentence caption in mono.
 4. **Three editorial passages** — "What it captures" / "What it never
    captures" / "What it becomes," each a wide asymmetric text block with one
@@ -143,7 +143,7 @@ and computed-style/DOM inspection of typography, color, and motion.
 - Scroll-in fade/translate of 8px over 240ms on section entry, implemented
   with CSS `@starting-style`/`transition` plus a small `IntersectionObserver`
   progressive enhancement; content is fully visible with no script at all.
-- The arc dial's needle animates from sparse to detailed position once, on
+- The arc dial's needle animates from the shortest to longest interval position once, on
   first scroll into view, over 900ms, `ease-out`.
 - The CTA button has a 2.4s `background-position` sheen loop.
 - Every animation is wrapped so `prefers-reduced-motion: reduce` disables the

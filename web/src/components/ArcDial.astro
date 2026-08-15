@@ -1,14 +1,14 @@
 ---
-// Inline SVG arc dial: sweeps from "sparse" to "detailed" capture cadence.
+// Inline SVG arc dial: shows the configured 5–300 second capture interval.
 // Tier A construction (pure SVG + CSS transform), no canvas/WebGL, no
 // external asset. The needle rotates once on first scroll into view via
 // a CSS class toggled by the page's IntersectionObserver; with JS absent
-// or motion reduced, it renders directly in its end (detailed) position.
+// or motion reduced, it renders directly in its configured-interval position.
 ---
 
 <div class="arc-dial reveal" data-arc-dial>
   <svg viewBox="0 0 400 220" role="img" aria-labelledby="arc-dial-title">
-    <title id="arc-dial-title">Capture cadence dial, sweeping from sparse to detailed</title>
+    <title id="arc-dial-title">Capture interval dial from 5 to 300 seconds</title>
 
     <path
       d="M 40 200 A 160 160 0 0 1 360 200"
@@ -28,8 +28,8 @@
   </svg>
 
   <div class="arc-dial__labels meta">
-    <span>sparse</span>
-    <span>detailed</span>
+    <span>5 sec</span>
+    <span>300 sec</span>
   </div>
 </div>
 
@@ -56,7 +56,7 @@
     transform: rotate(80deg);
   }
 
-  /* No JS / motion disabled: render directly in the "detailed" end state. */
+  /* No JS / motion disabled: render directly at the configured-interval end state. */
   html:not(.js-motion) .arc-dial__needle {
     transform: rotate(80deg);
   }
