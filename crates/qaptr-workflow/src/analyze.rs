@@ -19,6 +19,7 @@ use std::fmt;
 use qaptr_domain::clock::Clock;
 use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
 use qaptr_domain::{CaptureId, SessionId};
+use qaptr_policy::ModelId;
 use qaptr_privacy::{PreparationInput, PrivacyGate};
 use qaptr_provider::{ProviderAdapter, ProviderError, ProviderGate, ProviderId};
 use qaptr_store::{CaptureRecord, Store, StoreError, UnixMillis};
@@ -274,7 +275,22 @@ where
         session_id: SessionId,
         captures: &[CaptureRecordInput],
     ) -> Result<AnalysisReport, AnalysisError> {
-        self.run_with_cancellation(session_id, captures, &NeverCancelled)
+        self.run_with_resolved_model(session_id, captures, None)
+    }
+
+    /// Runs analysis with a model resolved for this request before consent.
+    pub fn run_with_resolved_model(
+        &self,
+        session_id: SessionId,
+        captures: &[CaptureRecordInput],
+        resolved_model: Option<ModelId>,
+    ) -> Result<AnalysisReport, AnalysisError> {
+        self.run_with_cancellation_and_resolved_model(
+            session_id,
+            captures,
+            &NeverCancelled,
+            resolved_model,
+        )
     }
 
     /// Runs analysis with cooperative cancellation between capture and provider
@@ -284,6 +300,17 @@ where
         session_id: SessionId,
         captures: &[CaptureRecordInput],
         cancellation: &X,
+    ) -> Result<AnalysisReport, AnalysisError> {
+        self.run_with_cancellation_and_resolved_model(session_id, captures, cancellation, None)
+    }
+
+    /// Runs analysis with cancellation and a model resolved for this request.
+    pub fn run_with_cancellation_and_resolved_model<X: Cancellation>(
+        &self,
+        session_id: SessionId,
+        captures: &[CaptureRecordInput],
+        cancellation: &X,
+        resolved_model: Option<ModelId>,
     ) -> Result<AnalysisReport, AnalysisError> {
         let created_at =
             UnixMillis::from_system_time(self.clock.now()).map_err(AnalysisError::Store)?;
@@ -388,7 +415,7 @@ where
         };
         let consent_request = ConsentRequest::new(
             verified.descriptor().id().clone(),
-            None,
+            resolved_model,
             payload_kind,
             prepared.len(),
             image_count,

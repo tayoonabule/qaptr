@@ -2,7 +2,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,6 +19,7 @@ use qaptr_domain::ports::credentials::{CredentialKey, CredentialPort, Credential
 use qaptr_domain::ports::ocr::{OcrPort, OcrResult};
 use qaptr_domain::ports::vision::{VisionPort, VisionResult};
 use qaptr_domain::{CaptureId, DomainError, SessionId};
+use qaptr_policy::ModelId;
 use qaptr_privacy::{PreparationInput, PrivacyGate, RecallReport, measure_recall};
 use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, CapabilityDescriptor, ExecutablePath,
@@ -31,7 +32,7 @@ use qaptr_vault::OpenedBundle;
 use qaptr_vault::{BundleInput, GenerationId, GenerationKeypair, SampledContext, Vault};
 use qaptr_workflow::{
     AnalysisRunner, Cancellation, CaptureDecoder, CaptureRecordInput, ConsentDecision, ConsentPort,
-    ConsentRequest, DecodeError, ProviderOutcome,
+    ConsentRequest, DecodeError, ProviderOutcome, ReviewSessionCoordinator,
 };
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -251,6 +252,7 @@ struct FakeConsent {
     decision: ConsentDecision,
     requests: Cell<u32>,
     last_capture_count: Cell<usize>,
+    last_resolved_model: RefCell<Option<ModelId>>,
 }
 
 struct CancelAfterPreparation {
@@ -270,6 +272,7 @@ impl FakeConsent {
             decision,
             requests: Cell::new(0),
             last_capture_count: Cell::new(0),
+            last_resolved_model: RefCell::new(None),
         }
     }
 }
@@ -278,6 +281,7 @@ impl ConsentPort for FakeConsent {
     fn request(&self, request: &ConsentRequest) -> ConsentDecision {
         self.requests.set(self.requests.get() + 1);
         self.last_capture_count.set(request.capture_count());
+        *self.last_resolved_model.borrow_mut() = request.resolved_model().cloned();
         self.decision
     }
 }
@@ -587,6 +591,32 @@ fn declined_consent_keeps_preparation_local() {
             .observations
             .len(),
         0
+    );
+}
+
+#[test]
+fn consent_receives_request_scoped_resolved_model() {
+    let (harness, capture) = Harness::new("resolved-model", safe_context());
+    let provider = ProviderGate::new(FakeProvider::new(None));
+    let consent = FakeConsent::new(ConsentDecision::Declined);
+    let expected = ModelId::new("gpt-test").expect("test model id");
+    let runner = runner(&harness, Some(&provider), &consent);
+    let mut coordinator = ReviewSessionCoordinator::new(
+        &runner,
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.clock,
+    );
+
+    coordinator
+        .start_with_resolved_model(session(), &[capture], Some(expected.clone()), |_| {})
+        .expect("analysis");
+
+    assert_eq!(
+        *consent.last_resolved_model.borrow(),
+        Some(expected),
+        "consent must see the model resolved for this request"
     );
 }
 

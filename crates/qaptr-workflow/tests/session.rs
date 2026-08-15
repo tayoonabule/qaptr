@@ -26,6 +26,7 @@ use qaptr_domain::ports::credentials::{CredentialKey, CredentialPort, Credential
 use qaptr_domain::ports::ocr::{OcrPort, OcrResult};
 use qaptr_domain::ports::vision::{VisionPort, VisionResult};
 use qaptr_domain::{CaptureId, DomainError, SessionId};
+use qaptr_policy::RetentionPolicy;
 use qaptr_privacy::{PreparationInput, PrivacyGate, measure_recall};
 use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, CapabilityDescriptor, ExecutablePath,
@@ -539,4 +540,54 @@ fn declined_consent_through_coordinator_makes_zero_provider_calls() {
         coordinator.last_capture_ids(),
         vec![CaptureId::new("coordinator-declined").expect("capture id")]
     );
+}
+
+#[test]
+fn first_run_retention_reaps_ingested_capture_before_runner_processing() {
+    let (harness, capture) = Harness::new("first-run-expired", safe_context());
+    let provider = ProviderGate::new(RecordingProvider::new());
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let runner = qaptr_workflow::AnalysisRunner::new(
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.privacy,
+        &harness.ocr,
+        &harness.vision,
+        Some(&provider),
+        &harness.decoder,
+        &consent,
+        &harness.clock,
+    );
+    let mut coordinator = ReviewSessionCoordinator::new(
+        &runner,
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.clock,
+    )
+    .with_retention_policy(RetentionPolicy::new(qaptr_domain::Duration::from_secs(1)));
+
+    let mut states = Vec::new();
+    let report = coordinator
+        .start(session_id("first-run-expired"), &[capture], |state| {
+            states.push(state.state_name())
+        })
+        .expect("first-run retention session");
+
+    assert_eq!(states, vec!["ingesting", "preparing", "completed"]);
+    assert_eq!(report.captures_seen, 0);
+    assert!(matches!(report.provider, ProviderOutcome::NotAttempted));
+    assert_eq!(harness.decoder.decoded.get(), 0);
+    assert_eq!(provider.adapter().detections.get(), 0);
+    assert_eq!(consent.requests.get(), 0);
+    assert!(
+        harness
+            .store
+            .snapshot()
+            .expect("snapshot")
+            .captures
+            .is_empty()
+    );
+    assert!(coordinator.last_capture_ids().is_empty());
 }

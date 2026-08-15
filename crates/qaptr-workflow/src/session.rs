@@ -15,7 +15,7 @@ use std::sync::{
 use qaptr_domain::clock::Clock;
 use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
 use qaptr_domain::{CaptureId, SessionId};
-use qaptr_policy::{RetentionError, RetentionPolicy, enforce_retention};
+use qaptr_policy::{ModelId, RetentionError, RetentionPolicy, enforce_retention};
 use qaptr_provider::{ProviderAdapter, ProviderId};
 use qaptr_store::{Store, StoreError};
 use qaptr_vault::Vault;
@@ -223,13 +223,27 @@ where
         &mut self,
         session_id: SessionId,
         captures: &[CaptureRecordInput],
+        progress: F,
+    ) -> Result<AnalysisReport, ReviewSessionError>
+    where
+        F: FnMut(ReviewProgress),
+    {
+        self.start_with_resolved_model(session_id, captures, None, progress)
+    }
+
+    /// Starts a fresh session with the model resolved for this request.
+    pub fn start_with_resolved_model<F>(
+        &mut self,
+        session_id: SessionId,
+        captures: &[CaptureRecordInput],
+        resolved_model: Option<ModelId>,
         mut progress: F,
     ) -> Result<AnalysisReport, ReviewSessionError>
     where
         F: FnMut(ReviewProgress),
     {
         self.last_session = Some(session_id.clone());
-        let eligible = deduplicate(captures);
+        let mut eligible = deduplicate(captures);
         self.last_captures = Some(eligible.clone());
         progress(ReviewProgress::Ingesting {
             captures_seen: eligible.len(),
@@ -245,6 +259,13 @@ where
             return Ok(report);
         }
 
+        self.store.transaction(|transaction| {
+            for capture in &eligible {
+                transaction.put_capture(&capture.record)?;
+            }
+            Ok(())
+        })?;
+
         if let Some(policy) = self.retention {
             enforce_retention(
                 &policy,
@@ -253,7 +274,18 @@ where
                 self.credentials,
                 self.clock,
             )?;
+
+            let remaining = self
+                .store
+                .snapshot()?
+                .captures
+                .into_iter()
+                .map(|capture| capture.id)
+                .collect::<std::collections::BTreeSet<_>>();
+            eligible.retain(|capture| remaining.contains(capture.capture_id()));
         }
+
+        self.last_captures = Some(eligible.clone());
 
         if self.cancellation.is_requested() {
             progress(ReviewProgress::Cancelled {
@@ -268,9 +300,12 @@ where
             captures_seen: eligible.len(),
         });
 
-        let report =
-            self.runner
-                .run_with_cancellation(session_id, &eligible, &self.cancellation)?;
+        let report = self.runner.run_with_cancellation_and_resolved_model(
+            session_id,
+            &eligible,
+            &self.cancellation,
+            resolved_model,
+        )?;
         emit_report_progress(&report, &mut progress);
         Ok(report)
     }
