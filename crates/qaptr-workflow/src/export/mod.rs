@@ -7,6 +7,7 @@ use crate::document::{Artifact, ConfidenceAssessment, Provenance, WorkflowDocume
 pub mod automation;
 pub mod handoff;
 pub mod onboarding;
+pub mod save;
 pub mod sop;
 
 /// Renders the Workflow as a non-executing automation procedure.
@@ -28,6 +29,8 @@ pub fn render_onboarding(workflow: &WorkflowDocument) -> String {
 pub fn render_sop(workflow: &WorkflowDocument) -> String {
     sop::render(workflow)
 }
+
+pub use save::{ExportError, MarkdownExportVariant, save_markdown_export};
 
 pub(crate) fn heading(output: &mut String, level: usize, title: &str) {
     let _ = writeln!(output, "{} {title}\n", "#".repeat(level));

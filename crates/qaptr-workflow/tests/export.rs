@@ -1,13 +1,17 @@
 //! Acceptance and golden tests for U19 exports.
 
+use std::fs;
+
 use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
 use qaptr_provider::{RawObservation, RawProviderResponse, RawWorkflow, normalize_response};
 use qaptr_store::{ObservationRecord, UnixMillis};
 use qaptr_workflow::{
-    Artifact, ConfidenceAssessment, DecisionAlternative, DecisionPoint, Provenance, ToolObserved,
+    Artifact, ConfidenceAssessment, DecisionAlternative, DecisionPoint, ExportError,
+    MarkdownExportVariant, NeverCancelled, Provenance, SessionCancellation, ToolObserved,
     WorkflowDocument, WorkflowError, WorkflowStep, WorkflowVariation, render_automation,
-    render_handoff, render_onboarding, render_sop,
+    render_handoff, render_onboarding, render_sop, save_markdown_export,
 };
+use tempfile::TempDir;
 
 fn fixture() -> WorkflowDocument {
     let session_id = SessionId::new("session-42").expect("fixture session id is valid");
@@ -112,6 +116,105 @@ fn identical_input_renders_byte_identically() {
     assert_eq!(render_handoff(&first), render_handoff(&second));
     assert_eq!(render_onboarding(&first), render_onboarding(&second));
     assert_eq!(render_sop(&first), render_sop(&second));
+}
+
+#[test]
+fn public_save_api_writes_all_four_exports_to_caller_owned_destinations() {
+    let workflow = fixture();
+    let directory = TempDir::new().expect("temporary export directory");
+    let cancellation = NeverCancelled;
+    let cases = [
+        (
+            MarkdownExportVariant::Automation,
+            render_automation(&workflow),
+        ),
+        (MarkdownExportVariant::Handoff, render_handoff(&workflow)),
+        (
+            MarkdownExportVariant::Onboarding,
+            render_onboarding(&workflow),
+        ),
+        (MarkdownExportVariant::Sop, render_sop(&workflow)),
+    ];
+
+    for (variant, expected) in cases {
+        let destination = directory.path().join(format!("{variant:?}.md"));
+        save_markdown_export(&workflow, variant, &destination, &cancellation)
+            .expect("public save API writes the selected export");
+        assert_eq!(
+            fs::read_to_string(&destination).expect("saved export is readable"),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn public_save_api_replaces_target_atomically_without_leaving_a_partial_file() {
+    let workflow = fixture();
+    let directory = TempDir::new().expect("temporary export directory");
+    let destination = directory.path().join("workflow.md");
+    let temporary = destination.with_file_name("workflow.md.tmp");
+    fs::write(&destination, "old export").expect("seed existing export");
+
+    save_markdown_export(
+        &workflow,
+        MarkdownExportVariant::Sop,
+        &destination,
+        &NeverCancelled,
+    )
+    .expect("atomic replacement succeeds");
+
+    assert_eq!(
+        fs::read_to_string(&destination).expect("replaced export is readable"),
+        render_sop(&workflow),
+    );
+    assert!(!temporary.exists(), "temporary sibling was not retained");
+}
+
+#[test]
+fn public_save_api_reports_write_failure_and_preserves_an_existing_target() {
+    let workflow = fixture();
+    let directory = TempDir::new().expect("temporary export directory");
+    let destination = directory.path().join("blocked");
+    let temporary = destination.with_file_name("blocked.tmp");
+    fs::create_dir(&destination).expect("seed a target that cannot be replaced by a file");
+
+    let error = save_markdown_export(
+        &workflow,
+        MarkdownExportVariant::Automation,
+        &destination,
+        &NeverCancelled,
+    )
+    .expect_err("a directory target must report the rename failure");
+
+    assert!(matches!(error, ExportError::Write { .. }));
+    assert!(
+        destination.is_dir(),
+        "failed export did not replace the target"
+    );
+    assert!(
+        !temporary.exists(),
+        "failed export cleaned up its temporary file"
+    );
+}
+
+#[test]
+fn public_save_api_reports_cancellation_without_writing() {
+    let workflow = fixture();
+    let directory = TempDir::new().expect("temporary export directory");
+    let destination = directory.path().join("cancelled.md");
+    let cancellation = SessionCancellation::new();
+    cancellation.cancel();
+
+    let error = save_markdown_export(
+        &workflow,
+        MarkdownExportVariant::Handoff,
+        &destination,
+        &cancellation,
+    )
+    .expect_err("a requested cancellation must be reported");
+
+    assert!(matches!(error, ExportError::Cancelled));
+    assert!(!destination.exists(), "cancelled export created a target");
 }
 
 #[test]

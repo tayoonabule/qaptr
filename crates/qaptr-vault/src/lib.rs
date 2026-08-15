@@ -114,6 +114,16 @@ pub enum VaultError {
 /// The result type for vault operations.
 pub type Result<T> = std::result::Result<T, VaultError>;
 
+/// Writes bytes by syncing a temporary sibling file before atomically replacing
+/// `path`.
+///
+/// The caller owns the destination path and its parent directory. This helper
+/// does not create directories, launch anything, or retain the bytes after the
+/// write completes.
+pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
+    fs::atomic_write(path, bytes)
+}
+
 /// A filesystem-backed encrypted capture vault.
 pub struct Vault {
     root: PathBuf,

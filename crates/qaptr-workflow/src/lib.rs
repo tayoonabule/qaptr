@@ -2,8 +2,10 @@
 //!
 //! # Invariants
 //!
-//! - The document and export modules never perform I/O, call a provider, read
-//!   capture material, or launch or execute a tool.
+//! - The document and Markdown renderer modules never perform I/O, call a
+//!   provider, read capture material, or launch or execute a tool. The
+//!   app-owned export saver writes only the selected rendered Markdown to the
+//!   caller-supplied destination.
 //! - The analysis module is the review-app-owned exception: it opens ephemeral
 //!   vault bundles, invokes the privacy gate, and persists only scalar history.
 //!   It never launches a worker, tool, automation, or provider with an
@@ -33,7 +35,10 @@ pub use document::{
     ToolObserved, Workflow, WorkflowBuilder, WorkflowDocument, WorkflowError, WorkflowStep,
     WorkflowVariation,
 };
-pub use export::{render_automation, render_handoff, render_onboarding, render_sop};
+pub use export::{
+    ExportError, MarkdownExportVariant, render_automation, render_handoff, render_onboarding,
+    render_sop, save_markdown_export,
+};
 pub use session::{
     ReviewProgress, ReviewSessionCoordinator, ReviewSessionError, SessionCancellation,
 };
