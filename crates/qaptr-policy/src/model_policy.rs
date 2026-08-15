@@ -299,6 +299,44 @@ impl ModelReadinessNotice {
 }
 
 impl ModelReadiness {
+    /// Returns a concise, user-facing explanation of this readiness state.
+    ///
+    /// This is deliberately derived from the typed state rather than from a
+    /// provider response, so a settings or consent surface cannot expose a
+    /// credential, catalog body, or other transient provider data.
+    pub fn reason(&self) -> String {
+        match self {
+            Self::NoProvider => "No analysis provider is selected.".to_owned(),
+            Self::ProviderUnavailable => "The selected provider is unavailable.".to_owned(),
+            Self::AuthenticationNeeded => "The selected provider needs authentication.".to_owned(),
+            Self::CatalogStaleOrUnavailable => {
+                "Validated model availability is unavailable or out of date.".to_owned()
+            }
+            Self::PreferredUnavailableWithFallback { selected } => {
+                format!("The preferred model is unavailable; {selected} is ready instead.")
+            }
+            Self::OverrideUnavailable { requested } => {
+                format!("The requested model override {requested} is unavailable.")
+            }
+            Self::Ready { model } => format!("{model} is validated and ready."),
+        }
+    }
+
+    /// Returns the single safe recovery action for a blocked readiness state.
+    ///
+    /// Ready and non-blocking fallback states deliberately return `None`: no
+    /// setup action should be suggested when a consented request may proceed.
+    pub const fn next_action(&self) -> Option<&'static str> {
+        match self {
+            Self::NoProvider => Some("Choose a provider."),
+            Self::ProviderUnavailable => Some("Check provider setup and retry."),
+            Self::AuthenticationNeeded => Some("Authenticate the selected provider."),
+            Self::CatalogStaleOrUnavailable => Some("Refresh model availability before analysis."),
+            Self::OverrideUnavailable { .. } => Some("Choose an available model override."),
+            Self::PreferredUnavailableWithFallback { .. } | Self::Ready { .. } => None,
+        }
+    }
+
     /// Returns the resolved model, if resolution reached a ready state.
     pub const fn model(&self) -> Option<&ModelId> {
         match self {
@@ -612,6 +650,58 @@ mod tests {
                 model: model("explicit-override")
             }
         );
+    }
+
+    #[test]
+    fn every_readiness_state_has_honest_reason_and_only_blocked_states_have_recovery() {
+        let cases = [
+            (
+                ModelReadiness::NoProvider,
+                "No analysis provider is selected.",
+                Some("Choose a provider."),
+            ),
+            (
+                ModelReadiness::ProviderUnavailable,
+                "The selected provider is unavailable.",
+                Some("Check provider setup and retry."),
+            ),
+            (
+                ModelReadiness::AuthenticationNeeded,
+                "The selected provider needs authentication.",
+                Some("Authenticate the selected provider."),
+            ),
+            (
+                ModelReadiness::CatalogStaleOrUnavailable,
+                "Validated model availability is unavailable or out of date.",
+                Some("Refresh model availability before analysis."),
+            ),
+            (
+                ModelReadiness::PreferredUnavailableWithFallback {
+                    selected: model("fallback-1"),
+                },
+                "The preferred model is unavailable; fallback-1 is ready instead.",
+                None,
+            ),
+            (
+                ModelReadiness::OverrideUnavailable {
+                    requested: model("explicit-override"),
+                },
+                "The requested model override explicit-override is unavailable.",
+                Some("Choose an available model override."),
+            ),
+            (
+                ModelReadiness::Ready {
+                    model: model("preferred"),
+                },
+                "preferred is validated and ready.",
+                None,
+            ),
+        ];
+
+        for (readiness, reason, next_action) in cases {
+            assert_eq!(readiness.reason(), reason);
+            assert_eq!(readiness.next_action(), next_action);
+        }
     }
 
     #[test]
