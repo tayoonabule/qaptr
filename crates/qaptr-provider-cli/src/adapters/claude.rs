@@ -29,8 +29,8 @@ use serde_json::Value;
 
 use super::response::parse_response;
 use super::{
-    CliExecutor, CliInvocation, CliRuntime, ExecutableDiscovery, add_support_path,
-    default_discovery, home_directory, map_runtime_error,
+    add_support_path, default_discovery, home_directory, map_runtime_error, CliExecutor,
+    CliInvocation, CliRuntime, CliRuntimeError, ExecutableDiscovery,
 };
 use crate::VersionProbe;
 
@@ -112,6 +112,19 @@ impl ClaudeAdapter {
             .map_err(|error| map_runtime_error(self.descriptor.id(), error))
     }
 
+    fn authentication_status(&self, output: &[u8]) -> Result<AuthenticationStatus, ProviderError> {
+        let authenticated =
+            parse_auth_status(output).map_err(|_| ProviderError::RuntimeFailure {
+                provider: self.descriptor.id().clone(),
+                kind: RuntimeFailureKind::Detection,
+            })?;
+        Ok(if authenticated {
+            AuthenticationStatus::Authenticated
+        } else {
+            AuthenticationStatus::NotAuthenticated
+        })
+    }
+
     fn executable_from(
         &self,
         invocation: &ProviderInvocation<'_>,
@@ -148,17 +161,18 @@ impl ProviderAdapter for ClaudeAdapter {
                 kind: RuntimeFailureKind::VersionUnavailable,
             })?
             .version();
-        let auth_output =
-            self.run_probe(self.invocation(location.clone()).arg("auth").arg("status"))?;
-        let authenticated =
-            parse_auth_status(auth_output.stdout()).map_err(|_| ProviderError::RuntimeFailure {
-                provider: self.descriptor.id().clone(),
-                kind: RuntimeFailureKind::Detection,
-            })?;
-        let authentication = if authenticated {
-            AuthenticationStatus::Authenticated
-        } else {
-            AuthenticationStatus::NotAuthenticated
+        let authentication = match self
+            .executor
+            .run(self.invocation(location.clone()).arg("auth").arg("status"))
+        {
+            Ok(output) => self.authentication_status(output.stdout())?,
+            // Claude uses a nonzero status for a signed-out result, but still
+            // emits the structured status object. Preserve that typed result
+            // instead of turning a reachable auth limitation into Invocation.
+            Err(CliRuntimeError::NonZeroExit { stdout, .. }) => {
+                self.authentication_status(&stdout)?
+            }
+            Err(error) => return Err(map_runtime_error(self.descriptor.id(), error)),
         };
         Ok(ProviderDetection::installed(
             ProviderLocation::Executable(location),
