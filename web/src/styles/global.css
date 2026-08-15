@@ -1,54 +1,46 @@
-/* Qaptr waitlist site — design tokens.
- * See docs/design/website.md for the full rationale. Summary: near-
- * monochrome base, one accent (amber) used sparingly, a serif "voice"
- * face for editorial copy and a monospace "report" face for labels and
- * status text. System font stacks only — no web font download, keeping
- * the page inside the 250 KB transfer budget.
- */
-
+/* Qaptr website tokens: a cool, native productivity surface. */
 :root {
-  --color-bg: #ffffff;
-  --color-fg: #111111;
-  --color-fg-muted: #55534d;
-  --color-border: #dedad2;
-  --color-accent: #b5560f;
-  --color-accent-ink: #7a3a09;
-
-  --font-serif: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman",
-    serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas,
-    monospace;
-
+  --color-bg: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-surface-muted: #e9edf2;
+  --color-fg: #18202b;
+  --color-fg-muted: #566273;
+  --color-placeholder: #687586;
+  --color-border: #cfd6df;
+  --color-accent: #315bcf;
+  --color-accent-hover: #264aa9;
+  --color-accent-soft: #dbe5ff;
+  --color-success: #23704b;
+  --color-error: #a33d42;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --space-1: 0.5rem;
   --space-2: 1rem;
-  --space-3: 1.75rem;
-  --space-4: 3rem;
-  --space-5: 5rem;
-  --space-6: 8rem;
-
-  --measure: 40rem;
-  --content-width: min(74rem, 92vw);
-
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+  --space-5: 4rem;
+  --space-6: 6rem;
+  --content-width: min(72rem, calc(100% - 3rem));
+  --measure: 42rem;
+  --radius: 12px;
   --motion-fast: 180ms;
-  --motion-medium: 320ms;
-  --motion-slow: 900ms;
+  --motion-medium: 220ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  /* A slight overshoot for the two or three interactions that should feel
-   * alive rather than merely correct (the primary CTA's hover lift, the
-   * waitlist submit's press-and-release). Reserved for exactly those
-   * moments, not applied broadly, matching the brief's "small, purposeful
-   * accents" motion philosophy. */
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #0a0a09;
-    --color-fg: #f4f2ec;
-    --color-fg-muted: #b8b3a6;
-    --color-border: #2c2a25;
-    --color-accent: #e08a3e;
-    --color-accent-ink: #f2b477;
+    --color-bg: #151a21;
+    --color-surface: #202733;
+    --color-surface-muted: #252e3b;
+    --color-fg: #eef2f7;
+    --color-fg-muted: #b8c2cf;
+    --color-placeholder: #aab6c4;
+    --color-border: #424d5c;
+    --color-accent: #8ba8ff;
+    --color-accent-hover: #a8bcff;
+    --color-accent-soft: #283a68;
+    --color-success: #78d4a4;
+    --color-error: #f0a0a4;
   }
 }
 
@@ -64,15 +56,14 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-fg);
-  font-family: var(--font-serif);
-  font-size: 1.0625rem;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-img,
-svg {
+img {
   display: block;
   max-width: 100%;
 }
@@ -81,48 +72,31 @@ a {
   color: inherit;
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+button,
+input {
+  font: inherit;
 }
 
 .skip-link {
   position: absolute;
-  left: var(--space-2);
+  left: 1rem;
   top: -3rem;
+  z-index: 2;
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
   background: var(--color-fg);
   color: var(--color-bg);
-  padding: 0.6rem 1rem;
-  border-radius: 0.25rem;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
   text-decoration: none;
   transition: top var(--motion-fast) var(--ease-out);
-  z-index: 100;
 }
 
 .skip-link:focus {
-  top: var(--space-2);
+  top: 1rem;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--color-accent);
   outline-offset: 3px;
-}
-
-.mono-label {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--color-fg-muted);
 }
 
 .wrap {
@@ -130,483 +104,470 @@ a {
   margin-inline: auto;
 }
 
-/* ---------- Header ---------- */
-
 .site-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-block: var(--space-3);
+  min-height: 4.5rem;
+  gap: var(--space-2);
 }
 
 .wordmark {
-  font-family: var(--font-serif);
-  font-weight: 600;
-  font-size: 1.1rem;
-  text-decoration: none;
-  letter-spacing: -0.01em;
-}
-
-.cta-pill {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  text-decoration: none;
-  color: var(--color-fg);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 0.55rem 1.1rem;
-  position: relative;
-  overflow: hidden;
-  transition:
-    border-color var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-spring),
-    box-shadow var(--motion-fast) var(--ease-out);
-}
-
-.cta-pill:hover,
-.cta-pill:focus-visible {
-  border-color: var(--color-accent);
-  /* A shadow tinted to the accent, not a generic gray drop shadow: gives
-   * the pill a small, confident lift on hover without introducing a new
-   * color or a card-like elevation system elsewhere. */
-  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--color-accent) 45%, transparent);
-  transform: translateY(-1px);
-}
-
-/* Discrete press feedback, not a loop, so it is not gated behind
- * prefers-reduced-motion (per docs/design/website.md, only decorative
- * loops/entrances are gated). Transform-only: no layout properties. */
-.cta-pill:active {
-  transform: scale(0.98);
-}
-
-.cta-pill::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    100deg,
-    transparent 30%,
-    color-mix(in srgb, var(--color-accent) 35%, transparent) 50%,
-    transparent 70%
-  );
-  background-size: 220% 100%;
-  background-position: -60% 0;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .cta-pill::before {
-    animation: sheen 2.6s ease-in-out infinite;
-  }
-}
-
-@keyframes sheen {
-  0% {
-    background-position: -60% 0;
-  }
-  60%,
-  100% {
-    background-position: 160% 0;
-  }
-}
-
-/* ---------- Hero ---------- */
-
-.hero {
-  padding-block: var(--space-4) var(--space-6);
-}
-
-.hero-eyebrow {
-  margin-bottom: var(--space-2);
-}
-
-.hero-headline {
-  font-family: var(--font-serif);
-  font-weight: 500;
-  font-size: clamp(2.75rem, 4.4vw + 1.2rem, 6.6rem);
-  line-height: 1.03;
-  letter-spacing: -0.02em;
-  margin: 0 0 var(--space-3);
-  max-width: 26ch;
-}
-
-.hero-sub {
-  font-size: clamp(1.05rem, 0.4vw + 1rem, 1.35rem);
-  color: var(--color-fg-muted);
-  max-width: var(--measure);
-  margin: 0 0 var(--space-4);
-}
-
-/* One-time hero entrance: fade + 8px upward translate, staggered ~60ms
- * per direct child (eyebrow, h1, sub, form), using @starting-style, per
- * the pattern already recorded in docs/design/website.md. Verified with
- * `npm run build && npm run preview` in Chromium: @starting-style applies
- * on the initial paint of prerendered static HTML exactly as it would for
- * a JS-inserted element, so no CSS-animation/animation-delay fallback is
- * needed here. Fully disabled (immediate full opacity/position) outside
- * this media query, so it costs nothing under reduced motion. */
-@media (prefers-reduced-motion: no-preference) {
-  .hero > * {
-    opacity: 1;
-    transform: translateY(0);
-    transition:
-      opacity var(--motion-medium) var(--ease-out),
-      transform var(--motion-medium) var(--ease-out);
-  }
-
-  .hero > *:nth-child(2) {
-    transition-delay: 60ms;
-  }
-
-  .hero > *:nth-child(3) {
-    transition-delay: 120ms;
-  }
-
-  .hero > *:nth-child(4) {
-    transition-delay: 180ms;
-  }
-
-  @starting-style {
-    .hero > * {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-  }
-}
-
-/* ---------- Waitlist form ---------- */
-
-.waitlist-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: stretch;
-  max-width: 34rem;
-}
-
-.waitlist-field {
-  flex: 1 1 16rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.waitlist-field label {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-fg-muted);
-}
-
-.waitlist-field input {
-  font-family: var(--font-serif);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.75rem;
   font-size: 1.05rem;
-  height: 3.1rem;
-  padding: 0 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.35rem;
-  background: transparent;
-  color: var(--color-fg);
-  box-sizing: border-box;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
 }
 
-.waitlist-field input:focus-visible {
-  border-color: var(--color-accent);
+.wordmark-mark,
+.privacy-mark {
+  display: grid;
+  place-items: center;
+  background: var(--color-accent);
+  color: #f7f9ff;
+  font-weight: 700;
 }
 
-.waitlist-submit {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: var(--color-fg);
-  color: var(--color-bg);
-  border: 1px solid var(--color-fg);
-  border-radius: 0.35rem;
-  height: 3.1rem;
-  padding: 0 1.4rem;
-  box-sizing: border-box;
-  cursor: pointer;
-  align-self: flex-end;
-  transition:
-    background var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-spring),
-    box-shadow var(--motion-fast) var(--ease-out);
-}
-
-.waitlist-submit:hover,
-.waitlist-submit:focus-visible {
-  background: var(--color-accent-ink);
-  border-color: var(--color-accent-ink);
-  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--color-accent) 55%, transparent);
-  transform: translateY(-1px);
-}
-
-/* Discrete press feedback, transform-only, no layout properties. Not
- * gated behind prefers-reduced-motion: it is a one-shot state change on
- * click, not a loop or entrance. The spring easing (defined above) gives
- * the release a small confident snap-back rather than a flat linear
- * un-scale, echoing the same overshoot used on hover. */
-.waitlist-submit:active {
-  transform: translateY(0) scale(0.97);
-  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--color-accent) 45%, transparent);
-}
-
-.waitlist-status {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  margin-top: var(--space-2);
-  max-width: 34rem;
-}
-
-.waitlist-status[data-tone="success"] {
-  color: var(--color-accent-ink);
-}
-
-.waitlist-status[data-tone="error"] {
-  color: #a3272a;
-}
-
-@media (prefers-color-scheme: dark) {
-  .waitlist-status[data-tone="error"] {
-    color: #f19b9c;
-  }
-}
-
-/* ---------- Arc diagram section ---------- */
-
-.arc-section {
-  padding-block: var(--space-6);
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.arc-caption {
-  margin-top: var(--space-3);
-  max-width: 32rem;
-}
-
-.arc-caption p {
-  margin: 0 0 var(--space-1);
-  color: var(--color-fg-muted);
+.wordmark-mark {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 8px;
   font-size: 0.95rem;
 }
 
-.arc-diagram {
+.header-action,
+.text-action {
+  color: var(--color-accent);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.header-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.header-action:hover {
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.header-action:active,
+.waitlist-submit:active {
+  transform: scale(0.98);
+}
+
+main {
+  overflow: clip;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  gap: clamp(2.5rem, 6vw, 6rem);
+  align-items: center;
+  padding-block: clamp(3rem, 8vw, 6rem) var(--space-5);
+}
+
+.hero-copy {
+  max-width: 34rem;
+}
+
+.hero-kicker,
+.passage-label,
+.confirmation-kicker {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.hero h1,
+.intro-section h2,
+.passage-statement,
+.privacy-section h2,
+.closing h2,
+.confirmation-heading {
+  margin: 0;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+.hero h1 {
+  max-width: 9ch;
+  font-size: clamp(3rem, 7vw, 5.7rem);
+  font-weight: 720;
+}
+
+.hero-sub {
+  max-width: 34rem;
+  margin: var(--space-3) 0 var(--space-4);
+  color: var(--color-fg-muted);
+  font-size: clamp(1.05rem, 1.5vw, 1.25rem);
+}
+
+.hero-note {
+  margin: var(--space-2) 0 0;
+  color: var(--color-fg-muted);
+  font-size: 0.86rem;
+}
+
+.hero-visual {
+  margin: 0;
+}
+
+.hero-visual img {
   width: 100%;
-  height: auto;
-  max-width: 46rem;
-  margin-inline: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: var(--radius);
+  box-shadow: 0 22px 45px rgb(36 51 70 / 0.16);
 }
 
-.arc-needle {
-  transform-origin: 200px 200px;
-  transform: rotate(-90deg);
+.hero-visual figcaption {
+  margin-top: 0.7rem;
+  color: var(--color-fg-muted);
+  font-size: 0.86rem;
 }
 
-.arc-needle[data-animate="true"] {
-  transform: rotate(90deg);
+.trust-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding-block: 1.2rem;
+  border-block: 1px solid var(--color-border);
+  color: var(--color-fg-muted);
+  font-size: 0.9rem;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .arc-needle[data-animate="true"] {
-    transition: transform var(--motion-slow) var(--ease-out);
-  }
+.trust-strip p {
+  margin: 0;
 }
 
-/* ---------- Editorial passages ---------- */
+.trust-strip p:not(:first-child) {
+  padding-left: 1rem;
+  border-left: 1px solid var(--color-border);
+}
+
+.intro-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 0.8fr);
+  gap: clamp(2.5rem, 8vw, 8rem);
+  align-items: start;
+  padding-block: var(--space-6);
+}
+
+.intro-section h2,
+.privacy-section h2,
+.closing h2,
+.confirmation-heading {
+  font-size: clamp(2rem, 4vw, 3.7rem);
+  font-weight: 700;
+}
+
+.intro-section > div:first-child > p,
+.privacy-section p,
+.closing p,
+.confirmation-body {
+  max-width: var(--measure);
+  margin: var(--space-3) 0 0;
+  color: var(--color-fg-muted);
+  font-size: 1.05rem;
+}
+
+.intro-aside {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.7rem 1rem;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.intro-aside p {
+  margin: 0;
+  align-self: center;
+  font-weight: 600;
+}
+
+.step-number {
+  color: var(--color-accent);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
 
 .passages {
-  padding-block: var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  display: grid;
+  gap: 0;
+  padding-block: 0 var(--space-6);
 }
 
 .passage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-2);
-  opacity: 1;
-  transform: none;
+  grid-template-columns: 10rem minmax(0, 1fr);
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 
-@media (min-width: 60rem) {
-  .passage {
-    grid-template-columns: 14rem minmax(0, 1fr);
-    gap: var(--space-4);
-    align-items: start;
-  }
+.passage:last-child {
+  border-bottom: 1px solid var(--color-border);
 }
 
 .passage-label {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-fg-muted);
+  margin: 0;
   padding-top: 0.3rem;
 }
 
 .passage-statement {
-  font-size: clamp(1.6rem, 1.6vw + 1rem, 2.4rem);
-  line-height: 1.2;
-  margin: 0 0 var(--space-2);
-  max-width: 22ch;
+  max-width: 20ch;
+  font-size: clamp(1.65rem, 3vw, 2.6rem);
+  font-weight: 670;
 }
 
 .passage-body {
+  max-width: 38rem;
+  margin: var(--space-2) 0 0;
   color: var(--color-fg-muted);
-  max-width: var(--measure);
-  font-size: 1rem;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .passage {
-    opacity: 0;
-    transform: translateY(8px);
-    transition:
-      opacity var(--motion-medium) var(--ease-out),
-      transform var(--motion-medium) var(--ease-out);
-  }
-
-  /* Stagger so the three passages don't pop simultaneously when they
-   * cross the IntersectionObserver threshold together (e.g. a fast
-   * scroll, or a tall viewport). Still IntersectionObserver-gated; this
-   * only delays the CSS transition once .is-visible is added. */
-  .passage:nth-of-type(2) {
-    transition-delay: 100ms;
-  }
-
-  .passage:nth-of-type(3) {
-    transition-delay: 200ms;
-  }
-
-  .passage.is-visible {
-    opacity: 1;
-    transform: none;
-  }
+.privacy-section {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 38rem);
+  gap: var(--space-3);
+  align-items: start;
+  padding-block: var(--space-6);
 }
 
-/* ---------- Closing CTA ---------- */
+.privacy-mark {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius);
+  font-size: 1.5rem;
+}
 
 .closing {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(18rem, 1.05fr);
+  gap: clamp(2rem, 7vw, 7rem);
+  align-items: end;
   padding-block: var(--space-6);
   border-top: 1px solid var(--color-border);
 }
 
-.closing-headline {
-  font-size: clamp(1.8rem, 2vw + 1rem, 3rem);
-  max-width: 18ch;
-  margin: 0 0 var(--space-3);
+.waitlist-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  max-width: 32rem;
 }
 
-/* ---------- Footer ---------- */
+.waitlist-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.waitlist-field label {
+  color: var(--color-fg-muted);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.waitlist-field input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  color: var(--color-fg);
+  transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.waitlist-field input::placeholder {
+  color: var(--color-placeholder);
+  opacity: 1;
+}
+
+.waitlist-field input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  outline: none;
+}
+
+.waitlist-submit {
+  min-height: 3rem;
+  padding: 0 1.15rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 9px;
+  background: var(--color-accent);
+  color: #f7f9ff;
+  cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.waitlist-submit:hover,
+.waitlist-submit:focus-visible {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
 
 .site-footer {
-  border-top: 1px solid var(--color-border);
-  padding-block: var(--space-3);
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
   justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
+  gap: 1rem;
+  padding-block: 1.5rem 2.5rem;
   color: var(--color-fg-muted);
+  font-size: 0.84rem;
 }
-
-.site-footer a {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-/* ---------- Confirmation pages ---------- */
 
 .confirmation {
-  padding-block: var(--space-5) var(--space-6);
-  max-width: 34rem;
+  max-width: 52rem;
+  padding-block: clamp(4rem, 12vw, 9rem) var(--space-6);
 }
 
-.confirmation .mono-label[data-tone="error"] {
-  color: #a3272a;
+.confirmation-kicker[data-tone="success"] {
+  color: var(--color-success);
 }
 
-@media (prefers-color-scheme: dark) {
-  .confirmation .mono-label[data-tone="error"] {
-    color: #f19b9c;
-  }
+.confirmation-kicker[data-tone="error"] {
+  color: var(--color-error);
 }
 
 .confirmation-heading {
-  font-size: clamp(2rem, 2.4vw + 1rem, 3rem);
-  line-height: 1.1;
-  margin: var(--space-2) 0 var(--space-2);
+  max-width: 12ch;
 }
 
 .confirmation-body {
-  color: var(--color-fg-muted);
-  margin: 0 0 var(--space-4);
+  max-width: 32rem;
 }
 
-/* One-time entrance for the confirmation moment: heading, body, and the
- * "back to Qaptr" CTA fade in with an 8px upward translate, staggered
- * 60ms apart, same @starting-style pattern as the hero entrance above.
- * The mono-label status line above the heading is intentionally left
- * out of the stagger (it reads as a fixed status/report marker, not
- * part of the editorial voice, matching the mono-vs-serif distinction
- * in docs/design/website.md). This uses only the `translate` and
- * `opacity` properties (not `transform`), because `.cta-pill:active`
- * already uses `transform: scale()` for press feedback; animating the
- * entrance on the standalone `translate` property instead keeps the two
- * independent so a click during/after the entrance still gets an
- * instant, undelayed press response. The "no amber accent on error
- * tone" rule is satisfied by construction: no color is introduced by
- * this rule at all, for either tone. */
-@media (prefers-reduced-motion: no-preference) {
-  .confirmation-heading,
-  .confirmation-body,
-  .confirmation .cta-pill {
-    opacity: 1;
-    translate: 0 0;
-    transition:
-      opacity var(--motion-medium) var(--ease-out),
-      translate var(--motion-medium) var(--ease-out);
+.confirmation-retry {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.confirmation-retry .waitlist-form {
+  max-width: 32rem;
+}
+
+.text-action {
+  width: fit-content;
+  padding-block: 0.25rem;
+}
+
+@media (max-width: 55.99rem) {
+  :root {
+    --content-width: min(100% - 2rem, 42rem);
+    --space-6: 4.5rem;
   }
 
-  /* `.confirmation .cta-pill` is more specific than the base `.cta-pill`
-   * rule, so its `transition` shorthand fully replaces the base one
-   * rather than merging with it. Re-declare `.cta-pill`'s own
-   * border-color/transform transitions here alongside the entrance's
-   * opacity/translate transition so hover and :active press feedback
-   * keep working on this page. */
-  .confirmation .cta-pill {
-    transition:
-      border-color var(--motion-fast) var(--ease-out),
-      transform var(--motion-fast) var(--ease-out),
-      opacity var(--motion-medium) var(--ease-out),
-      translate var(--motion-medium) var(--ease-out);
+  .hero,
+  .intro-section,
+  .closing {
+    grid-template-columns: 1fr;
   }
 
-  .confirmation-body {
-    transition-delay: 60ms;
+  .hero {
+    gap: var(--space-4);
+    padding-top: var(--space-4);
   }
 
-  .confirmation .cta-pill {
-    transition-delay: 120ms;
+  .hero h1 {
+    max-width: 11ch;
   }
 
-  @starting-style {
-    .confirmation-heading,
-    .confirmation-body,
-    .confirmation .cta-pill {
-      opacity: 0;
-      translate: 0 8px;
-    }
+  .intro-section,
+  .closing {
+    gap: var(--space-3);
+  }
+}
+
+@media (max-width: 39.99rem) {
+  .site-header {
+    min-height: 4rem;
+  }
+
+  .header-action {
+    padding-inline: 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(2.75rem, 14vw, 4.5rem);
+  }
+
+  .trust-strip {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .trust-strip p:not(:first-child) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .passage,
+  .privacy-section {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .passage {
+    padding-block: var(--space-3);
+  }
+
+  .privacy-mark {
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.1rem;
+  }
+
+  .waitlist-form {
+    grid-template-columns: 1fr;
+  }
+
+  .waitlist-submit {
+    width: 100%;
+  }
+
+  .site-footer {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

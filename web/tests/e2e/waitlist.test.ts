@@ -45,6 +45,11 @@ test("submitting the hero form without JavaScript reaches the confirmation page"
   const page = await context.newPage();
 
   await page.goto(`${server.baseUrl}/`);
+  const passages = page.locator(".passage");
+  assert.equal(await passages.count(), 3, "home should retain all three explanatory passages");
+  for (let index = 0; index < 3; index += 1) {
+    assert.ok(await passages.nth(index).isVisible(), `passage ${index + 1} should be readable without JavaScript`);
+  }
   const uniqueEmail = `no-js-${Date.now()}@example.com`;
   await page.fill("#join-hero-email", uniqueEmail);
   await Promise.all([page.waitForURL(/\/join\/thanks\/?$/, { timeout: 10_000 }), page.click('#join-hero button[type="submit"]')]);
@@ -70,7 +75,14 @@ test("an invalid email is rejected with a clear message and no crash", async () 
     page.click('#join-hero button[type="submit"]'),
   ]);
 
-  await assertHeadingContains(page, "valid email address");
+  await assertHeadingContains(page, "does not look right");
+  const retryField = page.locator("#retry-waitlist-email");
+  await retryField.waitFor({ state: "visible" });
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.id),
+    "retry-waitlist-email",
+    "invalid submissions should return focus to the recovery field",
+  );
   await context.close();
 });
 

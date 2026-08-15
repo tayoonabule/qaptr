@@ -4,8 +4,7 @@ import { validateSubmission } from "../../lib/validate";
 import { checkRateLimit, hashClientKey } from "../../lib/ratelimit";
 
 // This route is the one server-rendered endpoint in the site (KTD12).
-// Everything else in web/ — including every /join/* confirmation page —
-// is prerendered static output.
+// Everything else in web/, including every /join/* confirmation page, is prerendered static output.
 export const prerender = false;
 
 interface Env {

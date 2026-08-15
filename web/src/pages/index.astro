@@ -1,40 +1,64 @@
 ---
 import Base from "../layouts/Base.astro";
 import WaitlistForm from "../components/WaitlistForm.astro";
-import ArcDiagram from "../components/ArcDiagram.astro";
-import ScrollReveal from "../components/ScrollReveal.astro";
 ---
 
 <Base
-  title="Qaptr — the ten minutes you forget you spent"
-  description="Qaptr is a privacy-first macOS menu-bar app that notices the workflows you actually run, and turns the good ones into a reusable document. Join the waitlist."
+  title="Qaptr - remember the work that matters"
+  description="Qaptr is a private macOS app that helps you remember useful work without recording everything you do. Join the waitlist."
 >
   <header class="site-header wrap">
-    <a class="wordmark" href="/">Qaptr</a>
-    <a class="cta-pill" href="#join">Join waitlist</a>
+    <a class="wordmark" href="/" aria-label="Qaptr home">
+      <span class="wordmark-mark" aria-hidden="true">Q</span>
+      <span>Qaptr</span>
+    </a>
+    <a class="header-action" href="#join">Join the waitlist</a>
   </header>
 
   <main id="main">
-    <section class="hero wrap">
-      <p class="mono-label hero-eyebrow">Private beta · macOS, Apple silicon</p>
-      <h1 class="hero-headline">Qaptr keeps the ten minutes you forget you spent.</h1>
-      <p class="hero-sub">
-        A quiet menu-bar app that notices the small workflows behind your real work, and turns
-        the ones worth keeping into a document you can hand to a teammate, an automation, or
-        yourself in six months.
-      </p>
-      <WaitlistForm source="hero" id="join-hero" />
+    <section class="hero wrap" aria-labelledby="hero-heading">
+      <div class="hero-copy">
+        <p class="hero-kicker">Private for your Mac</p>
+        <h1 id="hero-heading">Remember the work that matters.</h1>
+        <p class="hero-sub">
+          Qaptr takes a few private snapshots, then helps you turn useful steps into clear notes.
+        </p>
+        <WaitlistForm source="hero" id="join-hero" />
+      </div>
+      <figure class="hero-visual">
+        <img
+          src="/qaptr-workspace.webp"
+          alt="A laptop on a cool gray desk beside a cobalt notebook"
+          width="1200"
+          height="751"
+          loading="eager"
+          fetchpriority="high"
+        />
+        <figcaption>Private by default, useful when you need it.</figcaption>
+      </figure>
     </section>
 
-    <section class="arc-section wrap" aria-labelledby="cadence-heading">
-      <p class="mono-label" id="cadence-heading">How it watches</p>
-      <ArcDiagram />
-      <div class="arc-caption">
+    <section class="trust-strip wrap" aria-label="Qaptr principles">
+      <p>Small snapshots</p>
+      <p>Local privacy</p>
+      <p>Clear notes</p>
+    </section>
+
+    <section class="intro-section wrap" aria-labelledby="workflow-heading">
+      <div>
+        <h2 id="workflow-heading">A calmer way to remember.</h2>
         <p>
-          Sparse mode takes one screenshot every ten minutes and nothing more. Only when you ask
-          Qaptr to look closer at a specific workflow does the interval tighten, visibly, in the
-          menu bar, until you turn it back off.
+          Qaptr stays out of the way until you need a reminder. It watches in small moments, keeps
+          sensitive apps out, and leaves you with the parts worth keeping.
         </p>
+      </div>
+      <div class="intro-aside" aria-label="How Qaptr works">
+        <span class="step-number" aria-hidden="true">01</span>
+        <p>Choose a light capture cadence.</p>
+        <span class="step-number" aria-hidden="true">02</span>
+        <p>Review what was noticed.</p>
+        <span class="step-number" aria-hidden="true">03</span>
+        <p>Keep only the useful note.</p>
       </div>
     </section>
 
@@ -42,50 +66,59 @@ import ScrollReveal from "../components/ScrollReveal.astro";
       <article class="passage">
         <p class="passage-label">What it captures</p>
         <div>
-          <p class="passage-statement">A sparse trail, not a recording.</p>
+          <h2 class="passage-statement">A sparse trail, not a recording.</h2>
           <p class="passage-body">
-            A downscaled screenshot, the active app, window title, browser hostname, and document
-            name — sampled at one instant, never observed continuously. No clipboard, no
-            keystrokes, no live accessibility monitoring.
+            A small screenshot, the active app, and useful window details. Qaptr does not watch
+            every click, read your clipboard, or follow your typing.
           </p>
         </div>
       </article>
 
       <article class="passage">
-        <p class="passage-label">What it never keeps</p>
+        <p class="passage-label">What stays private</p>
         <div>
-          <p class="passage-statement">Screenshots are temporary. Your history isn't a photo album.</p>
+          <h2 class="passage-statement">Sensitive apps stay out.</h2>
           <p class="passage-body">
-            Every image is processing material with a cache lifetime you choose. When it expires,
-            the encryption keys are destroyed and the files unlinked. What survives is a compact
-            written summary, never a thumbnail.
+            Choose the apps and windows Qaptr must ignore. Snapshots stay on your Mac and expire on
+            the schedule you choose.
           </p>
         </div>
       </article>
 
       <article class="passage">
-        <p class="passage-label">What it becomes</p>
+        <p class="passage-label">What you keep</p>
         <div>
-          <p class="passage-statement">One Workflow document, written the way you'd write it.</p>
+          <h2 class="passage-statement">A note you can use later.</h2>
           <p class="passage-body">
-            Qaptr turns a recognized pattern into a canonical Workflow — goal, context, tools,
-            sequence, decisions — exported as Markdown for automation, handoff, onboarding, or a
-            plain SOP. It never launches anything on your behalf.
+            Qaptr turns a useful session into a clear workflow note. Review it, edit it, and share
+            only what you approve.
           </p>
         </div>
       </article>
     </section>
 
-    <section class="closing wrap" id="join">
-      <h2 class="closing-headline">Be first to try it.</h2>
+    <section class="privacy-section wrap" aria-labelledby="privacy-heading">
+      <div class="privacy-mark" aria-hidden="true">Q</div>
+      <div>
+        <h2 id="privacy-heading">You stay in control.</h2>
+        <p>
+          Qaptr explains what it needs before it asks. Nothing is sent to an analysis tool without
+          your approval for that session.
+        </p>
+      </div>
+    </section>
+
+    <section class="closing wrap" id="join" aria-labelledby="closing-heading">
+      <div>
+        <h2 id="closing-heading">Be first to try Qaptr.</h2>
+        <p>Join the private beta list. We will email you when it is ready.</p>
+      </div>
       <WaitlistForm source="footer" id="join-footer" />
     </section>
   </main>
 
   <footer class="site-footer wrap">
-    <span>Qaptr — built to be forgotten while it works.</span>
-    <span>© 2026 Qaptr. No data is sold, ever.</span>
+    <span>Qaptr, built to be quiet while it works.</span>
+    <span>© 2026 Qaptr. No data is sold.</span>
   </footer>
-
-  <ScrollReveal />
 </Base>

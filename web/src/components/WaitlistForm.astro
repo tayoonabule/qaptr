@@ -2,9 +2,10 @@
 export interface Props {
   source: "hero" | "footer";
   id: string;
+  autoFocus?: boolean;
 }
 
-const { source, id } = Astro.props;
+const { source, id, autoFocus = false } = Astro.props;
 ---
 
 <form class="waitlist-form" method="post" action="/api/waitlist" id={id}>
@@ -20,6 +21,7 @@ const { source, id } = Astro.props;
       placeholder="you@example.com"
       required
       maxlength="254"
+      autofocus={autoFocus}
     />
   </div>
   <button class="waitlist-submit" type="submit">Join waitlist</button>
