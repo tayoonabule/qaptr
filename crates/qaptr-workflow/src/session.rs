@@ -370,8 +370,26 @@ where
             .last_captures
             .clone()
             .ok_or(ReviewSessionError::NothingToRetry)?;
+        self.retry_with_captures(session_id, &captures, progress)
+    }
+
+    /// Retries a caller-owned capture set after an incomplete attempt.
+    ///
+    /// This path deliberately bypasses durable capture deduplication. Callers
+    /// must use it only for a failed or cancelled attempt whose capture set is
+    /// still incomplete. A normal `start` remains deduplicated and therefore
+    /// never reprocesses captures that already have durable observations.
+    pub fn retry_with_captures<F>(
+        &mut self,
+        session_id: SessionId,
+        captures: &[CaptureRecordInput],
+        progress: F,
+    ) -> Result<AnalysisReport, ReviewSessionError>
+    where
+        F: FnMut(ReviewProgress),
+    {
         self.cancellation.reset();
-        self.start_with_resolved_model_mode(session_id, &captures, None, progress, true)
+        self.start_with_resolved_model_mode(session_id, captures, None, progress, true)
     }
 
     /// Returns the last deduplicated input set, without exposing vault data.

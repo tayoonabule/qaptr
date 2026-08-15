@@ -6,13 +6,12 @@
 //! no configured provider is selected, so a production session reports a
 //! truthful unavailable result and never reaches consent or provider dispatch.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::Barrier;
 use std::sync::{
     Arc, Condvar, Mutex,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     mpsc::{self, Receiver, Sender},
 };
 use std::thread;
@@ -52,8 +51,21 @@ const RETRY_UNAVAILABLE: &str = "retry_unavailable";
 const LOCAL_REVIEW_FAILED: &str = "local_review_failed";
 const PROVIDER_UNAVAILABLE: &str = "provider_unavailable";
 const PROVIDER_FAILED: &str = "provider_failed";
+const MUTATION_REPLAY_CAPACITY: &str = "mutation_replay_capacity";
+const MUTATION_REPLAY_IN_PROGRESS: &str = "mutation_replay_in_progress";
+const MAX_PENDING_MUTATIONS: usize = 64;
 const PRODUCTION_RETENTION: RetentionPolicy =
     RetentionPolicy::new(DomainDuration::from_secs(24 * 60 * 60));
+
+static NEXT_CALLER_ID: AtomicU64 = AtomicU64::new(1);
+
+thread_local! {
+    static ABI_CALLER_ID: u64 = NEXT_CALLER_ID.fetch_add(1, Ordering::Relaxed);
+}
+
+fn current_caller_id() -> u64 {
+    ABI_CALLER_ID.with(|id| *id)
+}
 
 struct UnavailableProvider {
     descriptor: ProviderDescriptor,
@@ -137,6 +149,11 @@ impl Default for DriverState {
 }
 
 impl DriverState {
+    fn retry_requires_reprocessing(&self) -> bool {
+        matches!(self.phase, "failed" | "cancelled")
+            || (self.phase == "completed" && self.outcome == Some("consent_declined"))
+    }
+
     fn allowed_operations(&self) -> Vec<&'static str> {
         let mut operations = vec!["state"];
         operations.extend(match self.phase {
@@ -581,18 +598,25 @@ enum WorkerCommand {
     },
     Retry {
         acknowledged: Sender<()>,
+        reprocess: bool,
     },
     Shutdown,
 }
 
 type ListingHook = Arc<dyn Fn(&SessionCancellation) + Send + Sync>;
 
+struct PendingMutation {
+    caller_id: u64,
+    input: Vec<u8>,
+    response: Option<Value>,
+}
+
 /// App-owned review session handle backing the scalar JSON ABI.
 pub struct ReviewSessionDriver {
     shared: Arc<SharedState>,
     commands: Sender<WorkerCommand>,
     worker: Mutex<Option<thread::JoinHandle<()>>>,
-    cached_request: Mutex<HashMap<Vec<u8>, Value>>,
+    pending_mutations: Mutex<Vec<PendingMutation>>,
     #[cfg(test)]
     executed_mutations: std::sync::atomic::AtomicUsize,
 }
@@ -636,7 +660,7 @@ impl ReviewSessionDriver {
             shared,
             commands,
             worker: Mutex::new(Some(worker)),
-            cached_request: Mutex::new(HashMap::new()),
+            pending_mutations: Mutex::new(Vec::new()),
             #[cfg(test)]
             executed_mutations: std::sync::atomic::AtomicUsize::new(0),
         }
@@ -689,9 +713,10 @@ impl ReviewSessionDriver {
 
     /// Executes a request once for the C ABI's two-pass output contract.
     ///
-    /// Mutating requests remain cached until the caller successfully receives
-    /// the response. A null or undersized output buffer therefore observes the
-    /// same result on retry instead of executing the operation again.
+    /// Mutating requests remain in a caller-owned replay slot until that caller
+    /// successfully receives the response. A null or undersized output buffer
+    /// therefore observes the same result on retry instead of executing the
+    /// operation again.
     pub(crate) fn request_once(&self, input: &[u8]) -> Value {
         if input.len() > MAX_REQUEST_BYTES {
             return self.response(Some(MALFORMED_REQUEST));
@@ -703,28 +728,59 @@ impl ReviewSessionDriver {
         if !operation.is_mutating() {
             return self.execute(operation);
         }
-        let mut cached = self
-            .cached_request
+        let caller_id = current_caller_id();
+        let mut pending = self
+            .pending_mutations
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        if let Some(previous) = cached.get(input) {
-            return previous.clone();
+        if let Some(previous) = pending.iter().find(|entry| {
+            entry.caller_id == caller_id && entry.input.as_slice() == input
+        }) {
+            return previous
+                .response
+                .clone()
+                .unwrap_or_else(|| self.response(Some(MUTATION_REPLAY_IN_PROGRESS)));
         }
+        if pending.len() >= MAX_PENDING_MUTATIONS {
+            return self.response(Some(MUTATION_REPLAY_CAPACITY));
+        }
+        pending.push(PendingMutation {
+            caller_id,
+            input: input.to_vec(),
+            response: None,
+        });
+        drop(pending);
+
         #[cfg(test)]
         self.executed_mutations.fetch_add(1, Ordering::AcqRel);
         let response = self.execute(operation);
-        cached.insert(input.to_vec(), response.clone());
+        let mut pending = self
+            .pending_mutations
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if let Some(entry) = pending.iter_mut().find(|entry| {
+            entry.caller_id == caller_id && entry.input.as_slice() == input
+        }) {
+            entry.response = Some(response.clone());
+        }
         response
     }
 
-    /// Marks a cached mutating request delivered once a caller supplied a
+    /// Marks a pending mutating request delivered once its caller supplied a
     /// writable buffer large enough for the complete response.
-    pub(crate) fn finish_cached_request(&self, input: &[u8]) {
-        let mut cached = self
-            .cached_request
+    pub(crate) fn finish_pending_mutation(&self, input: &[u8]) {
+        let caller_id = current_caller_id();
+        let mut pending = self
+            .pending_mutations
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        cached.remove(input);
+        if let Some(index) = pending.iter().position(|entry| {
+            entry.caller_id == caller_id
+                && entry.input.as_slice() == input
+                && entry.response.is_some()
+        }) {
+            pending.remove(index);
+        }
     }
 
     #[cfg(test)]
@@ -749,13 +805,17 @@ impl ReviewSessionDriver {
                 self.response(None)
             }
             Operation::Retry => {
+                let reprocess = self.shared.snapshot().retry_requires_reprocessing();
                 if !self.shared.begin_retry_if_allowed() {
                     return self.response(Some(OPERATION_ERROR));
                 }
                 let (acknowledged, receiver) = mpsc::channel();
                 if self
                     .commands
-                    .send(WorkerCommand::Retry { acknowledged })
+                    .send(WorkerCommand::Retry {
+                        acknowledged,
+                        reprocess,
+                    })
                     .is_err()
                     || receiver.recv_timeout(Duration::from_secs(2)).is_err()
                 {
@@ -876,9 +936,12 @@ fn worker_loop(
                     }
                 };
                 last_captures = Some(captures.clone());
-                run_attempt(resources, &shared, session_id, &captures, cancellation);
+                run_attempt(resources, &shared, session_id, &captures, cancellation, false);
             }
-            WorkerCommand::Retry { acknowledged } => {
+            WorkerCommand::Retry {
+                acknowledged,
+                reprocess,
+            } => {
                 let (Some(resources), Some(session_id)) =
                     (resources.as_mut(), last_session.clone())
                 else {
@@ -916,7 +979,14 @@ fn worker_loop(
                     continue;
                 }
                 last_captures = Some(captures.clone());
-                run_attempt(resources, &shared, session_id, &captures, cancellation);
+                run_attempt(
+                    resources,
+                    &shared,
+                    session_id,
+                    &captures,
+                    cancellation,
+                    reprocess,
+                );
             }
             WorkerCommand::Shutdown => break,
         }
@@ -929,6 +999,7 @@ fn run_attempt(
     session_id: SessionId,
     captures: &[CaptureRecordInput],
     cancellation: SessionCancellation,
+    reprocess: bool,
 ) {
     let runner = AnalysisRunner::new(
         &resources.vault,
@@ -951,9 +1022,15 @@ fn run_attempt(
         cancellation,
     )
     .with_retention_policy(PRODUCTION_RETENTION);
-    let result = coordinator.start(session_id, captures, |progress| {
-        shared.apply_progress(progress)
-    });
+    let result = if reprocess {
+        coordinator.retry_with_captures(session_id, captures, |progress| {
+            shared.apply_progress(progress)
+        })
+    } else {
+        coordinator.start(session_id, captures, |progress| {
+            shared.apply_progress(progress)
+        })
+    };
     shared.set_active_cancellation(None);
     match result {
         Ok(report) => shared.finish_report(&report),
@@ -1102,6 +1179,96 @@ mod tests {
             thread::yield_now();
         }
         panic!("consent request did not become visible");
+    }
+
+    #[derive(Debug)]
+    struct TwoPassResult {
+        first_required: usize,
+        final_required: usize,
+        response: Option<Value>,
+    }
+
+    fn abi_size_pass(handle: usize, request: &'static [u8]) -> usize {
+        // SAFETY: the test keeps the boxed driver alive until all worker threads
+        // have joined, and the request is a static byte slice.
+        unsafe {
+            crate::qaptr_review_session_json(
+                handle as *mut ReviewSessionDriver,
+                request.as_ptr(),
+                request.len(),
+                std::ptr::null_mut(),
+                0,
+            )
+        }
+    }
+
+    fn abi_final_pass(
+        handle: usize,
+        request: &'static [u8],
+        required: usize,
+    ) -> TwoPassResult {
+        let mut output = vec![0_u8; required];
+        // SAFETY: the test keeps the boxed driver alive until all worker threads
+        // have joined, and `output` has exactly the requested capacity.
+        let final_required = unsafe {
+            crate::qaptr_review_session_json(
+                handle as *mut ReviewSessionDriver,
+                request.as_ptr(),
+                request.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        };
+        let response = (final_required <= output.len())
+            .then(|| serde_json::from_slice(&output[..final_required - 1]).expect("response JSON"));
+        TwoPassResult {
+            first_required: required,
+            final_required,
+            response,
+        }
+    }
+
+    fn interleave_identical_two_passes(
+        handle: usize,
+        request: &'static [u8],
+        before_second_first_pass: impl FnOnce(),
+        after_second_first_pass: impl FnOnce(),
+    ) -> (TwoPassResult, TwoPassResult) {
+        let (first_ready, first_ready_rx) = mpsc::channel();
+        let (first_release, first_release_rx) = mpsc::channel();
+        let (first_done, first_done_rx) = mpsc::channel();
+        let first_thread = thread::spawn(move || {
+            let required = abi_size_pass(handle, request);
+            first_ready.send(required).expect("first size pass");
+            first_release_rx.recv().expect("first release");
+            first_done
+                .send(abi_final_pass(handle, request, required))
+                .expect("first final pass");
+        });
+        let first_required = first_ready_rx.recv().expect("first caller ready");
+
+        before_second_first_pass();
+
+        let (second_ready, second_ready_rx) = mpsc::channel();
+        let (second_release, second_release_rx) = mpsc::channel();
+        let second_thread = thread::spawn(move || {
+            let required = abi_size_pass(handle, request);
+            second_ready.send(required).expect("second size pass");
+            second_release_rx.recv().expect("second release");
+            abi_final_pass(handle, request, required)
+        });
+        let second_required = second_ready_rx.recv().expect("second caller ready");
+
+        after_second_first_pass();
+        first_release.send(()).expect("release first caller");
+        let first_result = first_done_rx.recv().expect("first final result");
+        second_release.send(()).expect("release second caller");
+        let second_result = second_thread.join().expect("second caller");
+        first_thread.join().expect("first caller");
+
+        assert_eq!(first_result.first_required, first_required);
+        assert_eq!(second_result.first_required, second_required);
+        (first_result, second_result)
     }
 
     #[test]
@@ -1265,6 +1432,22 @@ mod tests {
     }
 
     #[test]
+    fn retry_reprocessing_is_limited_to_incomplete_work() {
+        let mut state = DriverState {
+            phase: "failed",
+            ..DriverState::default()
+        };
+        assert!(state.retry_requires_reprocessing());
+
+        state.phase = "completed";
+        state.outcome = Some("consent_declined");
+        assert!(state.retry_requires_reprocessing());
+
+        state.outcome = Some("provider_completed");
+        assert!(!state.retry_requires_reprocessing());
+    }
+
+    #[test]
     fn consent_summary_is_scalar_and_contains_no_payload() {
         let shared = SharedState::new();
         shared.set_consent_summary(&request());
@@ -1336,6 +1519,153 @@ mod tests {
     }
 
     #[test]
+    fn identical_interleaved_start_passes_keep_each_callers_response() {
+        let root = tempfile::tempdir().expect("temp root");
+        let entered = Arc::new(Barrier::new(2));
+        let release = Arc::new(AtomicBool::new(false));
+        let handle = Box::into_raw(Box::new(ReviewSessionDriver::new_with_listing_barrier(
+            root.path().join("vault"),
+            root.path().join("history.sqlite3"),
+            entered.clone(),
+            release.clone(),
+        )));
+        let request = br#"{"version":1,"operation":"start","session_id":"same-start"}"#;
+        let (first, second) = interleave_identical_two_passes(
+            handle as usize,
+            request,
+            || {
+                entered.wait();
+            },
+            || release.store(true, Ordering::Release),
+        );
+
+        assert_eq!(first.final_required, first.first_required);
+        assert_eq!(second.final_required, second.first_required);
+        assert_eq!(first.response.as_ref().expect("first response")["ok"], true);
+        assert_eq!(
+            second.response.as_ref().expect("second response")["error"],
+            SESSION_BUSY
+        );
+        // The listing worker is released before destruction so Drop can join it.
+        release.store(true, Ordering::Release);
+        // SAFETY: all C ABI calls have completed and the pointer came from
+        // Box::into_raw above.
+        unsafe { crate::qaptr_review_session_destroy(handle) };
+    }
+
+    #[test]
+    fn identical_interleaved_retry_passes_do_not_cross_replay_slots() {
+        let root = tempfile::tempdir().expect("temp root");
+        let entered = Arc::new(Barrier::new(2));
+        let release = Arc::new(AtomicBool::new(false));
+        let handle = Box::into_raw(Box::new(ReviewSessionDriver::new_with_listing_barrier(
+            root.path().join("vault"),
+            root.path().join("history.sqlite3"),
+            entered.clone(),
+            release.clone(),
+        )));
+        let driver = unsafe { &*handle };
+        assert_eq!(
+            driver.request(br#"{"version":1,"operation":"start","session_id":"retry"}"#)["ok"],
+            true
+        );
+        entered.wait();
+        release.store(true, Ordering::Release);
+        assert_eq!(wait_for_terminal_state(driver)["state"]["phase"], "failed");
+        release.store(false, Ordering::Release);
+
+        let request = br#"{"version":1,"operation":"retry"}"#;
+        let (first, second) = interleave_identical_two_passes(
+            handle as usize,
+            request,
+            || {
+                entered.wait();
+            },
+            || release.store(true, Ordering::Release),
+        );
+        assert_eq!(first.final_required, first.first_required);
+        assert_eq!(second.final_required, second.first_required);
+        assert_eq!(first.response.as_ref().expect("first response")["ok"], true);
+        assert_eq!(second.response.as_ref().expect("second response")["error"], OPERATION_ERROR);
+        release.store(true, Ordering::Release);
+        // SAFETY: all C ABI calls have completed and the pointer came from
+        // Box::into_raw above.
+        unsafe { crate::qaptr_review_session_destroy(handle) };
+    }
+
+    #[test]
+    fn identical_interleaved_cancel_passes_keep_terminal_rejection_owned() {
+        let root = tempfile::tempdir().expect("temp root");
+        seed_committed_bundle(&root.path().join("vault"));
+        let entered = Arc::new(Barrier::new(2));
+        let release = Arc::new(AtomicBool::new(false));
+        let handle = Box::into_raw(Box::new(ReviewSessionDriver::new_with_listing_barrier(
+            root.path().join("vault"),
+            root.path().join("history.sqlite3"),
+            entered.clone(),
+            release.clone(),
+        )));
+        let driver = unsafe { &*handle };
+        assert_eq!(
+            driver.request(br#"{"version":1,"operation":"start","session_id":"cancel"}"#)["ok"],
+            true
+        );
+        entered.wait();
+
+        let request = br#"{"version":1,"operation":"cancel"}"#;
+        let (first, second) = interleave_identical_two_passes(
+            handle as usize,
+            request,
+            || {
+                release.store(true, Ordering::Release);
+                assert_eq!(wait_for_terminal_state(driver)["state"]["phase"], "cancelled");
+            },
+            || {},
+        );
+        assert_eq!(first.final_required, first.first_required);
+        assert_eq!(second.final_required, second.first_required);
+        assert_eq!(first.response.as_ref().expect("first response")["ok"], true);
+        assert_eq!(second.response.as_ref().expect("second response")["error"], OPERATION_ERROR);
+        // SAFETY: all C ABI calls have completed and the pointer came from
+        // Box::into_raw above.
+        unsafe { crate::qaptr_review_session_destroy(handle) };
+    }
+
+    #[test]
+    fn identical_interleaved_consent_passes_keep_grant_and_rejection_separate() {
+        let root = tempfile::tempdir().expect("temp root");
+        let handle = Box::into_raw(Box::new(ReviewSessionDriver::new(
+            root.path().join("vault"),
+            root.path().join("history.sqlite3"),
+        )));
+        let driver = unsafe { &*handle };
+        {
+            let mut state = driver
+                .shared
+                .state
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            state.phase = "ready_for_consent";
+        }
+        *driver
+            .shared
+            .control
+            .decision
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = Some(PendingConsent::Waiting);
+
+        let request = br#"{"version":1,"operation":"decide_consent","decision":"grant"}"#;
+        let (first, second) = interleave_identical_two_passes(handle as usize, request, || {}, || {});
+        assert_eq!(first.final_required, first.first_required);
+        assert_eq!(second.final_required, second.first_required);
+        assert_eq!(first.response.as_ref().expect("first response")["ok"], true);
+        assert_eq!(second.response.as_ref().expect("second response")["error"], OPERATION_ERROR);
+        // SAFETY: all C ABI calls have completed and the pointer came from
+        // Box::into_raw above.
+        unsafe { crate::qaptr_review_session_destroy(handle) };
+    }
+
+    #[test]
     fn interleaved_distinct_two_pass_mutations_keep_each_response() {
         let root = tempfile::tempdir().expect("temp root");
         let driver = Arc::new(ReviewSessionDriver::new(
@@ -1349,24 +1679,25 @@ mod tests {
         let first_callers = callers.clone();
         let first_thread = thread::spawn(move || {
             first_callers.wait();
-            first_driver.request_once(first)
+            let response = first_driver.request_once(first);
+            first_driver.finish_pending_mutation(first);
+            response
         });
         let second_driver = driver.clone();
         let second_callers = callers.clone();
         let second_thread = thread::spawn(move || {
             second_callers.wait();
-            second_driver.request_once(second)
+            let response = second_driver.request_once(second);
+            second_driver.finish_pending_mutation(second);
+            response
         });
         callers.wait();
 
         let first_response = first_thread.join().expect("first mutation");
         let second_response = second_thread.join().expect("second mutation");
-        assert_eq!(driver.request_once(first), first_response);
-        assert_eq!(driver.request_once(second), second_response);
         assert_eq!(driver.executed_mutations(), 2);
-
-        driver.finish_cached_request(second);
-        driver.finish_cached_request(first);
+        assert_eq!(first_response["version"], VERSION);
+        assert_eq!(second_response["version"], VERSION);
     }
 
     #[test]

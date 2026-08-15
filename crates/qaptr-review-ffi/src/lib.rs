@@ -125,7 +125,7 @@ pub unsafe extern "C" fn qaptr_review_session_json(
     let response = handle.request_once(request).to_string();
     let required = copy_string(&response, output, output_capacity);
     if required <= output_capacity && !output.is_null() {
-        handle.finish_cached_request(request);
+        handle.finish_pending_mutation(request);
     }
     required
 }

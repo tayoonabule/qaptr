@@ -32,6 +32,7 @@ use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, CapabilityDescriptor, ExecutablePath,
     ProviderAdapter, ProviderDescriptor, ProviderDetection, ProviderError, ProviderGate,
     ProviderId, ProviderLocation, ProviderVersion, RawObservation, RawProviderResponse,
+    RuntimeFailureKind,
 };
 use qaptr_store::{CaptureRecord, Store, UnixMillis};
 use qaptr_vault::OpenedBundle;
@@ -160,6 +161,7 @@ struct RecordingProvider {
     descriptor: ProviderDescriptor,
     detections: Cell<u32>,
     invocations: Cell<u32>,
+    failures_remaining: Cell<u32>,
     expected_preparations: Option<(Rc<Cell<usize>>, usize)>,
 }
 
@@ -186,8 +188,15 @@ impl RecordingProvider {
             descriptor,
             detections: Cell::new(0),
             invocations: Cell::new(0),
+            failures_remaining: Cell::new(0),
             expected_preparations,
         }
+    }
+
+    fn failing_once() -> Self {
+        let provider = Self::new();
+        provider.failures_remaining.set(1);
+        provider
     }
 }
 
@@ -216,6 +225,14 @@ impl ProviderAdapter for RecordingProvider {
     ) -> Result<RawProviderResponse, ProviderError> {
         self.invocations.set(self.invocations.get() + 1);
         assert!(!invocation.request().context().is_empty());
+        if self.failures_remaining.get() > 0 {
+            self.failures_remaining
+                .set(self.failures_remaining.get().saturating_sub(1));
+            return Err(ProviderError::RuntimeFailure {
+                provider: ProviderId::new("fake-provider").expect("provider id"),
+                kind: RuntimeFailureKind::Invocation,
+            });
+        }
         Ok(RawProviderResponse::new(
             vec![RawObservation::new(
                 "Repeated step",
@@ -393,6 +410,68 @@ fn eligible_sealed_capture_prepares_before_any_provider_request() {
         coordinator.last_capture_ids(),
         vec![CaptureId::new("coordinator-granted").expect("capture id")]
     );
+}
+
+#[test]
+fn retry_reprocesses_failed_capture_but_completed_start_remains_deduplicated() {
+    let (harness, capture) = Harness::new("coordinator-retry", safe_context());
+    let provider = ProviderGate::new(RecordingProvider::failing_once());
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let runner = qaptr_workflow::AnalysisRunner::new(
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.privacy,
+        &harness.ocr,
+        &harness.vision,
+        Some(&provider),
+        &harness.decoder,
+        &consent,
+        &harness.clock,
+    );
+    let mut coordinator = ReviewSessionCoordinator::new(
+        &runner,
+        &harness.vault,
+        &harness.credentials,
+        &harness.store,
+        &harness.clock,
+    );
+
+    let first = coordinator
+        .start(
+            session_id("coordinator-retry"),
+            std::slice::from_ref(&capture),
+            |_| {},
+        )
+        .expect("transient provider failure is reported");
+    assert!(matches!(first.provider, ProviderOutcome::Failed { .. }));
+    assert_eq!(provider.adapter().invocations.get(), 1);
+    assert!(
+        harness
+            .store
+            .snapshot()
+            .expect("history")
+            .observations
+            .is_empty()
+    );
+
+    let retried = coordinator.retry(|_| {}).expect("retry failed capture");
+    assert!(matches!(
+        retried.provider,
+        ProviderOutcome::Completed { .. }
+    ));
+    assert_eq!(retried.observations_written, 1);
+    assert_eq!(provider.adapter().invocations.get(), 2);
+
+    let completed = coordinator
+        .start(
+            session_id("coordinator-repeat"),
+            std::slice::from_ref(&capture),
+            |_| {},
+        )
+        .expect("completed capture is deduplicated");
+    assert!(matches!(completed.provider, ProviderOutcome::NotAttempted));
+    assert_eq!(provider.adapter().invocations.get(), 2);
 }
 
 #[test]
