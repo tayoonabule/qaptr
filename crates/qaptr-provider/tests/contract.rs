@@ -1,17 +1,32 @@
 //! In-process contract tests for the U13 provider gate.
 
-use std::cell::Cell;
+use std::{cell::Cell, sync::Arc};
 
+use qaptr_domain::CaptureId;
 use qaptr_domain::ports::{ContextSnapshot, OcrResult, VisionResult};
 use qaptr_domain::testing::{InMemoryOcr, InMemoryVision};
-use qaptr_domain::CaptureId;
-use qaptr_privacy::{Image, ImageOrientation, PreparationInput, PreparedPayload, PrivacyGate, measure_recall};
+use qaptr_privacy::{
+    Image, ImageOrientation, ImageRecognizer, PreparationInput, PreparedPayload, PrivacyGate,
+    RecognitionResult, measure_recall,
+};
 use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, Capability, CapabilityDescriptor,
     CapabilityRequirements, ExecutablePath, ProviderAdapter, ProviderDescriptor, ProviderDetection,
-    ProviderEndpoint, ProviderError, ProviderGate, ProviderId, ProviderLocation,
-    ProviderVersion, RawObservation, RawProviderResponse, RuntimeFailureKind,
+    ProviderEndpoint, ProviderError, ProviderGate, ProviderId, ProviderLocation, ProviderVersion,
+    RawObservation, RawProviderResponse, RuntimeFailureKind,
 };
+
+#[derive(Debug)]
+struct NoResidualImageRecognizer;
+
+impl ImageRecognizer for NoResidualImageRecognizer {
+    fn recognize_image(&self, _image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        Ok(RecognitionResult::new(
+            OcrResult::default(),
+            VisionResult::default(),
+        ))
+    }
+}
 
 fn prepared_payload(with_image: bool) -> PreparedPayload {
     let input = PreparationInput::new(
@@ -24,6 +39,7 @@ fn prepared_payload(with_image: bool) -> PreparedPayload {
                 Image::solid(8, 8, [255, 255, 255]).expect("test image is valid"),
                 ImageOrientation::Up,
             )
+            .with_image_recognizer(Arc::new(NoResidualImageRecognizer))
             .allow_image()
     } else {
         input
@@ -239,10 +255,7 @@ fn image_capability_is_checked_during_handshake_when_requested() {
         .detect_and_verify_with(CapabilityRequirements::with_images())
         .expect("image-capable fake should pass image gate");
     let response = gate
-        .invoke(
-            &verified,
-            &prepared_payload(true),
-        )
+        .invoke(&verified, &prepared_payload(true))
         .expect("fake response should normalize");
 
     assert_eq!(response.observations().len(), 1);
@@ -259,10 +272,7 @@ fn malformed_output_is_a_typed_runtime_failure() {
         .expect("fake should pass before malformed output is returned");
 
     assert!(matches!(
-        gate.invoke(
-            &verified,
-            &prepared_payload(false)
-        ),
+        gate.invoke(&verified, &prepared_payload(false)),
         Err(ProviderError::RuntimeFailure {
             kind: RuntimeFailureKind::MalformedOutput { .. },
             ..

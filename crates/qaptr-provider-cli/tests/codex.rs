@@ -12,7 +12,9 @@ use std::{
     time::Duration,
 };
 
-use qaptr_provider::{Capability, ProviderError, ProviderGate, ProviderVersion, RuntimeFailureKind};
+use qaptr_provider::{
+    Capability, ProviderError, ProviderGate, ProviderVersion, RuntimeFailureKind,
+};
 use qaptr_provider_cli::{
     CliInvocation, CliOutput, CliRuntimeError, ExecutableDiscovery, OutputLimit, RuntimeLimits,
     Timeout,
@@ -136,10 +138,7 @@ fn malformed_codex_output_is_a_typed_runtime_failure() {
     let verified = gate
         .detect_and_verify()
         .expect("fake Codex should pass the handshake");
-    let result = gate.invoke(
-        &verified,
-        &support::prepared_payload(false),
-    );
+    let result = gate.invoke(&verified, &support::prepared_payload(false));
     let _ = fs::remove_dir_all(directory);
 
     assert!(matches!(
@@ -164,10 +163,7 @@ fn image_request_is_refused_before_codex_executor_runs() {
     let verified = gate
         .detect_and_verify()
         .expect("fake Codex should pass the handshake");
-    let result = gate.invoke(
-        &verified,
-        &support::prepared_payload(true),
-    );
+    let result = gate.invoke(&verified, &support::prepared_payload(true));
     let _ = fs::remove_dir_all(directory);
 
     assert!(matches!(

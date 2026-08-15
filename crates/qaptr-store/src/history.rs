@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
 use rusqlite::{Connection, Transaction, params};
 
+use crate::material::validate_text;
 use crate::{Result, StoreError};
 
 /// A signed count of milliseconds since the Unix epoch.
@@ -65,7 +66,8 @@ pub struct ObservationRecord {
     pub created_at: UnixMillis,
 }
 
-/// A canonical workflow summary stored without source images.
+/// A canonical workflow summary stored as validated scalar text without source
+/// image bytes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkflowRecord {
     /// Stable workflow identifier.
@@ -113,8 +115,13 @@ impl<'transaction> WriteTransaction<'transaction> {
         Self { transaction }
     }
 
-    /// Inserts or replaces capture metadata, never image bytes.
+    /// Inserts or replaces validated capture metadata, never image bytes.
     pub fn put_capture(&mut self, record: &CaptureRecord) -> Result<()> {
+        validate_text("captures.capture_id", record.id.as_str())?;
+        validate_text("captures.vault_record_id", &record.vault_record_id)?;
+        if let Some(summary) = record.context_summary.as_deref() {
+            validate_text("captures.context_summary", summary)?;
+        }
         self.transaction.execute(
             "INSERT INTO captures
              (capture_id, captured_at_ms, vault_record_id, context_summary)
@@ -133,8 +140,15 @@ impl<'transaction> WriteTransaction<'transaction> {
         Ok(())
     }
 
-    /// Inserts or replaces an observation summary.
+    /// Inserts or replaces a validated observation summary.
     pub fn put_observation(&mut self, record: &ObservationRecord) -> Result<()> {
+        validate_text("observations.observation_id", record.id.as_str())?;
+        if let Some(capture_id) = record.capture_id.as_ref() {
+            validate_text("observations.capture_id", capture_id.as_str())?;
+        }
+        validate_text("observations.session_id", record.session_id.as_str())?;
+        validate_text("observations.title", &record.title)?;
+        validate_text("observations.summary", &record.summary)?;
         self.transaction.execute(
             "INSERT INTO observations
              (observation_id, capture_id, session_id, title, summary, confidence, created_at_ms)
@@ -159,8 +173,17 @@ impl<'transaction> WriteTransaction<'transaction> {
         Ok(())
     }
 
-    /// Inserts or replaces a workflow summary without source images.
+    /// Inserts or replaces a validated workflow summary without source image bytes.
     pub fn put_workflow(&mut self, record: &WorkflowRecord) -> Result<()> {
+        validate_text("workflows.workflow_id", record.id.as_str())?;
+        validate_text("workflows.session_id", record.session_id.as_str())?;
+        validate_text("workflows.title", &record.title)?;
+        validate_text("workflows.goal", &record.goal)?;
+        validate_text("workflows.context", &record.context)?;
+        validate_text("workflows.tools", &record.tools)?;
+        validate_text("workflows.sequence", &record.sequence)?;
+        validate_text("workflows.decisions", &record.decisions)?;
+        validate_text("workflows.variations", &record.variations)?;
         self.transaction.execute(
             "INSERT INTO workflows
              (workflow_id, session_id, title, goal, context, tools, sequence,

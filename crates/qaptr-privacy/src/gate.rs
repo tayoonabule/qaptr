@@ -4,7 +4,11 @@
 //! provider-bound artifact. Every recognition, masking, coverage, sanitization,
 //! partial-result, and deadline failure becomes a [`PrivacyExclusion`].
 
-use std::{fmt, sync::Arc, time::{Duration, Instant}};
+use std::{
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use qaptr_domain::ports::{ContextSnapshot, OcrPort, VisionPort};
 use qaptr_domain::{CaptureId, DomainError};
@@ -135,7 +139,8 @@ impl PreparationInput {
         self
     }
 
-    /// Supplies the image-bound recognizer used for the mandatory post-mask rerun.
+    /// Supplies the image-bound recognizer used for initial recognition and the
+    /// mandatory post-mask rerun.
     pub fn with_image_recognizer(mut self, recognizer: Arc<dyn ImageRecognizer>) -> Self {
         self.image_recognizer = Some(recognizer);
         self
@@ -197,7 +202,37 @@ impl PrivacyGate {
     {
         let capture_id = input.capture_id.clone();
         let started = Instant::now();
-        let recognition = recognize(ocr, vision, &input.capture_id).map_err(|error| {
+        let image_recognizer = if input.image_allowed {
+            Some(
+                input
+                    .image_recognizer
+                    .as_ref()
+                    .ok_or_else(|| {
+                        PrivacyExclusion::new(
+                            capture_id.clone(),
+                            ExclusionReason::Masking(MaskError::MissingVerificationRecognizer),
+                        )
+                    })?
+                    .clone(),
+            )
+        } else {
+            None
+        };
+        let recognition = if let Some(recognizer) = image_recognizer.as_ref() {
+            let image = input.image.as_ref().ok_or_else(|| {
+                PrivacyExclusion::new(
+                    capture_id.clone(),
+                    ExclusionReason::Masking(MaskError::InvalidImageDimensions {
+                        width: 0,
+                        height: 0,
+                    }),
+                )
+            })?;
+            recognizer.recognize_image(image)
+        } else {
+            recognize(ocr, vision, &input.capture_id)
+        }
+        .map_err(|error| {
             PrivacyExclusion::new(capture_id.clone(), ExclusionReason::Recognition(error))
         })?;
         self.check_budget(&capture_id, started, PreparationStage::Recognition)?;
@@ -218,30 +253,31 @@ impl PrivacyGate {
                     }),
                 )
             })?;
-            let image_recognizer = input.image_recognizer.as_ref().ok_or_else(|| {
+            let image_recognizer = image_recognizer.as_ref().ok_or_else(|| {
                 PrivacyExclusion::new(
                     capture_id.clone(),
                     ExclusionReason::Masking(MaskError::MissingVerificationRecognizer),
                 )
             })?;
             let detections = map_recognized_detections(&recognition, image, input.orientation)
-            .map_err(|error| Self::mask_exclusion(&capture_id, error))?;
+                .map_err(|error| Self::mask_exclusion(&capture_id, error))?;
             let mut masked = mask_image(image, &detections)
                 .map_err(|error| Self::mask_exclusion(&capture_id, error))?;
             masked.verify(&detections).map_err(|error| {
                 PrivacyExclusion::new(capture_id.clone(), ExclusionReason::Coverage(error))
             })?;
-            let masked_recognition = image_recognizer
-                .recognize_image(masked.image())
-                .map_err(|error| {
-                    PrivacyExclusion::new(capture_id.clone(), ExclusionReason::Recognition(error))
-                })?;
-            let masked_detections = map_recognized_detections(
-                &masked_recognition,
-                masked.image(),
-                input.orientation,
-            )
-            .map_err(|error| Self::mask_exclusion(&capture_id, error))?;
+            let masked_recognition =
+                image_recognizer
+                    .recognize_image(masked.image())
+                    .map_err(|error| {
+                        PrivacyExclusion::new(
+                            capture_id.clone(),
+                            ExclusionReason::Recognition(error),
+                        )
+                    })?;
+            let masked_detections =
+                map_recognized_detections(&masked_recognition, masked.image(), input.orientation)
+                    .map_err(|error| Self::mask_exclusion(&capture_id, error))?;
             masked
                 .verify_masked_recognition(&masked_detections)
                 .map_err(|error| {

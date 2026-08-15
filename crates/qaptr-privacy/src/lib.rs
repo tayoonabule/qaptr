@@ -15,9 +15,7 @@ pub mod recognize;
 pub mod sanitize;
 
 pub use classes::{SensitiveClass, SensitiveFinding, detect_findings};
-pub use coverage::{
-    CoverageEntry, CoverageError, CoverageProof, RecognitionVerification,
-};
+pub use coverage::{CoverageEntry, CoverageError, CoverageProof, RecognitionVerification};
 pub use gate::{
     ExclusionReason, FULL_PREPARATION_BUDGET, PreparationInput, PreparationStage, PrivacyExclusion,
     PrivacyGate,
@@ -32,7 +30,7 @@ pub use recall::{
 };
 pub use recognize::{
     ImageOrientation, ImageRecognizer, PixelRect, RecognitionResult, map_normalized_rect,
-    recognize,
+    recognize, recognize_for_image,
 };
 pub use sanitize::{
     ContextField, SanitizationError, SanitizedContext, SanitizedValue, sanitize_context,

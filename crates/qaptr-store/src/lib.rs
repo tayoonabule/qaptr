@@ -1,10 +1,13 @@
-//! Durable, image-free SQLite history for the Qaptr review app.
+//! Durable scalar SQLite history for the Qaptr review app.
 //!
 //! # Invariants
 //!
 //! - This crate is the sole writer owner of the history database inside the
 //!   review-app process. It never opens a capture vault and never writes image
-//!   bytes, thumbnails, screenshots, or other image material.
+//!   bytes, thumbnails, screenshots, or other image material. Its allowlisted
+//!   schema has no binary columns, and every writer rejects text values that
+//!   look like encoded image material. This is a writer invariant, not a claim
+//!   that an external actor with raw SQLite access cannot bypass the API.
 //! - SQLite is always opened in WAL mode using the bundled SQLite build. The
 //!   bundled build must be new enough to contain the 2026 WAL-reset corruption
 //!   fix, currently SQLite 3.53.2 through `rusqlite` 0.40.2.
@@ -16,6 +19,7 @@
 //!   summaries remain available.
 
 mod history;
+mod material;
 mod migrations;
 mod notices;
 mod schema;
@@ -82,6 +86,12 @@ pub enum StoreError {
     /// A notice count was zero.
     #[error("notice count must be greater than zero")]
     EmptyNoticeCount,
+    /// A text value looks like encoded or raw image material.
+    #[error("text field {field} appears to contain encoded image material")]
+    EncodedImageMaterial {
+        /// The logical field being rejected.
+        field: String,
+    },
     /// A stored notice reason was not recognized.
     #[error("unknown notice reason: {0}")]
     UnknownNoticeReason(String),
@@ -140,17 +150,18 @@ impl Store {
         }
     }
 
-    /// Stores capture metadata without storing any capture bytes.
+    /// Stores capture metadata without storing capture bytes; encoded image
+    /// material in scalar text fields is rejected before the SQL write.
     pub fn put_capture(&self, record: &CaptureRecord) -> Result<()> {
         self.transaction(|transaction| transaction.put_capture(record))
     }
 
-    /// Stores a compact observation summary.
+    /// Stores a compact observation summary after text-material validation.
     pub fn put_observation(&self, record: &ObservationRecord) -> Result<()> {
         self.transaction(|transaction| transaction.put_observation(record))
     }
 
-    /// Stores a canonical workflow summary without source images.
+    /// Stores a canonical workflow summary after text-material validation.
     pub fn put_workflow(&self, record: &WorkflowRecord) -> Result<()> {
         self.transaction(|transaction| transaction.put_workflow(record))
     }
@@ -188,7 +199,7 @@ impl Store {
         load_snapshot(&mut reader)
     }
 
-    /// Verifies the live schema against the image-free allowlist.
+    /// Verifies the live schema against the binary-free scalar allowlist.
     pub fn verify_schema(&self) -> Result<()> {
         let writer = self.writer.lock().map_err(|_| StoreError::WriterPoisoned)?;
         schema::validate(&writer)

@@ -17,6 +17,18 @@ public enum OnboardingStage: Int, CaseIterable, Equatable, Sendable {
         OnboardingStage(rawValue: rawValue + 1)
     }
 
+    /// The stage before this one, or `nil` for the first stage.
+    ///
+    /// Onboarding's "forward-only, runs once" guarantee (R-D7) governs
+    /// whether onboarding can be *re-entered* after completion, not whether
+    /// a user mid-flow can step back to re-read an earlier stage. `previous`
+    /// only supports in-flow review; it is never used to reset
+    /// `SettingsPreferences.onboardingCompleted` or to re-trigger a provider
+    /// request, so it does not weaken KTD10's just-in-time consent boundary.
+    public var previous: OnboardingStage? {
+        OnboardingStage(rawValue: rawValue - 1)
+    }
+
     public var title: String {
         switch self {
         case .permissions: "Screen Recording"

@@ -85,7 +85,7 @@ struct SettingsView: View {
             .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color.qaptrSurface)
         .onAppear { model.refreshSettings() }
     }
 

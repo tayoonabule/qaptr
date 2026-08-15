@@ -2,6 +2,9 @@
 //!
 //! A proof is intentionally scoped to the supplied recognizer detections. It
 //! does not claim that the recognizers found every sensitive value in an image.
+//! For an image payload, U12 also records a rerun over the exact masked bytes;
+//! that rerun proves removal of originally detected regions, not discovery of
+//! material missed by the published U9 recall limit.
 
 use thiserror::Error;
 
@@ -79,10 +82,7 @@ impl RecognitionVerification {
 }
 
 impl CoverageProof {
-    pub(crate) fn new(
-        image: &Image,
-        detections: &DetectionSet,
-    ) -> Result<Self, CoverageError> {
+    pub(crate) fn new(image: &Image, detections: &DetectionSet) -> Result<Self, CoverageError> {
         let image_width = image.width();
         let image_height = image.height();
         if image_width == 0 || image_height == 0 {
@@ -116,6 +116,10 @@ impl CoverageProof {
             covered_pixel_count,
             recognition_verification: None,
         })
+    }
+
+    pub(crate) fn bind_masked_image(&mut self, image: &Image) {
+        self.image_hash = ImageHash::of(image);
     }
 
     /// Returns the image width used to produce the proof.
@@ -341,7 +345,9 @@ pub enum CoverageError {
 mod tests {
     use crate::ImageOrientation;
     use crate::map_normalized_rect;
-    use crate::mask::{DetectionKind, DetectionSet, Image, MASK_COLOR, MappedDetection, mask_image};
+    use crate::mask::{
+        DetectionKind, DetectionSet, Image, MASK_COLOR, MappedDetection, mask_image,
+    };
     use qaptr_domain::NormalizedRect;
 
     #[test]

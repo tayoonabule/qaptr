@@ -5,7 +5,10 @@
 
 #![allow(clippy::expect_used, missing_docs)]
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use qaptr_domain::ports::ocr::{OcrPort, OcrResult, TextRegion};
 use qaptr_domain::ports::vision::{VisionFinding, VisionKind, VisionPort, VisionResult};
@@ -13,8 +16,8 @@ use qaptr_domain::ports::{ContextSnapshot, PortOutcome};
 use qaptr_domain::{CaptureId, DomainError, NormalizedRect};
 use qaptr_privacy::{
     DetectionKind, ExclusionReason, FULL_PREPARATION_BUDGET, Image, ImageOrientation,
-    MappedDetection, PreparationInput, PreparationStage, PrivacyGate, SensitiveClass,
-    map_normalized_rect, measure_recall,
+    ImageRecognizer, MASK_COLOR, MappedDetection, PreparationInput, PreparationStage, PrivacyGate,
+    RecognitionResult, SensitiveClass, map_normalized_rect, measure_recall,
 };
 
 struct CompleteOcr;
@@ -22,6 +25,58 @@ struct CompleteVision;
 struct PartialOcr;
 struct TimeoutOcr;
 struct MissingGeometryOcr;
+
+#[derive(Debug)]
+struct ImageCompleteRecognizer;
+
+#[derive(Debug)]
+struct ImagePartialRecognizer;
+
+#[derive(Debug)]
+struct ImageMissingGeometryRecognizer;
+
+impl ImageRecognizer for ImageCompleteRecognizer {
+    fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        if image.pixel(2, 4) == Some(MASK_COLOR) {
+            return Ok(RecognitionResult::new(
+                OcrResult::default(),
+                VisionResult::default(),
+            ));
+        }
+        let text_geometry = NormalizedRect::new(0.25, 0.25, 0.25, 0.25).expect("test geometry");
+        let face_geometry = NormalizedRect::new(0.5, 0.5, 0.25, 0.25).expect("test geometry");
+        Ok(RecognitionResult::new(
+            OcrResult::new(vec![TextRegion::with_geometry(
+                "fixture.email@example.test".to_owned(),
+                confidence(),
+                text_geometry,
+            )]),
+            VisionResult::new(vec![VisionFinding::with_geometry(
+                VisionKind::Face,
+                confidence(),
+                face_geometry,
+            )]),
+        ))
+    }
+}
+
+impl ImageRecognizer for ImagePartialRecognizer {
+    fn recognize_image(&self, _image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        Ok(RecognitionResult::partial(
+            OcrResult::default(),
+            VisionResult::default(),
+        ))
+    }
+}
+
+impl ImageRecognizer for ImageMissingGeometryRecognizer {
+    fn recognize_image(&self, _image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        Ok(RecognitionResult::new(
+            OcrResult::new(vec![TextRegion::new("unmappable fixture", confidence())]),
+            VisionResult::default(),
+        ))
+    }
+}
 
 impl OcrPort for CompleteOcr {
     fn recognize(&self, _capture: &CaptureId) -> qaptr_domain::Result<PortOutcome<OcrResult>> {
@@ -129,13 +184,18 @@ fn safe_context() -> ContextSnapshot {
     )
 }
 
-fn image_input() -> PreparationInput {
+fn image_input_with(recognizer: Arc<dyn ImageRecognizer>) -> PreparationInput {
     PreparationInput::new(capture("image"), safe_context())
         .with_image(
             Image::solid(8, 8, [255, 255, 255]).expect("test image"),
             ImageOrientation::Up,
         )
+        .with_image_recognizer(recognizer)
         .allow_image()
+}
+
+fn image_input() -> PreparationInput {
+    image_input_with(Arc::new(ImageCompleteRecognizer))
 }
 
 #[test]
@@ -154,7 +214,11 @@ fn recognition_timeout_refuses_to_emit() {
 
 #[test]
 fn partial_recognition_refuses_to_emit() {
-    let result = PrivacyGate::new(recall()).prepare(image_input(), &PartialOcr, &PartialOcr);
+    let result = PrivacyGate::new(recall()).prepare(
+        image_input_with(Arc::new(ImagePartialRecognizer)),
+        &PartialOcr,
+        &PartialOcr,
+    );
 
     assert!(matches!(
         result,
@@ -164,12 +228,35 @@ fn partial_recognition_refuses_to_emit() {
 
 #[test]
 fn masking_failure_refuses_to_emit() {
-    let result =
-        PrivacyGate::new(recall()).prepare(image_input(), &MissingGeometryOcr, &MissingGeometryOcr);
+    let result = PrivacyGate::new(recall()).prepare(
+        image_input_with(Arc::new(ImageMissingGeometryRecognizer)),
+        &MissingGeometryOcr,
+        &MissingGeometryOcr,
+    );
 
     assert!(matches!(
         result,
         Err(exclusion) if matches!(exclusion.reason(), ExclusionReason::Masking(_))
+    ));
+}
+
+#[test]
+fn image_without_verification_recognizer_refuses_to_emit() {
+    let input = PreparationInput::new(capture("missing-verifier"), safe_context())
+        .with_image(
+            Image::solid(8, 8, [255, 255, 255]).expect("test image"),
+            ImageOrientation::Up,
+        )
+        .allow_image();
+    let result = PrivacyGate::new(recall()).prepare(input, &CompleteOcr, &CompleteVision);
+
+    assert!(matches!(
+        result,
+        Err(exclusion)
+            if matches!(
+                exclusion.reason(),
+                ExclusionReason::Masking(qaptr_privacy::MaskError::MissingVerificationRecognizer)
+            )
     ));
 }
 
@@ -221,6 +308,7 @@ fn passing_payload_contains_sanitization_and_coverage_proof() {
             Image::solid(8, 8, [255, 255, 255]).expect("test image"),
             ImageOrientation::Up,
         )
+        .with_image_recognizer(Arc::new(ImageCompleteRecognizer))
         .allow_image();
     let payload = PrivacyGate::new(honest_recall())
         .prepare(input, &CompleteOcr, &CompleteVision)
@@ -262,6 +350,12 @@ fn passing_payload_contains_sanitization_and_coverage_proof() {
     assert_eq!(payload.proof().recall().matched_count(), 5);
     assert_eq!(payload.proof().recall().missed_indices(), &[5]);
     assert!((payload.proof().recall().recall() - (5.0 / 6.0)).abs() < f64::EPSILON);
+    let verification = payload
+        .proof()
+        .coverage()
+        .and_then(|proof| proof.recognition_verification())
+        .expect("image coverage must carry rerun evidence");
+    assert!(verification.has_no_residual_detected_regions());
 }
 
 #[test]

@@ -22,7 +22,7 @@ impl ImageRecognizer for NoResidualImageRecognizer {
 
 pub fn prepared_payload(with_image: bool) -> PreparedPayload {
     let input = PreparationInput::new(
-        CaptureId::new("provider-cli-contract").expect("test capture id is valid"),
+        CaptureId::new("openrouter-contract").expect("test capture id is valid"),
         ContextSnapshot::new(Some("sanitized context".to_owned()), None, None, None),
     );
     let input = if with_image {

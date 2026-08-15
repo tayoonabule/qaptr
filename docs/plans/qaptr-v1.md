@@ -402,7 +402,8 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 
 ### U6. Storage: SQLite WAL history with an allowlisted schema
 
-- **Goal:** Durable history that structurally cannot hold image material.
+- **Goal:** Durable history with an allowlisted scalar schema that has no binary
+  columns, whose writer rejects raw or encoded image material in text values.
 - **Requirements:** R-P4, R-C7; KTD5.
 - **Dependencies:** U1.
 - **Files:** `crates/qaptr-store/src/lib.rs`, `crates/qaptr-store/src/schema.rs`, `crates/qaptr-store/src/migrations/`, `crates/qaptr-store/src/history.rs`, `crates/qaptr-store/tests/store.rs`.

@@ -2,6 +2,8 @@
 
 #![cfg(target_os = "macos")]
 
+mod support;
+
 use std::{
     collections::VecDeque,
     fs,
@@ -15,7 +17,7 @@ use std::{
 };
 
 use qaptr_provider::{
-    Capability, ProviderError, ProviderGate, ProviderRequest, ProviderVersion, RuntimeFailureKind,
+    Capability, ProviderError, ProviderGate, ProviderVersion, RuntimeFailureKind,
 };
 use qaptr_provider_cli::adapters::{CliExecutor, claude::ClaudeAdapter};
 use qaptr_provider_cli::{
@@ -149,10 +151,7 @@ fn malformed_provider_output_is_a_typed_runtime_failure() {
         .detect_and_verify()
         .expect("fake Claude should pass detection");
     let error = gate
-        .invoke(
-            &verified,
-            ProviderRequest::text("sanitized context").expect("context is non-empty"),
-        )
+        .invoke(&verified, &support::prepared_payload(false))
         .expect_err("malformed output must be rejected");
     assert!(matches!(
         error,
@@ -171,10 +170,7 @@ fn claude_normalizes_through_the_same_gate_response_shape() {
         .detect_and_verify()
         .expect("fake Claude should pass detection");
     let response = gate
-        .invoke(
-            &verified,
-            ProviderRequest::text("sanitized context").expect("context is non-empty"),
-        )
+        .invoke(&verified, &support::prepared_payload(false))
         .expect("fixed response should normalize");
     assert_eq!(response.observations().len(), 1);
     assert_eq!(response.observations()[0].title(), "Observed");
@@ -193,11 +189,7 @@ fn image_request_cannot_bypass_the_gate() {
         .detect_and_verify()
         .expect("fake Claude should pass detection");
     let error = gate
-        .invoke(
-            &verified,
-            ProviderRequest::with_images("sanitized context", 1)
-                .expect("one prepared image is valid"),
-        )
+        .invoke(&verified, &support::prepared_payload(true))
         .expect_err("text-only Claude adapter must refuse images");
     assert!(matches!(
         error,

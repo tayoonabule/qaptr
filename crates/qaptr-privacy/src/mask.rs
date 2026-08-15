@@ -223,6 +223,7 @@ impl fmt::Display for DetectionKind {
 }
 
 /// A masked RGB image and the proof that all supplied detections were covered.
+/// The gate augments this proof with a recognizer rerun over the masked bytes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MaskedImage {
     image: Image,
@@ -246,12 +247,8 @@ impl MaskedImage {
     }
 
     /// Records a recognizer rerun over this masked image.
-    pub fn verify_masked_recognition(
-        &mut self,
-        rerun: &DetectionSet,
-    ) -> Result<(), CoverageError> {
-        self.proof
-            .verify_masked_recognition(&self.image, rerun)
+    pub fn verify_masked_recognition(&mut self, rerun: &DetectionSet) -> Result<(), CoverageError> {
+        self.proof.verify_masked_recognition(&self.image, rerun)
     }
 }
 
@@ -265,6 +262,14 @@ pub fn map_recognized_detections(
     image: &Image,
     orientation: ImageOrientation,
 ) -> Result<DetectionSet, MaskError> {
+    if let Some(expected) = recognition.source_image_hash()
+        && expected != ImageHash::of(image)
+    {
+        return Err(MaskError::ImageHashMismatch {
+            expected,
+            actual: ImageHash::of(image),
+        });
+    }
     if recognition.is_partial() {
         return Err(MaskError::PartialRecognition);
     }
@@ -311,7 +316,8 @@ pub fn mask_image(image: &Image, detections: &DetectionSet) -> Result<MaskedImag
             }
         }
     }
-    let proof = CoverageProof::new(image, detections)?;
+    let mut proof = CoverageProof::new(image, detections)?;
+    proof.bind_masked_image(&masked);
     Ok(MaskedImage {
         image: masked,
         proof,

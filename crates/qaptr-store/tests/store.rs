@@ -10,7 +10,9 @@ use std::{
 };
 
 use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
-use qaptr_store::{CaptureRecord, ObservationRecord, Store, UnixMillis, WorkflowRecord};
+use qaptr_store::{
+    CaptureRecord, ObservationRecord, Store, StoreError, UnixMillis, WorkflowRecord,
+};
 
 fn temporary_database(test_name: &str) -> (PathBuf, PathBuf) {
     let nonce = SystemTime::now()
@@ -105,6 +107,47 @@ fn schema_guard_rejects_unallowlisted_image_material() {
     store
         .verify_schema()
         .expect("the normal schema must pass its guard");
+    remove_directory(&directory);
+}
+
+#[test]
+fn writer_accepts_a_legitimate_long_summary() {
+    let (directory, path) = temporary_database("long-summary");
+    let store = Store::open(&path).expect("the normal schema must open");
+    let mut record = observation("long-summary", None);
+    record.summary =
+        "The export step remained stable while the recipient reviewed the CSV. ".repeat(100);
+
+    store
+        .put_observation(&record)
+        .expect("a long human-readable summary is not image material");
+    assert_eq!(
+        store.snapshot().expect("snapshot must load").observations[0],
+        record
+    );
+    remove_directory(&directory);
+}
+
+#[test]
+fn writer_rejects_base64_encoded_image_material_in_text() {
+    let (directory, path) = temporary_database("encoded-image");
+    let store = Store::open(&path).expect("the normal schema must open");
+    let mut record = observation("encoded-image", None);
+    record.summary = format!("iVBORw0KGgo{}", "A".repeat(256));
+
+    let result = store.put_observation(&record);
+    assert!(matches!(
+        result,
+        Err(StoreError::EncodedImageMaterial { field })
+            if field == "observations.summary"
+    ));
+    assert!(
+        store
+            .snapshot()
+            .expect("snapshot must load")
+            .observations
+            .is_empty()
+    );
     remove_directory(&directory);
 }
 

@@ -2,8 +2,8 @@
 
 use qaptr_domain::NormalizedRect;
 use qaptr_privacy::{
-    DetectionKind, DetectionSet, Image, ImageOrientation, MASK_COLOR, MappedDetection,
-    map_normalized_rect, mask_image,
+    CoverageError, DetectionKind, DetectionSet, Image, ImageOrientation, MASK_COLOR,
+    MappedDetection, MaskError, RecognitionResult, map_normalized_rect, mask_image,
 };
 
 fn detection(kind: DetectionKind, x: f32, y: f32, width: f32, height: f32) -> MappedDetection {
@@ -52,7 +52,7 @@ fn coverage_proof_is_verifiable_against_detection_set_and_pixels() {
     assert!(masked.verify(&detection_set).is_ok());
 
     let tampered = Image::solid(10, 10, [31, 32, 33]).expect("fixture image should be valid");
-    assert!(masked.proof().verify(&tampered, &detections).is_err());
+    assert!(masked.proof().verify(&tampered, &detection_set).is_err());
 }
 
 #[test]
@@ -112,4 +112,63 @@ fn no_detections_preserves_pixels_and_still_returns_a_valid_proof() {
     assert_eq!(masked.image(), &source);
     assert!(masked.proof().entries().is_empty());
     assert!(masked.verify(&detections).is_ok());
+}
+
+#[test]
+fn masking_refuses_detection_set_from_different_image_bytes() {
+    let source = Image::solid(2, 2, [1, 2, 3]).expect("fixture image should be valid");
+    let different = Image::solid(2, 2, [4, 5, 6]).expect("fixture image should be valid");
+    let detection = detection(DetectionKind::Text, 0.0, 0.0, 0.2, 0.2);
+    let detection_set = DetectionSet::for_image(&source, vec![detection]);
+
+    let result = mask_image(&different, &detection_set);
+    assert!(matches!(result, Err(MaskError::ImageHashMismatch { .. })));
+}
+
+#[test]
+fn image_bound_recognition_refuses_mapping_onto_different_image_bytes() {
+    let source = Image::solid(10, 10, [21, 22, 23]).expect("fixture image should be valid");
+    let different = Image::solid(10, 10, [24, 25, 26]).expect("fixture image should be valid");
+    let recognition = RecognitionResult::for_image(
+        qaptr_domain::ports::ocr::OcrResult::default(),
+        qaptr_domain::ports::vision::VisionResult::default(),
+        &source,
+    );
+
+    let result =
+        qaptr_privacy::map_recognized_detections(&recognition, &different, ImageOrientation::Up);
+    assert!(matches!(result, Err(MaskError::ImageHashMismatch { .. })));
+}
+
+#[test]
+fn masked_output_verification_records_no_residual_regions() {
+    let source = Image::solid(10, 10, [10, 11, 12]).expect("fixture image should be valid");
+    let detection = detection(DetectionKind::Text, 0.2, 0.2, 0.2, 0.2);
+    let detections = DetectionSet::for_image(&source, vec![detection]);
+    let mut masked = mask_image(&source, &detections).expect("masking should succeed");
+    let rerun = DetectionSet::for_image(masked.image(), Vec::new());
+
+    masked
+        .verify_masked_recognition(&rerun)
+        .expect("empty rerun should prove no residual region");
+    let verification = masked
+        .proof()
+        .recognition_verification()
+        .expect("verification evidence should be recorded");
+    assert!(verification.has_no_residual_detected_regions());
+    assert_eq!(verification.rerun_detected_region_count(), 0);
+}
+
+#[test]
+fn masked_output_verification_rejects_a_recognizable_original_region() {
+    let source = Image::solid(10, 10, [13, 14, 15]).expect("fixture image should be valid");
+    let detection = detection(DetectionKind::Text, 0.2, 0.2, 0.2, 0.2);
+    let detections = DetectionSet::for_image(&source, vec![detection]);
+    let mut masked = mask_image(&source, &detections).expect("masking should succeed");
+    let rerun = DetectionSet::for_image(masked.image(), vec![detection]);
+
+    assert!(matches!(
+        masked.verify_masked_recognition(&rerun),
+        Err(CoverageError::ResidualDetection { count: 1 })
+    ));
 }

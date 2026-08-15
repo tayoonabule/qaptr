@@ -1,11 +1,13 @@
 //! In-process OpenRouter adapter contract tests.
 
+mod support;
+
 use std::rc::Rc;
 
 use qaptr_domain::ports::{
     CredentialKey, CredentialPort, CredentialValue, PortOutcome, PortResult,
 };
-use qaptr_provider::{ProviderError, ProviderGate, ProviderRequest, RuntimeFailureKind};
+use qaptr_provider::{ProviderError, ProviderGate, RuntimeFailureKind};
 use qaptr_provider_openrouter::{HttpResponse, HttpTransport, OpenRouterAdapter, TransportError};
 
 #[derive(Debug)]
@@ -92,10 +94,7 @@ fn gate_routes_openrouter_to_the_shared_normalized_shape() {
         .detect_and_verify()
         .expect("configured OpenRouter fake should pass the gate");
     let response = gate
-        .invoke(
-            &verified,
-            ProviderRequest::text("sanitized context").expect("context is non-empty"),
-        )
+        .invoke(&verified, &support::prepared_payload(false))
         .expect("valid fixture should normalize");
 
     assert_eq!(response.observations().len(), 1);
@@ -143,10 +142,8 @@ fn image_request_is_refused_by_gate_before_http_transport() {
     let verified = gate
         .detect_and_verify()
         .expect("configured OpenRouter fake should pass the gate");
-    let request = ProviderRequest::with_images("sanitized context", 1)
-        .expect("one prepared image is a valid request");
     let error = gate
-        .invoke(&verified, request)
+        .invoke(&verified, &support::prepared_payload(true))
         .expect_err("images are unsupported");
     assert!(matches!(error, ProviderError::CapabilityMissing { .. }));
     assert_eq!(calls.get(), 0);
@@ -161,10 +158,7 @@ fn malformed_output_is_typed_and_transport_failures_are_typed() {
         .detect_and_verify()
         .expect("configured OpenRouter fake should pass the gate");
     let error = gate
-        .invoke(
-            &verified,
-            ProviderRequest::text("context").expect("context is non-empty"),
-        )
+        .invoke(&verified, &support::prepared_payload(false))
         .expect_err("malformed fixture must be rejected");
     assert!(matches!(
         error,
@@ -188,10 +182,7 @@ fn malformed_output_is_typed_and_transport_failures_are_typed() {
         .detect_and_verify()
         .expect("detection does not call HTTP");
     let error = gate
-        .invoke(
-            &verified,
-            ProviderRequest::text("context").expect("context is non-empty"),
-        )
+        .invoke(&verified, &support::prepared_payload(false))
         .expect_err("network failure must be typed");
     assert!(matches!(
         error,
@@ -221,10 +212,7 @@ fn rate_limit_is_a_typed_failure_without_partial_response() {
         .detect_and_verify()
         .expect("detection does not call HTTP");
     let error = gate
-        .invoke(
-            &verified,
-            ProviderRequest::text("context").expect("context is non-empty"),
-        )
+        .invoke(&verified, &support::prepared_payload(false))
         .expect_err("rate limit must not return a partial response");
     assert!(matches!(
         error,
@@ -250,10 +238,7 @@ fn credential_port_is_read_only_for_the_adapter() {
         .detect_and_verify()
         .expect("configured fake should pass");
     let _ = gate
-        .invoke(
-            &verified,
-            ProviderRequest::text("context").expect("context is non-empty"),
-        )
+        .invoke(&verified, &support::prepared_payload(false))
         .expect("fixture should normalize");
     assert_eq!(writes.get(), 0);
 }

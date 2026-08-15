@@ -7,9 +7,10 @@ use crate::Image;
 
 /// A local recognizer that can inspect the exact RGB image supplied to it.
 ///
-/// U12 requires this interface for the post-mask rerun. A capture-id-only
-/// recognizer is intentionally insufficient because it could inspect a
-/// different image than the one being verified.
+/// U12 requires this interface whenever an image is being prepared. A
+/// capture-id-only recognizer is intentionally insufficient because it could
+/// inspect a different image than the one being masked. The same interface is
+/// called again for the post-mask verification rerun.
 pub trait ImageRecognizer: Send + Sync {
     /// Recognizes one exact in-memory image without network access.
     fn recognize_image(&self, image: &Image) -> Result<RecognitionResult>;
@@ -130,6 +131,7 @@ pub struct RecognitionResult {
     ocr: OcrResult,
     vision: VisionResult,
     partial: bool,
+    source_image_hash: Option<crate::ImageHash>,
 }
 
 impl RecognitionResult {
@@ -139,6 +141,27 @@ impl RecognitionResult {
             ocr,
             vision,
             partial: false,
+            source_image_hash: None,
+        }
+    }
+
+    /// Creates a complete result explicitly bound to one exact image.
+    pub fn for_image(ocr: OcrResult, vision: VisionResult, image: &Image) -> Self {
+        Self {
+            ocr,
+            vision,
+            partial: false,
+            source_image_hash: Some(crate::ImageHash::of(image)),
+        }
+    }
+
+    /// Creates a partial combined result for a recognizer that could not finish.
+    pub fn partial(ocr: OcrResult, vision: VisionResult) -> Self {
+        Self {
+            ocr,
+            vision,
+            partial: true,
+            source_image_hash: None,
         }
     }
 
@@ -156,6 +179,11 @@ impl RecognitionResult {
     pub const fn is_partial(&self) -> bool {
         self.partial
     }
+
+    /// Returns the image hash supplied by an image-bound recognition call.
+    pub const fn source_image_hash(&self) -> Option<crate::ImageHash> {
+        self.source_image_hash
+    }
 }
 
 /// Runs OCR and visual detection for one capture without any network access.
@@ -171,7 +199,28 @@ where
         ocr: ocr_result.into_inner(),
         vision: vision_result.into_inner(),
         partial,
+        source_image_hash: None,
     })
+}
+
+/// Runs recognition and binds its result to the exact image being prepared.
+///
+/// The adapters supplied here must inspect the same image bytes represented by
+/// `image`; the returned provenance then prevents a later masking call from
+/// silently accepting detections for another image.
+pub fn recognize_for_image<O, V>(
+    ocr: &O,
+    vision: &V,
+    capture: &CaptureId,
+    image: &Image,
+) -> Result<RecognitionResult>
+where
+    O: OcrPort,
+    V: VisionPort,
+{
+    let mut result = recognize(ocr, vision, capture)?;
+    result.source_image_hash = Some(crate::ImageHash::of(image));
+    Ok(result)
 }
 
 #[cfg(test)]

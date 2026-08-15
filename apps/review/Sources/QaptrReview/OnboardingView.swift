@@ -8,32 +8,67 @@ import SwiftUI
 struct OnboardingView: View {
     @Bindable var model: ReviewAppModel
     @State private var stage: OnboardingStage = .permissions
+    /// Direction of the most recent stage change, used to make forward and
+    /// backward transitions read as genuinely directional (content slides
+    /// from the trailing edge going forward, from the leading edge going
+    /// back) instead of the same motion regardless of which way the user
+    /// moved.
+    @State private var direction: StageDirection = .forward
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            progressIndicator
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                progressIndicator
+                Spacer()
+                // A quiet step numeral in the report mono voice, sitting on
+                // the same row as the progress hairlines rather than
+                // floating behind body copy. An earlier version anchored a
+                // much larger numeral to the top-trailing corner of the
+                // whole view in a ZStack, which visually collided with
+                // wrapped body text in stages with more copy (the numeral
+                // sat behind, not beside, the content). Keeping it inline
+                // and modestly sized avoids any overlap while still giving
+                // each stage its own quiet position marker beyond the thin
+                // progress hairlines.
+                //
+                // The row uses `.center` alignment, not `.top`: the
+                // progress capsules are only 2-3pt tall while this label's
+                // font has a much taller line box, so top-aligning left the
+                // label hanging visibly below the capsules' vertical
+                // center instead of sharing one baseline-adjacent center
+                // line with them.
+                Text("0\(stage.rawValue + 1) / 0\(OnboardingStage.allCases.count)")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.bottom, 28)
 
             if reduceMotion {
                 stageHeader
                 content
+                    .padding(.top, 20)
             } else {
-                // Title and content share one `.id(stage)`/`.transition` so
-                // the heading and its body cross-fade together as a single
-                // coherent moment. An earlier version left `Text(stage.title)`
-                // outside the transition, so the heading snapped instantly
-                // while the content below eased in on its own clock, a small
-                // but real incoherence for a five-step sequence meant to read
-                // as one deliberate motion per step.
-                VStack(alignment: .leading, spacing: 32) {
+                VStack(alignment: .leading, spacing: 20) {
                     stageHeader
                     content
                 }
                 .id(stage)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
+                .transition(stageTransition)
             }
 
+            Spacer(minLength: 32)
+
             HStack {
+                if let previous = stage.previous {
+                    Button("Back") {
+                        go(to: previous, direction: .backward)
+                    }
+                    .buttonStyle(.tactile)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button(stage == .privacyConsent ? "Finish" : "Continue") {
                     advance()
@@ -45,22 +80,52 @@ struct OnboardingView: View {
             }
         }
         .padding(40)
-        .frame(maxWidth: 560, alignment: .leading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .textBackgroundColor))
+        .frame(maxWidth: 600, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.qaptrSurface)
     }
 
+    private enum StageDirection {
+        case forward
+        case backward
+    }
+
+    private var stageTransition: AnyTransition {
+        switch direction {
+        case .forward:
+            .asymmetric(
+                insertion: .opacity.combined(with: .move(edge: .trailing)),
+                removal: .opacity.combined(with: .move(edge: .leading))
+            )
+        case .backward:
+            .asymmetric(
+                insertion: .opacity.combined(with: .move(edge: .leading)),
+                removal: .opacity.combined(with: .move(edge: .trailing))
+            )
+        }
+    }
+
+    /// The stage title in the system serif design (New York), matching the
+    /// website's editorial serif "voice" so the heading has real
+    /// typographic presence instead of a flat system-sans label. The mono
+    /// step numeral behind it stays the "report" counterpart, matching the
+    /// two-voice contrast documented in docs/design/website.md.
+    ///
+    /// `Font.custom("New York", ...)` silently falls back to the system
+    /// sans face because "New York" is not the font's actual PostScript
+    /// name; the documented way to reach it from SwiftUI is
+    /// `Font.system(design: .serif)`, which resolves to New York on macOS.
     private var stageHeader: some View {
         Text(stage.title)
-            .font(.system(size: 26, weight: .semibold))
+            .font(.system(size: 34, weight: .semibold, design: .serif))
     }
 
-    /// Five thin hairline segments showing onboarding position, using the
-    /// same plain-shape-on-background visual language as the app's existing
-    /// `Divider()` boundaries. Current and passed stages read as `.primary`,
-    /// future stages fade to a very low opacity. No new state: position and
-    /// fill are derived directly from `OnboardingStage.allCases` and the
-    /// current `stage`'s `rawValue`.
+    /// Five thin hairline segments showing onboarding position. The current
+    /// stage is rendered in the single amber accent, earning its one use in
+    /// this surface for the one moment that represents real forward
+    /// momentum; passed stages read `.primary`, future stages fade to a very
+    /// low opacity. No new state: position and fill are derived directly
+    /// from `OnboardingStage.allCases` and the current `stage`'s `rawValue`.
     ///
     /// The individual capsules are decorative only (`.accessibilityHidden`);
     /// VoiceOver instead reads the whole indicator as a single "Step N of 5"
@@ -70,13 +135,23 @@ struct OnboardingView: View {
         HStack(spacing: 6) {
             ForEach(OnboardingStage.allCases, id: \.self) { candidate in
                 Capsule()
-                    .fill(.primary)
-                    .opacity(candidate.rawValue <= stage.rawValue ? 0.8 : 0.12)
-                    .frame(height: 2)
+                    .fill(fill(for: candidate))
+                    .frame(height: candidate == stage ? 3 : 2)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: stage)
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(stage.rawValue + 1) of \(OnboardingStage.allCases.count)")
+    }
+
+    private func fill(for candidate: OnboardingStage) -> AnyShapeStyle {
+        if candidate == stage {
+            AnyShapeStyle(Color(nsColor: .systemOrange))
+        } else if candidate.rawValue < stage.rawValue {
+            AnyShapeStyle(Color.primary.opacity(0.8))
+        } else {
+            AnyShapeStyle(Color.primary.opacity(0.12))
+        }
     }
 
     @ViewBuilder
@@ -158,14 +233,7 @@ struct OnboardingView: View {
             Text("Choose which AI provider prepares your observations. You can change this later in Settings.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
-            Picker("Provider", selection: providerBinding) {
-                Text("Not selected").tag(ProviderChoice?.none)
-                ForEach(ProviderChoice.allCases, id: \.self) { provider in
-                    Text(provider.displayName).tag(ProviderChoice?.some(provider))
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            ProviderChoiceList(selection: providerBinding)
         }
     }
 
@@ -191,20 +259,104 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        if reduceMotion {
-            advanceStage()
+        if let next = stage.next {
+            go(to: next, direction: .forward)
         } else {
-            withAnimation(.easeOut(duration: 0.22)) {
-                advanceStage()
-            }
+            model.completeOnboarding()
         }
     }
 
-    private func advanceStage() {
-        if let next = stage.next {
+    private func go(to next: OnboardingStage, direction newDirection: StageDirection) {
+        direction = newDirection
+        if reduceMotion {
             stage = next
         } else {
-            model.completeOnboarding()
+            withAnimation(.easeOut(duration: 0.22)) {
+                stage = next
+            }
+        }
+    }
+}
+
+/// A plain typographic row list replacing the bare system `Picker` for
+/// provider selection. The native menu-style picker renders as a small gray
+/// AppKit control that reads as a stray system widget dropped into an
+/// otherwise fully typographic layout; this list uses only text weight and
+/// the single amber accent to show selection, no chrome, no card background,
+/// matching the rest of the app's plain-shape-on-background language.
+private struct ProviderChoiceList: View {
+    @Binding var selection: ProviderChoice?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(ProviderChoice.allCases, id: \.self) { provider in
+                ProviderRow(provider: provider, isSelected: provider == selection) {
+                    selection = provider
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// One selectable provider row. Selection was previously an instant
+/// attribute snap (radio fill and text weight changed with no transition
+/// at all) with no feedback on hover or press, the one interactive list in
+/// the app that felt inert. This adds: a hover-tinted background wash, a
+/// spring-eased radio-dot scale-in on selection, an animated fill-color
+/// change instead of an instant snap, and the same tactile press-scale
+/// used elsewhere in the app, so choosing a provider reads as a real,
+/// felt action rather than a silent state mutation.
+private struct ProviderRow: View {
+    let provider: ProviderChoice
+    let isSelected: Bool
+    let select: () -> Void
+
+    @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: select) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? Color(nsColor: .systemOrange) : Color.primary.opacity(0.25),
+                            lineWidth: 1.5
+                        )
+                        .frame(width: 14, height: 14)
+                    Circle()
+                        .fill(Color(nsColor: .systemOrange))
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(isSelected ? 1 : 0.001)
+                        .opacity(isSelected ? 1 : 0)
+                }
+                .animation(reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.32, dampingFraction: 0.6), value: isSelected)
+
+                Text(provider.displayName)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .animation(.easeOut(duration: 0.16), value: isSelected)
+
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 6)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(isHovering ? 0.05 : 0))
+            )
+        }
+        .buttonStyle(.tactile)
+        .onHover { hovering in
+            if reduceMotion {
+                isHovering = hovering
+            } else {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isHovering = hovering
+                }
+            }
         }
     }
 }

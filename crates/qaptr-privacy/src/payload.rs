@@ -17,7 +17,8 @@ use crate::{CoverageProof, MaskedImage, RecallReport, SanitizedContext, Sensitiv
 ///
 /// Every instance was created by [`crate::PrivacyGate::prepare`]. Its context
 /// is sanitized, and its optional image is masked and backed by a verified
-/// coverage proof. The type never stores the original image.
+/// coverage proof plus a masked-output recognizer rerun. The type never stores
+/// the original image and does not claim to recover recognizer misses.
 ///
 /// ```compile_fail
 /// use qaptr_privacy::PreparedPayload;
