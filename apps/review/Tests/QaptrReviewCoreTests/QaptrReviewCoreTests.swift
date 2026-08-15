@@ -258,6 +258,15 @@ final class SettingsPreferencesTests: XCTestCase {
     }
 }
 
+final class ProviderChoiceTests: XCTestCase {
+    func testExposesExactlyTheFourSupportedProviderIdentifiers() {
+        XCTAssertEqual(
+            ProviderChoice.allCases.map(\.displayName),
+            ["OpenRouter", "Claude CLI", "Codex CLI", "Jcode CLI"]
+        )
+    }
+}
+
 final class OnboardingStageTests: XCTestCase {
     func testAdvancesThroughAllFiveStagesInOrder() {
         var stage: OnboardingStage? = .permissions
