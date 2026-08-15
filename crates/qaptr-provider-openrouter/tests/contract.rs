@@ -4,11 +4,15 @@ mod support;
 
 use std::rc::Rc;
 
-use qaptr_domain::ports::{
-    CredentialKey, CredentialPort, CredentialValue, PortOutcome, PortResult,
+use qaptr_domain::{
+    Duration,
+    ports::{CredentialKey, CredentialPort, CredentialValue, PortOutcome, PortResult},
 };
+use qaptr_policy::ModelId;
 use qaptr_provider::{ProviderError, ProviderGate, RuntimeFailureKind};
-use qaptr_provider_openrouter::{HttpResponse, HttpTransport, OpenRouterAdapter, TransportError};
+use qaptr_provider_openrouter::{
+    CatalogTransport, HttpResponse, HttpTransport, OpenRouterAdapter, TransportError,
+};
 
 #[derive(Debug)]
 struct FakeCredentials {
@@ -76,6 +80,17 @@ impl HttpTransport for FakeHttp {
     }
 }
 
+impl CatalogTransport for FakeHttp {
+    fn get_json(
+        &self,
+        _endpoint: &str,
+        _bearer_token: &str,
+    ) -> Result<HttpResponse, TransportError> {
+        self.calls.set(self.calls.get().saturating_add(1));
+        self.response.clone()
+    }
+}
+
 fn adapter(body: &str) -> OpenRouterAdapter<FakeCredentials, FakeHttp> {
     OpenRouterAdapter::new(
         FakeCredentials::configured("test-key"),
@@ -86,6 +101,54 @@ fn adapter(body: &str) -> OpenRouterAdapter<FakeCredentials, FakeHttp> {
 }
 
 const RESPONSE: &str = r#"{"observations":[{"title":"Observed","summary":"A repeated workflow","confidence":0.8}],"workflow":{"title":"Workflow","goal":"Repeat the steps"}}"#;
+
+const CATALOG_RESPONSE: &str = r#"{
+    "data": [
+        {"id": "provider/structured", "architecture": {
+            "input_modalities": ["text"], "output_modalities": ["text"]
+        }, "supported_parameters": ["structured_outputs"]},
+        {"id": "provider/unstructured", "architecture": {
+            "input_modalities": ["text"], "output_modalities": ["text"]
+        }, "supported_parameters": ["tools"]}
+    ]
+}"#;
+
+#[test]
+fn catalog_fetch_returns_only_capability_qualified_models() {
+    let adapter = adapter(CATALOG_RESPONSE);
+    let catalog = adapter
+        .fetch_catalog(std::time::UNIX_EPOCH, Duration::from_secs(900))
+        .expect("compatible catalog fixture should validate");
+
+    assert_eq!(
+        catalog
+            .validated()
+            .iter()
+            .map(ModelId::as_str)
+            .collect::<Vec<_>>(),
+        ["provider/structured"]
+    );
+    assert_eq!(catalog.fetched_at(), std::time::UNIX_EPOCH);
+}
+
+#[test]
+fn catalog_fetch_rejects_malformed_and_unstructured_entries() {
+    let adapter = adapter(
+        r#"{"data":[null,{},
+            {"id":"unstructured","architecture":{"input_modalities":["text"],"output_modalities":["text"]},"supported_parameters":["tools"]}
+        ]}"#,
+    );
+
+    let error = adapter
+        .fetch_catalog(std::time::UNIX_EPOCH, Duration::from_secs(900))
+        .expect_err("catalog without a compatible model must fail closed");
+    assert!(matches!(
+        error,
+        qaptr_provider_openrouter::OpenRouterCatalogError::Parse(
+            qaptr_provider_openrouter::CatalogParseError::NoCompatibleModels
+        )
+    ));
+}
 
 #[test]
 fn gate_routes_openrouter_to_the_shared_normalized_shape() {

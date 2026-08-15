@@ -1164,6 +1164,7 @@ name = "qaptr-provider-openrouter"
 version = "0.1.0"
 dependencies = [
  "qaptr-domain",
+ "qaptr-policy",
  "qaptr-privacy",
  "qaptr-provider",
  "serde_json",

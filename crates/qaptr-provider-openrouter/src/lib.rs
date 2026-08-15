@@ -13,11 +13,22 @@
 //!   never stored in the adapter or serialized into diagnostics.
 //! * HTTP failures and malformed JSON are returned as typed provider failures.
 
+mod catalog;
 mod client;
 
-pub use client::{HttpResponse, HttpTransport, OpenRouterHttpClient, TransportError};
+pub use catalog::{CATALOG_ENDPOINT, CatalogParseError, MAX_CATALOG_MODELS, parse_catalog};
+pub use client::{
+    CatalogTransport, HttpResponse, HttpTransport, MAX_RESPONSE_BYTES, OpenRouterHttpClient,
+    TransportError,
+};
 
-use qaptr_domain::ports::{CredentialKey, CredentialPort, PortOutcome};
+use std::time::SystemTime;
+
+use qaptr_domain::{
+    Duration,
+    ports::{CredentialKey, CredentialPort, PortOutcome},
+};
+use qaptr_policy::ModelCatalog;
 use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, CapabilityDescriptor, ProviderAdapter,
     ProviderDescriptor, ProviderDetection, ProviderEndpoint, ProviderError, ProviderId,
@@ -42,6 +53,26 @@ pub enum OpenRouterConfigError {
     /// The credential port rejected the fixed logical key.
     #[error("invalid OpenRouter credential key: {0}")]
     CredentialKey(#[source] qaptr_domain::DomainError),
+}
+
+/// Errors returned while fetching or validating the OpenRouter model catalog.
+#[derive(Debug, Error)]
+pub enum OpenRouterCatalogError {
+    /// The credential port or provider readiness check failed.
+    #[error("OpenRouter catalog authentication failed: {0}")]
+    Provider(#[from] ProviderError),
+    /// The catalog transport failed without retaining its response body.
+    #[error("OpenRouter catalog transport failed: {0}")]
+    Transport(#[from] TransportError),
+    /// OpenRouter rate-limited the catalog request.
+    #[error("OpenRouter catalog request was rate limited")]
+    RateLimited,
+    /// OpenRouter returned a non-success status other than rate limiting.
+    #[error("OpenRouter catalog request returned an unsuccessful status")]
+    HttpStatus,
+    /// The response did not contain a safe compatible model set.
+    #[error("OpenRouter catalog response was rejected: {0}")]
+    Parse(#[from] CatalogParseError),
 }
 
 /// A credential-port-backed OpenRouter adapter.
@@ -109,6 +140,33 @@ impl<C, H> OpenRouterAdapter<C, H> {
     /// Returns the configured model name.
     pub fn model(&self) -> &str {
         &self.model
+    }
+
+    /// Fetches a transient, validated model catalog snapshot.
+    ///
+    /// The credential is read only for this call. The returned snapshot holds
+    /// only validated model identifiers and freshness metadata; it retains no
+    /// key, endpoint response, or provider payload.
+    pub fn fetch_catalog(
+        &self,
+        fetched_at: SystemTime,
+        freshness_window: Duration,
+    ) -> Result<ModelCatalog, OpenRouterCatalogError>
+    where
+        C: CredentialPort,
+        H: CatalogTransport,
+    {
+        let provider = self.descriptor.id().clone();
+        let key = self.read_key(&provider, RuntimeFailureKind::Detection)?;
+        let response = self.client.get_json(CATALOG_ENDPOINT, &key)?;
+        if response.status == 429 {
+            return Err(OpenRouterCatalogError::RateLimited);
+        }
+        if !(200..300).contains(&response.status) {
+            return Err(OpenRouterCatalogError::HttpStatus);
+        }
+        let validated = parse_catalog(&response.body)?;
+        Ok(ModelCatalog::new(validated, fetched_at, freshness_window))
     }
 
     fn read_key(

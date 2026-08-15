@@ -4,6 +4,9 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+/// Maximum response body retained by the OpenRouter transport.
+pub const MAX_RESPONSE_BYTES: u64 = 512 * 1024;
+
 /// A bounded HTTP response body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HttpResponse {
@@ -40,6 +43,13 @@ pub trait HttpTransport {
     ) -> Result<HttpResponse, TransportError>;
 }
 
+/// The minimal catalog operation required by the OpenRouter configuration
+/// path.
+pub trait CatalogTransport {
+    /// Sends one authenticated JSON GET and returns the bounded response body.
+    fn get_json(&self, endpoint: &str, bearer_token: &str) -> Result<HttpResponse, TransportError>;
+}
+
 /// Production OpenRouter transport backed by ureq and rustls.
 #[derive(Clone, Debug)]
 pub struct OpenRouterHttpClient {
@@ -74,6 +84,31 @@ impl HttpTransport for OpenRouterHttpClient {
         let status = response.status();
         let body = response
             .into_body()
+            .with_config()
+            .limit(MAX_RESPONSE_BYTES)
+            .read_to_string()
+            .map_err(|_| TransportError::Network)?;
+        Ok(HttpResponse {
+            status: status.into(),
+            body,
+        })
+    }
+}
+
+impl CatalogTransport for OpenRouterHttpClient {
+    fn get_json(&self, endpoint: &str, bearer_token: &str) -> Result<HttpResponse, TransportError> {
+        let response = self
+            .agent
+            .get(endpoint)
+            .header("Authorization", format!("Bearer {bearer_token}"))
+            .header("Accept", "application/json")
+            .call()
+            .map_err(|_| TransportError::Network)?;
+        let status = response.status();
+        let body = response
+            .into_body()
+            .with_config()
+            .limit(MAX_RESPONSE_BYTES)
             .read_to_string()
             .map_err(|_| TransportError::Network)?;
         Ok(HttpResponse {

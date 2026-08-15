@@ -8,6 +8,7 @@ description = "OpenRouter provider adapter for Qaptr"
 
 [dependencies]
 qaptr-domain.workspace = true
+qaptr-policy = { path = "../qaptr-policy" }
 qaptr-provider = { path = "../qaptr-provider" }
 serde_json.workspace = true
 thiserror.workspace = true
