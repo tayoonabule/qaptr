@@ -81,7 +81,7 @@
 - [x] Confirm the store rejects encoded-image-looking scalar text at every new writer boundary. Capture, observation, workflow, and notice writer coverage rejects PNG-like encoded strings while accepting legitimate scalar text (`d7d3f4d`; `cargo test -p qaptr-store` passes 21 tests).
 - [ ] Extend the bridge with coarse operations only: start, progress, grant/decline consent, cancel, retry, observation detail, workflow generation, and export.
 - [x] Do not mirror vault, privacy, provider, or raw domain models across the C/Swift bridge. The current C ABI exposes opaque store handles and bounded JSON snapshots/status only, while Swift decodes local DTOs; its contract tests exercise JSON shape rather than sharing Rust domain objects (`6186047`; `swift test --package-path apps/review` passes 65 tests).
-- [ ] Add bridge contract tests for output shape, errors, no-image invariant, and restart persistence.
+- [x] Add bridge contract tests for output shape, errors, no-image invariant, and restart persistence. The FFI suite validates UTF-8 JSON snapshot shape and status, invalid-input/last-error paths, excludes the stored vault record identifier from bridge JSON, and reopens the opaque handle before asserting scalar history survives (`qaptr-review-ffi` 12 tests pass with targeted clippy).
 
 ### 2.4 Vertical-slice acceptance tests
 - [x] Make the 24-capture fixture run through the production-shaped coordinator using a fake provider behind the real adapter/gate boundary. The coordinator integration test seals 24 real vault bundles, runs the real privacy gate and shared provider gate, and uses a fake provider only at the adapter endpoint (`de99c29`; `cargo test -p qaptr-workflow --test session` passes).

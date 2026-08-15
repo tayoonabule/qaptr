@@ -374,6 +374,10 @@ mod tests {
         let json_text =
             std::str::from_utf8(&output[..required - 1]).expect("snapshot JSON is UTF-8");
         let value: Value = serde_json::from_str(json_text).expect("snapshot JSON parses");
+        assert!(
+            !json_text.contains("generation-1/capture-1"),
+            "the review bridge must not expose vault record identifiers"
+        );
 
         let observations = value["observations"]
             .as_array()
