@@ -86,7 +86,7 @@
 ### 2.4 Vertical-slice acceptance tests
 - [ ] Make the 24-capture fixture run through the production-shaped coordinator using a fake provider behind the real adapter/gate boundary.
 - [ ] Assert all local preparation finishes before the fake provider sees a request.
-- [ ] Assert declined consent causes no fake-provider calls.
+- [x] Assert declined consent causes no fake-provider calls. The production-shaped `ReviewSessionCoordinator` integration test seals a real fixture bundle, runs local preparation, records consent, and asserts zero provider invocations after a decline (`6a5592c`; `cargo test -p qaptr-workflow --test session` passes).
 - [ ] Assert one excluded capture creates exactly one aggregate notice without suppressing observations from safe captures.
 - [ ] Assert malformed/failed provider responses produce no partial observation/workflow rows.
 - [ ] Assert a successful fixture run is visible through the same review-app snapshot API as the actual app.
@@ -109,7 +109,7 @@
 - [ ] Do not fetch the catalog merely from provider/model selection UI; model availability validation must be consent-safe and distinctly disclosed.
 
 ### 3.3 CLI provider strategy
-- [ ] Keep the supported provider list limited to OpenRouter, Claude CLI, Codex CLI, and Jcode CLI.
+- [x] Keep the supported provider list limited to OpenRouter, Claude CLI, Codex CLI, and Jcode CLI. `ProviderChoice` is an exact closed enum and its isolated review-core contract test locks the four presentation identifiers (`7fe77b8`; `QaptrReviewCoreTests` target builds cleanly).
 - [ ] Derive CLI availability from each adapter’s supported detection/authentication capability check.
 - [ ] Do not expose detected-but-unusable CLI providers as selectable.
 - [ ] Resolve a CLI’s documented default model unless a supported explicit override exists.
