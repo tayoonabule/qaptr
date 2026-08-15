@@ -9,10 +9,10 @@ pub use components::{
 };
 pub use errors::{Result, WorkflowError};
 
-use qaptr_domain::{CaptureId, SessionId, WorkflowId};
+use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
 use qaptr_provider::NormalizedWorkflow;
 use qaptr_store::{ObservationRecord, UnixMillis, WorkflowRecord};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use components::{optional_text, required_text};
 
@@ -130,9 +130,10 @@ impl WorkflowDocument {
 
     /// Converts this document to the scalar record used by `qaptr-store`.
     ///
-    /// Structured fields are encoded as deterministic JSON text inside the
-    /// existing scalar columns. The store still sees only validated text, and
-    /// no capture bytes, thumbnails, or privacy payloads can cross this API.
+    /// Structured fields are encoded as deterministic, versioned JSON text in
+    /// the existing `sequence` scalar column. The store still sees only
+    /// validated text, and no capture bytes, thumbnails, or privacy payloads
+    /// can cross this API.
     pub fn to_record(&self, created_at: UnixMillis) -> Result<WorkflowRecord> {
         let session_id = self
             .provenance
@@ -147,20 +148,6 @@ impl WorkflowDocument {
                     "name": tool.name,
                     "purpose": tool.purpose,
                     "observed_usage": tool.observed_usage,
-                })
-            })
-            .collect::<Vec<_>>();
-        let steps = self
-            .steps
-            .iter()
-            .map(|step| {
-                json!({
-                    "name": step.name,
-                    "action": step.action,
-                    "rationale": step.rationale,
-                    "tools": step.tools,
-                    "inputs": step.inputs,
-                    "outputs": step.outputs,
                 })
             })
             .collect::<Vec<_>>();
@@ -203,20 +190,8 @@ impl WorkflowDocument {
             context: self.context.clone().unwrap_or_default(),
             tools: serde_json::to_string(&tools)
                 .map_err(|_| WorkflowError::InvalidStoredField { field: "tools" })?,
-            sequence: serde_json::to_string(&json!({
-                "inputs": self.inputs.iter().map(|input| json!({
-                    "name": input.name,
-                    "description": input.description,
-                    "required": input.required,
-                })).collect::<Vec<_>>(),
-                "outputs": self.outputs.iter().map(|output| json!({
-                    "name": output.name,
-                    "description": output.description,
-                    "required": output.required,
-                })).collect::<Vec<_>>(),
-                "steps": steps,
-            }))
-            .map_err(|_| WorkflowError::InvalidStoredField { field: "sequence" })?,
+            sequence: serde_json::to_string(&document_value(self))
+                .map_err(|_| WorkflowError::InvalidStoredField { field: "sequence" })?,
             decisions: serde_json::to_string(&decisions)
                 .map_err(|_| WorkflowError::InvalidStoredField { field: "decisions" })?,
             variations: serde_json::to_string(&variations).map_err(|_| {
@@ -229,10 +204,414 @@ impl WorkflowDocument {
         })
     }
 
+    /// Restores a document only from the versioned lossless scalar payload.
+    ///
+    /// Legacy workflow rows intentionally return an error. Their scalar
+    /// projections do not contain enough information to reconstruct nested
+    /// confidence or provenance without inventing details.
+    pub fn from_record(record: &WorkflowRecord) -> Result<Self> {
+        let value: Value = serde_json::from_str(&record.sequence)
+            .map_err(|_| WorkflowError::InvalidStoredField { field: "sequence" })?;
+        let object = value
+            .as_object()
+            .ok_or(WorkflowError::InvalidStoredField { field: "sequence" })?;
+        if object.get("format") != Some(&json!(DOCUMENT_FORMAT))
+            || object.get("version") != Some(&json!(DOCUMENT_VERSION))
+        {
+            return Err(WorkflowError::InvalidStoredField { field: "sequence" });
+        }
+
+        let id = WorkflowId::new(required_string(object, "id")?)?;
+        let title = required_string(object, "title")?;
+        let goal = optional_string(object, "goal")?;
+        let context = optional_string(object, "context")?;
+        let inputs = parse_artifacts(object, "inputs")?;
+        let outputs = parse_artifacts(object, "outputs")?;
+        let tools = parse_tools(object)?;
+        let steps = parse_steps(object)?;
+        let decisions = parse_decisions(object)?;
+        let variations = parse_variations(object)?;
+        let confidence = parse_confidence(required_value(object, "confidence")?, "confidence")?;
+        let provenance = parse_provenance(required_value(object, "provenance")?)?;
+
+        let mut builder = Self::builder(id, title);
+        if let Some(goal) = goal {
+            builder = builder.goal(goal);
+        }
+        if let Some(context) = context {
+            builder = builder.context(context);
+        }
+        for input in inputs {
+            builder = builder.input(input);
+        }
+        for output in outputs {
+            builder = builder.output(output);
+        }
+        for tool in tools {
+            builder = builder.tool(tool);
+        }
+        for step in steps {
+            builder = builder.step(step);
+        }
+        for decision in decisions {
+            builder = builder.decision(decision);
+        }
+        for variation in variations {
+            builder = builder.variation(variation);
+        }
+        let document = builder
+            .confidence(confidence)
+            .provenance(provenance)
+            .build()?;
+
+        if document.id != record.id
+            || document.title != record.title
+            || document.goal.as_deref().unwrap_or_default() != record.goal
+            || document.context.as_deref().unwrap_or_default() != record.context
+            || document.confidence.score().map_or(0.0, Confidence::as_f32)
+                != record.evidence_confidence.as_f32()
+        {
+            return Err(WorkflowError::InvalidStoredField { field: "sequence" });
+        }
+        if document.provenance.session_id.as_ref() != Some(&record.session_id) {
+            return Err(WorkflowError::InvalidStoredField { field: "sequence" });
+        }
+        Ok(document)
+    }
+
     /// Returns whether the document has no observed sequence.
     pub fn has_no_sequence(&self) -> bool {
         self.steps.is_empty()
     }
+}
+
+const DOCUMENT_FORMAT: &str = "qaptr.workflow.document";
+const DOCUMENT_VERSION: u64 = 1;
+
+fn document_value(document: &WorkflowDocument) -> Value {
+    json!({
+        "format": DOCUMENT_FORMAT,
+        "version": DOCUMENT_VERSION,
+        "id": document.id.as_str(),
+        "title": document.title,
+        "goal": document.goal,
+        "context": document.context,
+        "inputs": document.inputs.iter().map(artifact_value).collect::<Vec<_>>(),
+        "outputs": document.outputs.iter().map(artifact_value).collect::<Vec<_>>(),
+        "tools": document.tools.iter().map(tool_value).collect::<Vec<_>>(),
+        "steps": document.steps.iter().map(step_value).collect::<Vec<_>>(),
+        "decision_points": document.decision_points.iter().map(decision_value).collect::<Vec<_>>(),
+        "variations": document.variations.iter().map(variation_value).collect::<Vec<_>>(),
+        "confidence": confidence_value(&document.confidence),
+        "provenance": provenance_value(&document.provenance),
+    })
+}
+
+fn artifact_value(artifact: &Artifact) -> Value {
+    json!({
+        "name": artifact.name,
+        "description": artifact.description,
+        "required": artifact.required,
+        "confidence": confidence_value(&artifact.confidence),
+        "provenance": provenance_value(&artifact.provenance),
+    })
+}
+
+fn tool_value(tool: &ToolObserved) -> Value {
+    json!({
+        "name": tool.name,
+        "purpose": tool.purpose,
+        "observed_usage": tool.observed_usage,
+        "confidence": confidence_value(&tool.confidence),
+        "provenance": provenance_value(&tool.provenance),
+    })
+}
+
+fn step_value(step: &WorkflowStep) -> Value {
+    json!({
+        "name": step.name,
+        "action": step.action,
+        "rationale": step.rationale,
+        "tools": step.tools,
+        "inputs": step.inputs,
+        "outputs": step.outputs,
+        "confidence": confidence_value(&step.confidence),
+        "provenance": provenance_value(&step.provenance),
+    })
+}
+
+fn decision_value(decision: &DecisionPoint) -> Value {
+    json!({
+        "question": decision.question,
+        "observed_answer": decision.observed_answer,
+        "alternatives": decision.alternatives.iter().map(|alternative| json!({
+            "condition": alternative.condition,
+            "outcome": alternative.outcome,
+        })).collect::<Vec<_>>(),
+        "confidence": confidence_value(&decision.confidence),
+        "provenance": provenance_value(&decision.provenance),
+    })
+}
+
+fn variation_value(variation: &WorkflowVariation) -> Value {
+    json!({
+        "name": variation.name,
+        "when": variation.when,
+        "difference": variation.difference,
+        "confidence": confidence_value(&variation.confidence),
+        "provenance": provenance_value(&variation.provenance),
+    })
+}
+
+fn confidence_value(assessment: &ConfidenceAssessment) -> Value {
+    json!({
+        "score": assessment.score().map(Confidence::as_f32),
+        "basis": assessment.basis(),
+    })
+}
+
+fn provenance_value(provenance: &Provenance) -> Value {
+    json!({
+        "session_id": provenance.session_id.as_ref().map(ToString::to_string),
+        "observation_ids": provenance.observation_ids.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        "capture_ids": provenance.capture_ids.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        "note": provenance.note,
+    })
+}
+
+fn required_value<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    field: &'static str,
+) -> Result<&'a Value> {
+    object
+        .get(field)
+        .ok_or(WorkflowError::InvalidStoredField { field })
+}
+
+fn required_string(object: &serde_json::Map<String, Value>, field: &'static str) -> Result<String> {
+    required_value(object, field)?
+        .as_str()
+        .map(str::to_owned)
+        .ok_or(WorkflowError::InvalidStoredField { field })
+}
+
+fn optional_string(
+    object: &serde_json::Map<String, Value>,
+    field: &'static str,
+) -> Result<Option<String>> {
+    match required_value(object, field)? {
+        Value::Null => Ok(None),
+        Value::String(value) => Ok(Some(value.clone())),
+        _ => Err(WorkflowError::InvalidStoredField { field }),
+    }
+}
+
+fn required_array<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    field: &'static str,
+) -> Result<&'a Vec<Value>> {
+    required_value(object, field)?
+        .as_array()
+        .ok_or(WorkflowError::InvalidStoredField { field })
+}
+
+fn required_object<'a>(
+    value: &'a Value,
+    field: &'static str,
+) -> Result<&'a serde_json::Map<String, Value>> {
+    value
+        .as_object()
+        .ok_or(WorkflowError::InvalidStoredField { field })
+}
+
+fn parse_confidence(value: &Value, field: &'static str) -> Result<ConfidenceAssessment> {
+    let object = required_object(value, field)?;
+    let score = match required_value(object, "score")? {
+        Value::Null => None,
+        value => Some(
+            value
+                .as_f64()
+                .and_then(|value| Confidence::new(value as f32).ok())
+                .ok_or(WorkflowError::InvalidStoredField { field })?,
+        ),
+    };
+    let basis = optional_string(object, "basis")?;
+    let assessment = match score {
+        Some(score) => ConfidenceAssessment::scored(score),
+        None => ConfidenceAssessment::unknown(),
+    };
+    Ok(match basis {
+        Some(basis) => assessment.with_basis(basis),
+        None => assessment,
+    })
+}
+
+fn parse_provenance(value: &Value) -> Result<Provenance> {
+    let object = required_object(value, "provenance")?;
+    let session_id = optional_string(object, "session_id")?
+        .map(SessionId::new)
+        .transpose()?;
+    let observation_ids = required_array(object, "observation_ids")?
+        .iter()
+        .map(|value| {
+            let value = value.as_str().ok_or(WorkflowError::InvalidStoredField {
+                field: "observation_ids",
+            })?;
+            Ok(ObservationId::new(value)?)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let capture_ids = required_array(object, "capture_ids")?
+        .iter()
+        .map(|value| {
+            let value = value.as_str().ok_or(WorkflowError::InvalidStoredField {
+                field: "capture_ids",
+            })?;
+            Ok(CaptureId::new(value)?)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(Provenance {
+        session_id,
+        observation_ids,
+        capture_ids,
+        note: optional_string(object, "note")?,
+    })
+}
+
+fn parse_artifacts(
+    object: &serde_json::Map<String, Value>,
+    field: &'static str,
+) -> Result<Vec<Artifact>> {
+    required_array(object, field)?
+        .iter()
+        .map(|value| {
+            let object = required_object(value, field)?;
+            let mut artifact = Artifact::new(required_string(object, "name")?)?;
+            if !required_value(object, "required")?
+                .as_bool()
+                .ok_or(WorkflowError::InvalidStoredField { field })?
+            {
+                artifact = artifact.optional();
+            }
+            if let Some(description) = optional_string(object, "description")? {
+                artifact = artifact.with_description(description);
+            }
+            Ok(artifact
+                .with_confidence(parse_confidence(
+                    required_value(object, "confidence")?,
+                    field,
+                )?)
+                .with_provenance(parse_provenance(required_value(object, "provenance")?)?))
+        })
+        .collect()
+}
+
+fn parse_tools(object: &serde_json::Map<String, Value>) -> Result<Vec<ToolObserved>> {
+    required_array(object, "tools")?
+        .iter()
+        .map(|value| {
+            let object = required_object(value, "tools")?;
+            let mut tool = ToolObserved::new(required_string(object, "name")?)?;
+            if let Some(purpose) = optional_string(object, "purpose")? {
+                tool = tool.with_purpose(purpose);
+            }
+            if let Some(usage) = optional_string(object, "observed_usage")? {
+                tool = tool.with_observed_usage(usage);
+            }
+            Ok(tool
+                .with_confidence(parse_confidence(
+                    required_value(object, "confidence")?,
+                    "tools",
+                )?)
+                .with_provenance(parse_provenance(required_value(object, "provenance")?)?))
+        })
+        .collect()
+}
+
+fn parse_steps(object: &serde_json::Map<String, Value>) -> Result<Vec<WorkflowStep>> {
+    required_array(object, "steps")?
+        .iter()
+        .map(|value| {
+            let object = required_object(value, "steps")?;
+            let mut step = WorkflowStep::new(
+                required_string(object, "name")?,
+                required_string(object, "action")?,
+            )?;
+            if let Some(rationale) = optional_string(object, "rationale")? {
+                step = step.with_rationale(rationale);
+            }
+            for tool in required_array(object, "tools")? {
+                step = step.using_tool(
+                    tool.as_str()
+                        .ok_or(WorkflowError::InvalidStoredField { field: "steps" })?,
+                );
+            }
+            for input in required_array(object, "inputs")? {
+                step = step.consuming(
+                    input
+                        .as_str()
+                        .ok_or(WorkflowError::InvalidStoredField { field: "steps" })?,
+                );
+            }
+            for output in required_array(object, "outputs")? {
+                step = step.producing(
+                    output
+                        .as_str()
+                        .ok_or(WorkflowError::InvalidStoredField { field: "steps" })?,
+                );
+            }
+            Ok(step
+                .with_confidence(parse_confidence(
+                    required_value(object, "confidence")?,
+                    "steps",
+                )?)
+                .with_provenance(parse_provenance(required_value(object, "provenance")?)?))
+        })
+        .collect()
+}
+
+fn parse_decisions(object: &serde_json::Map<String, Value>) -> Result<Vec<DecisionPoint>> {
+    required_array(object, "decision_points")?
+        .iter()
+        .map(|value| {
+            let object = required_object(value, "decision_points")?;
+            let mut decision = DecisionPoint::new(required_string(object, "question")?)?;
+            if let Some(answer) = optional_string(object, "observed_answer")? {
+                decision = decision.with_answer(answer);
+            }
+            for value in required_array(object, "alternatives")? {
+                let alternative = required_object(value, "alternatives")?;
+                decision = decision.with_alternative(DecisionAlternative::new(
+                    required_string(alternative, "condition")?,
+                    required_string(alternative, "outcome")?,
+                )?);
+            }
+            Ok(decision
+                .with_confidence(parse_confidence(
+                    required_value(object, "confidence")?,
+                    "decision_points",
+                )?)
+                .with_provenance(parse_provenance(required_value(object, "provenance")?)?))
+        })
+        .collect()
+}
+
+fn parse_variations(object: &serde_json::Map<String, Value>) -> Result<Vec<WorkflowVariation>> {
+    required_array(object, "variations")?
+        .iter()
+        .map(|value| {
+            let object = required_object(value, "variations")?;
+            Ok(WorkflowVariation::new(
+                required_string(object, "name")?,
+                required_string(object, "when")?,
+                required_string(object, "difference")?,
+            )?
+            .with_confidence(parse_confidence(
+                required_value(object, "confidence")?,
+                "variations",
+            )?)
+            .with_provenance(parse_provenance(required_value(object, "provenance")?)?))
+        })
+        .collect()
 }
 
 /// A builder for a validated canonical Workflow document.

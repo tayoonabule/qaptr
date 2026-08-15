@@ -5,8 +5,8 @@ use qaptr_provider::{RawObservation, RawProviderResponse, RawWorkflow, normalize
 use qaptr_store::{ObservationRecord, UnixMillis};
 use qaptr_workflow::{
     Artifact, ConfidenceAssessment, DecisionAlternative, DecisionPoint, Provenance, ToolObserved,
-    WorkflowDocument, WorkflowStep, WorkflowVariation, render_automation, render_handoff,
-    render_onboarding, render_sop,
+    WorkflowDocument, WorkflowError, WorkflowStep, WorkflowVariation, render_automation,
+    render_handoff, render_onboarding, render_sop,
 };
 
 fn fixture() -> WorkflowDocument {
@@ -240,6 +240,34 @@ fn observation_generation_is_stable_and_keeps_missing_sequence_visible() {
     assert_eq!(record.id.as_str(), first.id.as_str());
     assert!(record.sequence.contains("\"steps\":[]"));
     assert!(render_sop(&first).contains("No procedure steps were captured"));
+}
+
+#[test]
+fn versioned_scalar_record_round_trips_the_complete_document() {
+    let original = fixture();
+    let record = original
+        .to_record(UnixMillis::from_millis(43))
+        .expect("scalar workflow record");
+
+    let restored = WorkflowDocument::from_record(&record).expect("lossless workflow record");
+
+    assert_eq!(restored, original);
+    assert!(record.sequence.contains("qaptr.workflow.document"));
+    assert!(record.sequence.contains("\"version\":1"));
+}
+
+#[test]
+fn legacy_scalar_projection_is_not_decoded_as_a_complete_document() {
+    let original = fixture();
+    let mut record = original
+        .to_record(UnixMillis::from_millis(43))
+        .expect("scalar workflow record");
+    record.sequence = r#"{"inputs":[],"outputs":[],"steps":[]}"#.to_owned();
+
+    assert!(matches!(
+        WorkflowDocument::from_record(&record),
+        Err(WorkflowError::InvalidStoredField { field: "sequence" })
+    ));
 }
 
 #[test]
