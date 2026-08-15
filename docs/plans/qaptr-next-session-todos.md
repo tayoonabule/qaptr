@@ -50,7 +50,7 @@
 - [x] Add unit tests for absent, corrupt, stale, denied, no-display, disk-failure, waiting, and successful progress files.
 
 ### 1.3 Test and package the boundary
-- [ ] Add deterministic helper tests covering every `CaptureEvent` → persisted status mapping.
+- [x] Add deterministic helper tests covering every `CaptureEvent` → persisted status mapping. `CaptureCoreTests` covers sealed, refused overlap, skipped permission, skipped no displays, skipped sealing, and generic skipped outcomes (`3300ff4`; `swift test --package-path apps/helper` passes 18 tests).
 - [x] Add review-core decoding/UI-model tests covering every visible capture state.
 - [ ] Add a fixture ingestion mode that creates scalar status plus sealed bundles without exposing image material to the test UI.
 - [x] Verify the helper remains free of OCR and provider imports/calls after the change.

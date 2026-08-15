@@ -19,6 +19,7 @@ This report records only checklist items that are fully supported by code or tes
 | 1.2 status decoding/state tests | `CaptureProgressSnapshotTests` covers absent, malformed, stale process, denied permission, no displays, disk failure text, waiting, capturing, and successful ready states (`apps/review/Tests/QaptrReviewCoreTests/CaptureProgressTests.swift:23-166`). |
 | 1.3 every visible capture state has review-core tests | The same test suite exercises every `CaptureReadiness` case and the forward-compatible v1 field decoder (`CaptureProgressTests.swift:60-166`). |
 | 1.3 helper has no OCR/provider integration | A source scan of `apps/helper` found no OCR, provider, `qaptr-provider`, or `qaptr-privacy` import/call. The helper remains limited to capture/sealing/status responsibilities. |
+| 1.3 every `CaptureEvent` persisted status mapping | `CaptureCoreTests` deterministically covers sealed, refused overlap, skipped permission, skipped no displays, skipped sealing, and generic skipped outcomes, asserting the resulting scalar progress state/count/reason (`apps/helper/Tests/QaptrHelperTests/CaptureCoreTests.swift`; `3300ff4`). `swift test --package-path apps/helper` passed all 18 tests. |
 | 2.2 declined consent invokes no provider | `declined_consent_keeps_preparation_local` asserts one explicit consent request, zero provider invocations, and zero durable observations (`crates/qaptr-workflow/tests/analyze.rs:512-533`). |
 | 3.1 typed versioned model policy | `ModelPolicy`, `PolicyVersion::CURRENT`, ordered fallbacks, explicit override resolution, and pure clock-based catalog freshness validation are implemented (`crates/qaptr-policy/src/model_policy.rs`) and covered by version, fallback-order, unavailable-override, CLI-default, malformed catalog, and stale catalog tests. |
 | 2.3 honest review-session bridge status | `qaptr_review_status_json` reports store/history counts and explicitly reports provider analysis as unavailable rather than inventing a live session (`crates/qaptr-review-ffi/src/lib.rs`), covered by its focused FFI contract test. |
@@ -32,7 +33,7 @@ This report records only checklist items that are fully supported by code or tes
 
 ## Deliberately left open
 
-The audit did not close items requiring unknown-enum-state decoding, exhaustive `CaptureEvent` mapping tests, selected-display controls, app wiring for `ReviewSessionCoordinator`, model catalog transport, request-boundary model revalidation, app-owned export/save flows, real hardware/permission/credential evidence, signing, or soak/performance runs.
+The audit did not close items requiring unknown-enum-state decoding, selected-display controls, app wiring for `ReviewSessionCoordinator`, model catalog transport, request-boundary model revalidation, app-owned export/save flows, real hardware/permission/credential evidence, signing, or soak/performance runs.
 
 ## Final validation at audited HEAD
 
