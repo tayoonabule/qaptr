@@ -131,41 +131,69 @@ struct SettingsView: View {
                     .foregroundStyle(Color.qaptrInkSoft)
             }
             ForEach(ProviderChoice.allCases, id: \.self) { provider in
-                Button {
-                    model.connectProvider(provider)
-                    if provider == .openRouter { showsProviderSetup = true }
-                } label: {
-                    HStack {
-                        Text(provider.displayName)
-                            .font(QaptrType.body(14.5))
-                            .foregroundStyle(Color.qaptrInk)
-                        Spacer()
-                        if model.settings.provider == provider {
-                            Text(model.providerConnection.title)
-                                .font(QaptrType.meta(10.5))
-                                .foregroundStyle(Color.qaptrAccent)
+                HStack(spacing: QaptrSpace.xs) {
+                    Button {
+                        // `connectProvider` only requests the setup sheet
+                        // itself when OpenRouter is selected and still needs
+                        // a key -- clicking an already-saved-key row must
+                        // not reopen it.
+                        model.connectProvider(provider)
+                        if model.providerSetupRequest == .openRouter { showsProviderSetup = true }
+                    } label: {
+                        HStack {
+                            Text(provider.displayName)
+                                .font(QaptrType.body(14.5))
+                                .foregroundStyle(Color.qaptrInk)
+                            Spacer()
+                            if model.settings.provider == provider {
+                                Text(model.providerConnection.title)
+                                    .font(QaptrType.meta(10.5))
+                                    .foregroundStyle(Color.qaptrAccent)
+                            }
                         }
+                        .padding(.horizontal, QaptrSpace.sm)
+                        .padding(.vertical, QaptrSpace.sm)
+                        .background(model.settings.provider == provider ? Color.qaptrAccentTint : Color.clear, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, QaptrSpace.sm)
-                    .padding(.vertical, QaptrSpace.sm)
-                    .background(
-                        model.settings.provider == provider ? Color.qaptrAccentTint : Color.clear,
-                        in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-                    )
-                    .contentShape(Rectangle())
+                    .buttonStyle(.tactile)
+                    .accessibilityAddTraits(model.settings.provider == provider ? .isSelected : [])
+                    .accessibilityLabel(provider.displayName)
+                    .accessibilityValue(model.settings.provider == provider ? model.providerConnection.title : "Not selected")
+
+                    if provider == .openRouter && model.settings.provider == provider && showsOpenRouterChangeKeyAction {
+                        Button("Change key") {
+                            model.openProviderSetup()
+                            showsProviderSetup = true
+                        }
+                        .buttonStyle(.qaptrOutline)
+                        .accessibilityLabel("Change OpenRouter key")
+                    }
                 }
-                .buttonStyle(.tactile)
-                .accessibilityAddTraits(model.settings.provider == provider ? .isSelected : [])
-                .accessibilityLabel(provider.displayName)
-                .accessibilityValue(
-                    model.settings.provider == provider
-                        ? model.providerConnection.title
-                        : "Not selected"
-                )
             }
             if showsOpenRouterKeyNotice {
                 OpenRouterKeyReadinessNotice(action: { showsProviderSetup = true })
             }
+        }
+    }
+
+    /// True only for OpenRouter once a key exists (saved or verified), so
+    /// there is always an explicit, accessible way to open the setup sheet
+    /// again without that action being implied by merely re-selecting the
+    /// already-selected provider.
+    private var showsOpenRouterChangeKeyAction: Bool {
+        Self.showsOpenRouterChangeKeyAction(provider: model.settings.provider, connection: model.providerConnection)
+    }
+
+    /// Pure decision logic behind `showsOpenRouterChangeKeyAction`, directly
+    /// testable without a full `ReviewAppModel`.
+    static func showsOpenRouterChangeKeyAction(provider: ProviderChoice?, connection: ProviderConnectionState) -> Bool {
+        guard provider == .openRouter else { return false }
+        switch connection.kind {
+        case .configured, .connected, .checking, .failed:
+            return true
+        case .notConnected, .needsKey:
+            return false
         }
     }
 

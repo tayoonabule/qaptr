@@ -187,11 +187,30 @@ final class ReviewAppModel {
         providerConnection = .notConnected
     }
 
+    /// Selects `provider` and refreshes `providerConnection` from the real
+    /// Keychain/network-verified state (see `refreshProviderConnection`).
+    /// This only *requests* the setup sheet automatically when OpenRouter is
+    /// selected and no key exists yet (`.needsKey`). Clicking an
+    /// already-selected OpenRouter with a saved key must not reopen the
+    /// sheet -- that would falsely suggest the saved key needs re-entry. Use
+    /// `openProviderSetup()` for that explicit "Change key" action instead.
     func connectProvider(_ provider: ProviderChoice) {
         setProvider(provider)
-        guard provider == .openRouter else { return }
+        guard provider == .openRouter else {
+            providerSetupRequest = nil
+            return
+        }
+        providerSetupRequest = providerConnection.kind == .needsKey ? .openRouter : nil
+    }
+
+    /// Explicitly reopens the OpenRouter setup sheet for the currently
+    /// selected, already-configured or connected provider (a "Change key"
+    /// action). Unlike `connectProvider`, this always opens the sheet: it is
+    /// only ever invoked by a person's deliberate tap, never as a side
+    /// effect of selecting or re-selecting a provider.
+    func openProviderSetup() {
+        guard settings.provider == .openRouter else { return }
         providerSetupRequest = .openRouter
-        providerConnection = credentialStore.containsOpenRouterKey() ? .configured : .needsKey
     }
 
     func dismissProviderSetup() {
