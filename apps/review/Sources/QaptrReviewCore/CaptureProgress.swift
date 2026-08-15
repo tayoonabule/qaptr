@@ -33,7 +33,7 @@ extension CaptureProgressState: Codable {
 /// The canonical interval bounds shared by the review app, helper, and control file.
 public enum CaptureIntervalPolicy {
     public static let minimumSeconds = 5
-    public static let maximumSeconds = 1_800
+    public static let maximumSeconds = 300
     public static let stepSeconds = 5
     public static let defaultSeconds = 60
 
@@ -57,8 +57,7 @@ public enum CaptureIntervalPolicy {
 }
 
 /// The deliberate choices shown in the settings control. The underlying
-/// control file still accepts every 5-second value from 5 seconds to 30
-/// minutes, while the UI offers a small set that is quick to scan and select.
+/// control file accepts every 5-second value from 5 seconds to 5 minutes.
 public enum CaptureIntervalPreset: Int, CaseIterable, Equatable, Sendable {
     case fiveSeconds = 5
     case fifteenSeconds = 15
@@ -83,6 +82,18 @@ public enum CaptureIntervalPreset: Int, CaseIterable, Equatable, Sendable {
         case .thirtyMinutes: 1_800
         }
     }
+
+    /// Keeps the public choice set inside the canonical 5–300 second range.
+    /// The longer raw values remain decodable for source compatibility but are
+    /// not offered as new settings.
+    public static let allCases: [CaptureIntervalPreset] = [
+        .fiveSeconds,
+        .fifteenSeconds,
+        .thirtySeconds,
+        .oneMinute,
+        .twoMinutes,
+        .fiveMinutes,
+    ]
 
     public var displayName: String {
         switch self {
@@ -144,7 +155,7 @@ public struct CaptureControl: Codable, Equatable, Sendable {
                 throw DecodingError.dataCorruptedError(
                     forKey: .intervalSeconds,
                     in: container,
-                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 1800"
+                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 300"
                 )
             }
             self = control

@@ -114,9 +114,8 @@ final class CaptureCoreTests: XCTestCase {
     func testCaptureIntervalAcceptsOnlyBoundedFiveSecondSteps() throws {
         XCTAssertEqual(try CaptureInterval(seconds: 5).seconds, 5)
         XCTAssertEqual(try CaptureInterval(seconds: 300).seconds, 300)
-        XCTAssertEqual(try CaptureInterval(seconds: 1_800).seconds, 1_800)
 
-        for invalid in [0, 4, 6, 1_801] {
+        for invalid in [0, 4, 6, 301] {
             XCTAssertThrowsError(try CaptureInterval(seconds: invalid))
         }
     }
@@ -126,6 +125,60 @@ final class CaptureCoreTests: XCTestCase {
         let encoded = try JSONEncoder().encode(control)
         let json = String(decoding: encoded, as: UTF8.self)
         XCTAssertEqual(json, "{\"interval_seconds\":60}")
+    }
+
+    func testDetailedCaptureLifecycleUsesExplicitStartAndStop() {
+        var lifecycle = DetailedCaptureLifecycle(
+            transport: ScriptedDetailedCaptureTransport(
+                start: .started(intervalSeconds: 120),
+                stop: .stopped
+            )
+        )
+
+        XCTAssertEqual(lifecycle.start(intervalSeconds: 120), .started(intervalSeconds: 120))
+        XCTAssertEqual(lifecycle.state, .running)
+        XCTAssertEqual(lifecycle.activeIntervalSeconds, 120)
+        XCTAssertEqual(lifecycle.stop(), .stopped)
+        XCTAssertEqual(lifecycle.state, .stopped)
+        XCTAssertNil(lifecycle.activeIntervalSeconds)
+    }
+
+    func testDetailedCaptureLifecycleReportsHelperUnavailableAndPersistsInterval() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-detailed-capture-\(UUID().uuidString)")
+        let controlStore = CaptureControlStore(url: root.appendingPathComponent("capture-control.json"))
+        var lifecycle = DetailedCaptureLifecycle(
+            transport: UnavailableDetailedCaptureTransport(),
+            controlStore: controlStore
+        )
+
+        XCTAssertEqual(lifecycle.start(intervalSeconds: 300), .helperUnavailable)
+        XCTAssertEqual(lifecycle.state, .helperUnavailable)
+        XCTAssertEqual(try controlStore.read(), try CaptureControl(intervalSeconds: 300))
+        XCTAssertEqual(lifecycle.stop(), .alreadyStopped)
+    }
+
+    func testDetailedCaptureLifecycleReportsPermissionDeniedAndStartupFailure() {
+        var denied = DetailedCaptureLifecycle(
+            transport: ScriptedDetailedCaptureTransport(
+                start: .permissionDenied,
+                stop: .alreadyStopped
+            )
+        )
+        XCTAssertEqual(denied.start(intervalSeconds: 60), .permissionDenied)
+        XCTAssertEqual(denied.state, .permissionDenied)
+
+        var failed = DetailedCaptureLifecycle(
+            transport: ScriptedDetailedCaptureTransport(
+                start: .startupFailed("helper failed during startup"),
+                stop: .stopFailed("helper did not acknowledge stop")
+            )
+        )
+        XCTAssertEqual(
+            failed.start(intervalSeconds: 60),
+            .startupFailed("helper failed during startup")
+        )
+        XCTAssertEqual(failed.state, .startupFailed)
     }
 
     func testSecondHelperCannotClaimTheSameOwnershipLock() throws {
@@ -383,6 +436,20 @@ private final class BlockingCapture: ImageCapture, @unchecked Sendable {
 
     func release() {
         releaseSemaphore.signal()
+    }
+}
+
+private struct ScriptedDetailedCaptureTransport: DetailedCaptureTransport {
+    let start: DetailedCaptureStartResult
+    let stop: DetailedCaptureStopResult
+
+    func startDetailedCapture(intervalSeconds: Int) -> DetailedCaptureStartResult {
+        _ = intervalSeconds
+        return start
+    }
+
+    func stopDetailedCapture() -> DetailedCaptureStopResult {
+        stop
     }
 }
 

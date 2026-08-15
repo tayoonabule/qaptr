@@ -47,20 +47,40 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         XCTAssertEqual(CaptureIntervalPolicy.normalized(1), 5)
         XCTAssertEqual(CaptureIntervalPolicy.normalized(7), 5)
         XCTAssertEqual(CaptureIntervalPolicy.normalized(8), 10)
-        XCTAssertEqual(CaptureIntervalPolicy.normalized(999), 1_000)
+        XCTAssertEqual(CaptureIntervalPolicy.normalized(999), 300)
         XCTAssertEqual(CaptureIntervalPolicy.humanized(5), "5 seconds")
         XCTAssertEqual(CaptureIntervalPolicy.humanized(60), "1 minute")
-        XCTAssertEqual(CaptureIntervalPolicy.humanized(1_800), "30 minutes")
+        XCTAssertEqual(CaptureIntervalPolicy.humanized(300), "5 minutes")
 
         XCTAssertThrowsError(try CaptureControl(intervalSeconds: 6)) { error in
             XCTAssertEqual(error as? CaptureControlError, .invalidInterval(6))
         }
     }
 
-    func testPresetChoicesCoverTheFullFiveSecondToThirtyMinuteRange() {
+    func testPresetChoicesCoverTheFullFiveSecondToFiveMinuteRange() {
         XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).first, 5)
-        XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).last, 1_800)
+        XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).last, 300)
         XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds), CaptureIntervalPreset.allCases.map(\.seconds).sorted())
+    }
+
+    func testUnavailableDetailedCaptureClientNeverClaimsItStarted() {
+        let client = UnavailableDetailedCaptureCommandClient()
+        XCTAssertEqual(client.startDetailedCapture(intervalSeconds: 120), .helperUnavailable)
+        XCTAssertEqual(client.stopDetailedCapture(), .helperUnavailable)
+    }
+
+    func testDetailedCaptureStatePreservesTruthfulOutcomes() {
+        let denied = DetailedCaptureState().applying(.permissionDenied)
+        XCTAssertEqual(denied.lifecycle, .permissionRequired)
+        XCTAssertEqual(denied.outcome, .permissionDenied)
+
+        let unavailable = DetailedCaptureState(intervalSeconds: 120).applying(.helperUnavailable)
+        XCTAssertEqual(unavailable.lifecycle, .error)
+        XCTAssertEqual(unavailable.intervalSeconds, 120)
+
+        let failed = DetailedCaptureState().applying(.startupFailed("launch failed"))
+        XCTAssertEqual(failed.lifecycle, .error)
+        XCTAssertEqual(failed.outcome, .startupFailed("launch failed"))
     }
 
     // MARK: - V1 schema round trip
