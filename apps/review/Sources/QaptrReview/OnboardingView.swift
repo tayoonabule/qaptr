@@ -14,15 +14,23 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 32) {
             progressIndicator
 
-            Text(stage.title)
-                .font(.system(size: 26, weight: .semibold))
-
             if reduceMotion {
+                stageHeader
                 content
             } else {
-                content
-                    .id(stage)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                // Title and content share one `.id(stage)`/`.transition` so
+                // the heading and its body cross-fade together as a single
+                // coherent moment. An earlier version left `Text(stage.title)`
+                // outside the transition, so the heading snapped instantly
+                // while the content below eased in on its own clock, a small
+                // but real incoherence for a five-step sequence meant to read
+                // as one deliberate motion per step.
+                VStack(alignment: .leading, spacing: 32) {
+                    stageHeader
+                    content
+                }
+                .id(stage)
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
 
             HStack {
@@ -42,12 +50,22 @@ struct OnboardingView: View {
         .background(Color(nsColor: .textBackgroundColor))
     }
 
+    private var stageHeader: some View {
+        Text(stage.title)
+            .font(.system(size: 26, weight: .semibold))
+    }
+
     /// Five thin hairline segments showing onboarding position, using the
     /// same plain-shape-on-background visual language as the app's existing
     /// `Divider()` boundaries. Current and passed stages read as `.primary`,
     /// future stages fade to a very low opacity. No new state: position and
     /// fill are derived directly from `OnboardingStage.allCases` and the
     /// current `stage`'s `rawValue`.
+    ///
+    /// The individual capsules are decorative only (`.accessibilityHidden`);
+    /// VoiceOver instead reads the whole indicator as a single "Step N of 5"
+    /// element, since five unlabeled shapes would otherwise announce as
+    /// meaningless geometry with no equivalent of the visual position cue.
     private var progressIndicator: some View {
         HStack(spacing: 6) {
             ForEach(OnboardingStage.allCases, id: \.self) { candidate in
@@ -57,6 +75,8 @@ struct OnboardingView: View {
                     .frame(height: 2)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(stage.rawValue + 1) of \(OnboardingStage.allCases.count)")
     }
 
     @ViewBuilder

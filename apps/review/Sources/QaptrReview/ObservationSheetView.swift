@@ -10,17 +10,6 @@ struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Whether the entrance animation for `observationList` has already
-    /// played. The staggered fade-and-rise is tied to this view's own
-    /// `onAppear` rather than to `snapshot` changes: `.onAppear { model.refresh() }`
-    /// can fire a re-render with identical data (e.g. window refocus), and
-    /// keying the animation off "did the snapshot change" would replay the
-    /// stagger on every routine refresh. Tying it to "has this view instance
-    /// appeared before" plays the entrance once per appearance of the sheet,
-    /// which reads as a genuine first-render effect without re-animating on
-    /// every background poll.
-    @State private var hasPlayedEntrance = false
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
@@ -43,10 +32,7 @@ struct ObservationSheetView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color(nsColor: .textBackgroundColor))
-        .onAppear {
-            model.refresh()
-            hasPlayedEntrance = true
-        }
+        .onAppear { model.refresh() }
     }
 
     private var header: some View {
@@ -62,10 +48,7 @@ struct ObservationSheetView: View {
     private var observationList: some View {
         VStack(alignment: .leading, spacing: 24) {
             ForEach(Array(model.snapshot.recentObservations.enumerated()), id: \.element.id) { index, observation in
-                ObservationRow(
-                    observation: observation,
-                    entranceDelay: reduceMotion || hasPlayedEntrance ? nil : Double(index) * 0.04
-                )
+                ObservationRow(observation: observation, index: index, reduceMotion: reduceMotion)
                 Divider()
             }
         }
@@ -79,12 +62,33 @@ struct ObservationSheetView: View {
 /// not implement; the row is read-only in U20.
 private struct ObservationRow: View {
     let observation: QaptrObservation
-    /// Stagger delay in seconds for this row's entrance, or `nil` to skip the
-    /// entrance animation entirely (reduced motion, or the sheet has already
-    /// played its entrance once).
-    let entranceDelay: Double?
+    let index: Int
+    let reduceMotion: Bool
 
-    @State private var hasAppeared = false
+    /// Whether this row has finished (or skipped) its entrance. Seeded once
+    /// per row *identity* via the initializer below, not recomputed from a
+    /// parent-level flag on every render.
+    ///
+    /// An earlier version gated the stagger on a shared `hasPlayedEntrance`
+    /// flag flipped in the sheet's own `.onAppear`. Because
+    /// `ReviewAppModel.refresh()` is synchronous, that flip landed in the
+    /// same render pass as the data load, so by the time `observationList`
+    /// first rendered with real rows the flag was already `true` and no row
+    /// ever animated on a genuine app launch. `@State`'s initial value is
+    /// evaluated exactly once per SwiftUI identity (here, `observation.id`
+    /// via `ForEach`), so seeding `hasAppeared` from `reduceMotion` in
+    /// `init` gives every row that appears for the first time an honest,
+    /// un-interruptible entrance, while a row whose identity SwiftUI already
+    /// knows about (an unrelated re-render, e.g. a settings-driven refresh)
+    /// keeps its already-settled state and does not replay or snap.
+    @State private var hasAppeared: Bool
+
+    init(observation: QaptrObservation, index: Int, reduceMotion: Bool) {
+        self.observation = observation
+        self.index = index
+        self.reduceMotion = reduceMotion
+        _hasAppeared = State(initialValue: reduceMotion)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -99,25 +103,14 @@ private struct ObservationRow: View {
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
         }
-        .opacity(entranceOpacity)
-        .offset(y: entranceOffset)
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(y: hasAppeared ? 0 : 4)
         .onAppear {
-            guard let entranceDelay else {
-                hasAppeared = true
-                return
-            }
-            withAnimation(.easeOut(duration: 0.24).delay(entranceDelay)) {
+            guard !reduceMotion, !hasAppeared else { return }
+            withAnimation(.easeOut(duration: 0.24).delay(Double(index) * 0.04)) {
                 hasAppeared = true
             }
         }
-    }
-
-    private var entranceOpacity: Double {
-        entranceDelay == nil || hasAppeared ? 1 : 0
-    }
-
-    private var entranceOffset: Double {
-        entranceDelay == nil || hasAppeared ? 0 : 4
     }
 }
 
