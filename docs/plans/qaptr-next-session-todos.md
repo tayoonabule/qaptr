@@ -88,7 +88,7 @@
 - [x] Assert all local preparation finishes before the fake provider sees a request. The 24-capture adapter checks the decoder counter at provider detection and observes all 24 local preparations before it is allowed to receive a request (`de99c29`; `cargo test -p qaptr-workflow --test session` passes).
 - [x] Assert declined consent causes no fake-provider calls. The production-shaped `ReviewSessionCoordinator` integration test seals a real fixture bundle, runs local preparation, records consent, and asserts zero provider invocations after a decline (`6a5592c`; `cargo test -p qaptr-workflow --test session` passes).
 - [x] Assert one excluded capture creates exactly one aggregate notice without suppressing observations from safe captures. The 24-capture coordinator test excludes one unsafe context, asserts one notice, and verifies 23 scalar observations persist for safe capture ids (`de99c29`; `cargo test -p qaptr-workflow --test session` passes).
-- [ ] Assert malformed/failed provider responses produce no partial observation/workflow rows.
+- [x] Assert malformed/failed provider responses produce no partial observation/workflow rows. The analysis integration suite now drives one valid staged result followed by malformed output and asserts that the quiet failed outcome leaves both observations and workflows empty; the provider-failure regression asserts the same for invocation failure (`1f17cc8`; `cargo test -p qaptr-workflow --test analyze` passes 12 tests and targeted clippy passes).
 - [ ] Assert a successful fixture run is visible through the same review-app snapshot API as the actual app.
 
 ## 3. Provider readiness and model policy
