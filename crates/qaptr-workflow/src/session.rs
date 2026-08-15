@@ -185,6 +185,29 @@ where
         store: &'a Store,
         clock: &'a K,
     ) -> Self {
+        Self::with_cancellation(
+            runner,
+            vault,
+            credentials,
+            store,
+            clock,
+            SessionCancellation::new(),
+        )
+    }
+
+    /// Creates a coordinator with a caller-owned cancellation handle.
+    ///
+    /// The review bridge uses this constructor to publish the same handle
+    /// before it lists committed bundles. That closes the cancellation window
+    /// between ingestion and coordinator construction.
+    pub fn with_cancellation(
+        runner: &'a AnalysisRunner<'a, C, O, V, A, D, P, K>,
+        vault: &'a Vault,
+        credentials: &'a C,
+        store: &'a Store,
+        clock: &'a K,
+        cancellation: SessionCancellation,
+    ) -> Self {
         Self {
             runner,
             vault,
@@ -192,7 +215,7 @@ where
             store,
             clock,
             retention: None,
-            cancellation: SessionCancellation::new(),
+            cancellation,
             last_session: None,
             last_captures: None,
         }
@@ -393,20 +416,65 @@ fn emit_report_progress<F: FnMut(ReviewProgress)>(report: &AnalysisReport, progr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::{
+        collections::HashMap,
+        sync::Mutex,
+        time::{Duration, UNIX_EPOCH},
+    };
 
     use qaptr_domain::clock::FixedClock;
-    use qaptr_domain::ports::PortOutcome;
     use qaptr_domain::ports::credentials::{CredentialKey, CredentialValue};
     use qaptr_domain::ports::ocr::OcrResult;
     use qaptr_domain::ports::vision::VisionResult;
-    use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
+    use qaptr_domain::ports::{CredentialPort, PortOutcome};
+    use qaptr_domain::ports::{OcrPort, VisionPort};
     use qaptr_privacy::{PrivacyGate, measure_recall};
     use qaptr_provider::{
         ProviderDescriptor, ProviderDetection, ProviderError, ProviderGate, ProviderInvocation,
         RawProviderResponse,
     };
-    use qaptr_vault::Vault;
+    use qaptr_store::{CaptureRecord, UnixMillis};
+    use qaptr_vault::{BundleInput, GenerationId, GenerationKeypair, SampledContext, Vault};
+
+    #[derive(Default)]
+    struct MemoryCredentials {
+        values: Mutex<HashMap<String, CredentialValue>>,
+    }
+
+    impl CredentialPort for MemoryCredentials {
+        fn read(
+            &self,
+            key: &CredentialKey,
+        ) -> qaptr_domain::Result<PortOutcome<Option<CredentialValue>>> {
+            Ok(PortOutcome::Complete(
+                self.values
+                    .lock()
+                    .expect("credential lock")
+                    .get(key.as_str())
+                    .cloned(),
+            ))
+        }
+
+        fn write(
+            &self,
+            key: &CredentialKey,
+            value: CredentialValue,
+        ) -> qaptr_domain::Result<PortOutcome<()>> {
+            self.values
+                .lock()
+                .expect("credential lock")
+                .insert(key.as_str().to_owned(), value);
+            Ok(PortOutcome::Complete(()))
+        }
+
+        fn delete(&self, key: &CredentialKey) -> qaptr_domain::Result<PortOutcome<()>> {
+            self.values
+                .lock()
+                .expect("credential lock")
+                .remove(key.as_str());
+            Ok(PortOutcome::Complete(()))
+        }
+    }
 
     struct UnusedCredentials;
 
@@ -545,6 +613,105 @@ mod tests {
         assert!(second.is_requested());
         second.reset();
         assert!(!first.is_requested());
+    }
+
+    #[test]
+    fn duplicate_capture_metadata_is_deduplicated_before_durable_upsert() {
+        let root = tempfile::tempdir().expect("test root");
+        let store = Store::open(root.path().join("history.sqlite3")).expect("store");
+        let first = CaptureRecordInput::new(CaptureRecord {
+            id: CaptureId::new("capture-1").expect("capture id"),
+            captured_at: UnixMillis::from_millis(1),
+            vault_record_id: "capture-1".to_owned(),
+            context_summary: Some("first".to_owned()),
+        });
+        let duplicate = CaptureRecordInput::new(CaptureRecord {
+            id: first.capture_id().clone(),
+            captured_at: UnixMillis::from_millis(2),
+            vault_record_id: "different-metadata-must-not-win".to_owned(),
+            context_summary: Some("duplicate".to_owned()),
+        });
+        let unique = deduplicate(&[first.clone(), duplicate]);
+        assert_eq!(unique.as_slice(), std::slice::from_ref(&first));
+        store
+            .transaction(|transaction| {
+                for capture in &unique {
+                    transaction.put_capture(&capture.record)?;
+                }
+                Ok(())
+            })
+            .expect("durable metadata upsert");
+        let snapshot = store.snapshot().expect("history snapshot");
+        assert_eq!(snapshot.captures, [first.record]);
+    }
+
+    #[test]
+    fn coordinator_applies_retention_before_preparation() {
+        let root = tempfile::tempdir().expect("test root");
+        let vault = Vault::new(root.path().join("vault")).expect("vault");
+        let store = Store::open(root.path().join("history.sqlite3")).expect("store");
+        let credentials = MemoryCredentials::default();
+        let keys =
+            GenerationKeypair::generate(GenerationId::new("generation-1").expect("generation id"));
+        let capture_id = CaptureId::new("capture-expired").expect("capture id");
+        let credential_key =
+            Vault::generation_credential_key(keys.generation_id()).expect("credential key");
+        credentials
+            .write(&credential_key, keys.private_key().to_credential_value())
+            .expect("credential write");
+        vault
+            .register_public_key(keys.generation_id(), keys.public_key())
+            .expect("public key");
+        vault
+            .seal(
+                &BundleInput::new(
+                    capture_id.clone(),
+                    keys.generation_id().clone(),
+                    UNIX_EPOCH,
+                    b"image".to_vec(),
+                    SampledContext::new(b"context".to_vec()),
+                    Vec::new(),
+                ),
+                keys.public_key(),
+            )
+            .expect("bundle");
+        store
+            .put_capture(&CaptureRecord {
+                id: capture_id,
+                captured_at: UnixMillis::from_millis(0),
+                vault_record_id: "capture-expired".to_owned(),
+                context_summary: None,
+            })
+            .expect("capture metadata");
+
+        let privacy = PrivacyGate::new(measure_recall(&[], &[]).expect("recall"));
+        let ocr = UnusedOcr;
+        let vision = UnusedVision;
+        let decoder = UnusedDecoder;
+        let consent = UnusedConsent;
+        let clock = FixedClock::new(UNIX_EPOCH + Duration::from_secs(2));
+        let runner = AnalysisRunner::new(
+            &vault,
+            &credentials,
+            &store,
+            &privacy,
+            &ocr,
+            &vision,
+            None::<&ProviderGate<UnusedProvider>>,
+            &decoder,
+            &consent,
+            &clock,
+        );
+        let mut coordinator =
+            ReviewSessionCoordinator::new(&runner, &vault, &credentials, &store, &clock)
+                .with_retention_policy(RetentionPolicy::new(qaptr_domain::Duration::from_secs(1)));
+
+        let report = coordinator
+            .start(SessionId::new("retention").expect("session"), &[], |_| {})
+            .expect("retention session");
+        assert!(matches!(report.provider, ProviderOutcome::NotAttempted));
+        assert!(vault.list_committed_bundles().expect("bundles").is_empty());
+        assert!(store.snapshot().expect("snapshot").captures.is_empty());
     }
 
     #[test]

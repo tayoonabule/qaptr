@@ -122,8 +122,12 @@ pub unsafe extern "C" fn qaptr_review_session_json(
             output_capacity,
         );
     };
-    let response = handle.request(request).to_string();
-    copy_string(&response, output, output_capacity)
+    let response = handle.request_once(request).to_string();
+    let required = copy_string(&response, output, output_capacity);
+    if required <= output_capacity && !output.is_null() {
+        handle.finish_cached_request(request);
+    }
+    required
 }
 
 const LIVE_ANALYSIS_UNAVAILABLE_REASON: &str =
