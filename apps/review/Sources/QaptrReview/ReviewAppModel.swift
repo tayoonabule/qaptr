@@ -43,9 +43,11 @@ func defaultCaptureControlPath() -> URL {
 @Observable
 final class ReviewAppModel {
     private(set) var snapshot: ReviewSnapshot = .empty
+    private(set) var reviewStatus: ReviewStatus? = nil
     private(set) var captureProgress: CaptureProgressSnapshot = .unavailable
     private(set) var captureIntervalSeconds = CaptureIntervalPolicy.defaultSeconds
     private(set) var loadError: String?
+    private(set) var reviewStatusError: String? = nil
     private(set) var settings: SettingsState = .placeholder
     private(set) var providerConnection = ProviderConnectionState.notConnected
     var providerSetupRequest: ProviderChoice?
@@ -88,6 +90,13 @@ final class ReviewAppModel {
     func refresh() {
         refreshCaptureProgress()
         guard let bridge else { return }
+        do {
+            reviewStatus = try bridge.reviewStatus()
+            reviewStatusError = nil
+        } catch {
+            reviewStatus = nil
+            reviewStatusError = String(describing: error)
+        }
         do {
             snapshot = try bridge.snapshot()
             loadError = nil

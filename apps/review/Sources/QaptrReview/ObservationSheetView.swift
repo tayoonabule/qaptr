@@ -13,6 +13,8 @@ struct ObservationSheetView: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
 
+                reviewStatusSummary
+
                 if model.loadError != nil {
                     ErrorStateView(retry: model.refresh)
                 } else {
@@ -101,6 +103,48 @@ struct ObservationSheetView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
         }
+    }
+
+    private var reviewStatusSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let status = model.reviewStatus {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Durable history")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(historySummary(status.reviewSession))
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Live analysis unavailable")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(status.analysis.reason ?? "Live provider analysis is not available here.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else if model.reviewStatusError != nil {
+                Text("History status unavailable. Saved observations may still be shown.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func historySummary(_ session: ReviewSessionStatus) -> String {
+        guard session.historyAvailable else { return "No saved observations yet." }
+        let count = session.observationCount
+        return "\(count) saved observation\(count == 1 ? "" : "s") available."
     }
 
     private var observationList: some View {
