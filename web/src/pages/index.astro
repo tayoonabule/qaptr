@@ -13,7 +13,7 @@ import ArcDial from "../components/ArcDial.astro";
         A quiet macOS companion that captures what you did, so the record exists before you need it.
       </p>
 
-      <ul class="feature-pills reveal" tabindex="0" aria-label="Qaptr product principles">
+      <ul class="feature-pills reveal" aria-label="Qaptr product principles">
         <li class="feature-pill feature-pill--orange">
           <span class="feature-pill__dot" aria-hidden="true"></span>
           Private by default
@@ -171,6 +171,23 @@ import ArcDial from "../components/ArcDial.astro";
           <span class="mini-document__tag">ready to share</span>
         </div>
       </article>
+
+      <article class="product-card product-card--handoff">
+        <div class="product-card__copy">
+          <p class="meta">04 · Handoff</p>
+          <h3>Keep the useful part. Leave the rest behind.</h3>
+          <p>Review a clear sequence, then choose what belongs in a standup, a review, or your future notes.</p>
+        </div>
+        <div class="mini-handoff" aria-hidden="true">
+          <div class="mini-handoff__header">
+            <span class="mini-handoff__title">Working notes</span>
+            <span class="mini-handoff__status">ready</span>
+          </div>
+          <div class="mini-handoff__row"><span></span><span></span><b>Approved</b></div>
+          <div class="mini-handoff__row"><span></span><span></span><b>Needs review</b></div>
+          <div class="mini-handoff__footer">Share only what you choose</div>
+        </div>
+      </article>
     </div>
   </section>
 
@@ -231,18 +248,12 @@ import ArcDial from "../components/ArcDial.astro";
 
     .feature-pills {
       display: flex;
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
       gap: var(--spacing-8);
       margin: var(--spacing-28) 0 0;
-      overflow-x: auto;
       padding: 0;
       padding-bottom: var(--spacing-4);
       list-style: none;
-      scrollbar-width: none;
-    }
-
-    .feature-pills::-webkit-scrollbar {
-      display: none;
     }
 
     .feature-pill {
@@ -586,6 +597,10 @@ import ArcDial from "../components/ArcDial.astro";
     .product-bento__grid {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
+      grid-template-areas:
+        "capture capture capture capture capture capture capture privacy privacy privacy privacy privacy"
+        "document document document document document handoff handoff handoff handoff handoff handoff handoff";
+      grid-template-rows: minmax(28rem, auto) minmax(24rem, auto);
       gap: var(--spacing-16);
     }
 
@@ -601,32 +616,36 @@ import ArcDial from "../components/ArcDial.astro";
       background: var(--color-canvas-white);
       padding: clamp(var(--spacing-20), 3vw, var(--spacing-32));
       box-shadow: var(--shadow-subtle);
-      transition: transform 320ms var(--ease-out), box-shadow 320ms var(--ease-out);
-    }
-
-    .product-card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-mockup);
+      height: 100%;
     }
 
     .product-card--capture {
-      grid-column: span 7;
+      grid-area: capture;
       background: var(--color-orange-wash);
     }
 
     .product-card--privacy {
-      grid-column: span 5;
+      grid-area: privacy;
       background: var(--color-green-wash);
     }
 
     .product-card--document {
-      grid-column: 3 / span 8;
-      min-height: 24rem;
+      grid-area: document;
       background: var(--color-violet-wash);
+    }
+
+    .product-card--handoff {
+      grid-area: handoff;
+      background: var(--color-blue-wash);
     }
 
     .product-card__copy {
       max-width: 32rem;
+      transition: transform 280ms var(--ease-out);
+    }
+
+    .product-card:hover .product-card__copy {
+      transform: translateY(-2px);
     }
 
     .product-card__copy h3 {
@@ -653,6 +672,12 @@ import ArcDial from "../components/ArcDial.astro";
       border-radius: var(--radius-card);
       background: var(--color-canvas-white);
       box-shadow: var(--shadow-subtle);
+      transition: transform 360ms var(--ease-out), box-shadow 360ms var(--ease-out);
+    }
+
+    .product-card:hover .mini-timeline {
+      transform: translateY(-3px) rotate(-0.4deg);
+      box-shadow: 0 0.75rem 1.5rem var(--color-paper-mist);
     }
 
     .mini-timeline {
@@ -710,6 +735,11 @@ import ArcDial from "../components/ArcDial.astro";
       overflow: hidden;
       border-radius: var(--radius-card);
       background: var(--color-soft-mint);
+      transition: transform 360ms var(--ease-out);
+    }
+
+    .product-card:hover .privacy-orbit {
+      transform: translateY(-3px);
     }
 
     .privacy-orbit__ring {
@@ -762,6 +792,10 @@ import ArcDial from "../components/ArcDial.astro";
       transform: rotate(-1deg);
     }
 
+    .product-card:hover .mini-document {
+      transform: translateY(-3px) rotate(0deg);
+    }
+
     .mini-document__bar {
       display: block;
       width: 72%;
@@ -796,6 +830,80 @@ import ArcDial from "../components/ArcDial.astro";
       color: var(--color-lavender);
       font-family: var(--font-geist-mono);
       font-size: var(--text-caption);
+      text-transform: uppercase;
+    }
+
+    .mini-handoff {
+      display: grid;
+      gap: var(--spacing-12);
+      min-height: 10rem;
+      border-radius: var(--radius-card);
+      background: var(--color-canvas-white);
+      padding: var(--spacing-20);
+      box-shadow: var(--shadow-subtle);
+      transition: transform 360ms var(--ease-out), box-shadow 360ms var(--ease-out);
+    }
+
+    .product-card:hover .mini-handoff {
+      transform: translateY(-3px) rotate(0.4deg);
+      box-shadow: 0 0.75rem 1.5rem var(--color-paper-mist);
+    }
+
+    .mini-handoff__header,
+    .mini-handoff__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-12);
+    }
+
+    .mini-handoff__title {
+      color: var(--color-charcoal);
+      font-weight: 600;
+    }
+
+    .mini-handoff__status {
+      border-radius: var(--radius-tag);
+      background: var(--color-green-wash);
+      padding: var(--spacing-4) var(--spacing-8);
+      color: var(--color-vivid-green);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      text-transform: uppercase;
+    }
+
+    .mini-handoff__row {
+      justify-content: flex-start;
+      border-top: 1px solid var(--color-paper-mist);
+      padding-top: var(--spacing-8);
+      color: var(--color-steel);
+      font-size: var(--text-caption);
+    }
+
+    .mini-handoff__row span:first-child {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-vivid-green);
+    }
+
+    .mini-handoff__row span:nth-child(2) {
+      flex: 1;
+      height: 7px;
+      border-radius: var(--radius-tag);
+      background: var(--color-ash);
+    }
+
+    .mini-handoff__row b {
+      font-weight: 500;
+    }
+
+    .mini-handoff__footer {
+      margin-top: auto;
+      color: var(--color-deep-sapphire);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
       text-transform: uppercase;
     }
 
@@ -892,12 +1000,19 @@ import ArcDial from "../components/ArcDial.astro";
 
       .product-bento__grid {
         grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "capture"
+          "privacy"
+          "document"
+          "handoff";
+        grid-template-rows: none;
       }
 
       .product-card--capture,
       .product-card--privacy,
-      .product-card--document {
-        grid-column: auto;
+      .product-card--document,
+      .product-card--handoff {
+        grid-area: auto;
       }
 
       .product-card {
