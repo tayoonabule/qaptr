@@ -240,6 +240,20 @@ impl ProviderDetection {
         }
     }
 
+    /// Returns whether detection proved the provider is usable at the
+    /// detection boundary.
+    ///
+    /// This is intentionally narrower than the complete provider gate: the
+    /// caller still needs to verify the minimum version and requested
+    /// capabilities. It does, however, prevent a selector from treating a
+    /// merely discovered executable as usable when authentication was not
+    /// proven by the adapter's typed status.
+    pub const fn is_usable(&self) -> bool {
+        self.location.is_some()
+            && self.version.is_some()
+            && matches!(self.authentication, AuthenticationStatus::Authenticated)
+    }
+
     /// Returns the detected location, if one was found.
     pub fn location(&self) -> Option<&ProviderLocation> {
         self.location.as_ref()
@@ -430,6 +444,7 @@ where
         let descriptor = self.adapter.descriptor();
         let provider = descriptor.id().clone();
         let detection = self.adapter.detect()?;
+        let detection_is_usable = detection.is_usable();
         let location = detection
             .location
             .ok_or_else(|| ProviderError::NotInstalled {
@@ -441,7 +456,7 @@ where
                 provider: provider.clone(),
                 kind: RuntimeFailureKind::VersionUnavailable,
             })?;
-        if detection.authentication == AuthenticationStatus::NotAuthenticated {
+        if !detection_is_usable {
             return Err(ProviderError::NotAuthenticated { provider });
         }
         if version < descriptor.minimum_version() {

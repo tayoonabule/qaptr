@@ -161,6 +161,24 @@ fn endpoint_and_existing_session_are_supported_without_cli_special_cases() {
 }
 
 #[test]
+fn detected_but_unauthenticated_provider_is_not_usable_for_selection() {
+    let detection = ProviderDetection::installed(
+        ProviderLocation::Executable(
+            ExecutablePath::new("/usr/local/bin/fake").expect("test path is absolute"),
+        ),
+        ProviderVersion::new(1, 2, 3),
+        AuthenticationStatus::NotAuthenticated,
+    );
+
+    assert!(!detection.is_usable());
+}
+
+#[test]
+fn incomplete_detection_is_not_usable_for_selection() {
+    assert!(!ProviderDetection::not_installed().is_usable());
+}
+
+#[test]
 fn each_handshake_failure_is_a_distinct_typed_error() {
     let not_installed = FakeProvider {
         detection: ProviderDetection::not_installed(),
