@@ -733,9 +733,10 @@ impl ReviewSessionDriver {
             .pending_mutations
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        if let Some(previous) = pending.iter().find(|entry| {
-            entry.caller_id == caller_id && entry.input.as_slice() == input
-        }) {
+        if let Some(previous) = pending
+            .iter()
+            .find(|entry| entry.caller_id == caller_id && entry.input.as_slice() == input)
+        {
             return previous
                 .response
                 .clone()
@@ -758,9 +759,10 @@ impl ReviewSessionDriver {
             .pending_mutations
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        if let Some(entry) = pending.iter_mut().find(|entry| {
-            entry.caller_id == caller_id && entry.input.as_slice() == input
-        }) {
+        if let Some(entry) = pending
+            .iter_mut()
+            .find(|entry| entry.caller_id == caller_id && entry.input.as_slice() == input)
+        {
             entry.response = Some(response.clone());
         }
         response
@@ -936,7 +938,14 @@ fn worker_loop(
                     }
                 };
                 last_captures = Some(captures.clone());
-                run_attempt(resources, &shared, session_id, &captures, cancellation, false);
+                run_attempt(
+                    resources,
+                    &shared,
+                    session_id,
+                    &captures,
+                    cancellation,
+                    false,
+                );
             }
             WorkerCommand::Retry {
                 acknowledged,
@@ -1202,11 +1211,7 @@ mod tests {
         }
     }
 
-    fn abi_final_pass(
-        handle: usize,
-        request: &'static [u8],
-        required: usize,
-    ) -> TwoPassResult {
+    fn abi_final_pass(handle: usize, request: &'static [u8], required: usize) -> TwoPassResult {
         let mut output = vec![0_u8; required];
         // SAFETY: the test keeps the boxed driver alive until all worker threads
         // have joined, and `output` has exactly the requested capacity.
@@ -1586,7 +1591,10 @@ mod tests {
         assert_eq!(first.final_required, first.first_required);
         assert_eq!(second.final_required, second.first_required);
         assert_eq!(first.response.as_ref().expect("first response")["ok"], true);
-        assert_eq!(second.response.as_ref().expect("second response")["error"], OPERATION_ERROR);
+        assert_eq!(
+            second.response.as_ref().expect("second response")["error"],
+            OPERATION_ERROR
+        );
         release.store(true, Ordering::Release);
         // SAFETY: all C ABI calls have completed and the pointer came from
         // Box::into_raw above.
@@ -1618,14 +1626,20 @@ mod tests {
             request,
             || {
                 release.store(true, Ordering::Release);
-                assert_eq!(wait_for_terminal_state(driver)["state"]["phase"], "cancelled");
+                assert_eq!(
+                    wait_for_terminal_state(driver)["state"]["phase"],
+                    "cancelled"
+                );
             },
             || {},
         );
         assert_eq!(first.final_required, first.first_required);
         assert_eq!(second.final_required, second.first_required);
         assert_eq!(first.response.as_ref().expect("first response")["ok"], true);
-        assert_eq!(second.response.as_ref().expect("second response")["error"], OPERATION_ERROR);
+        assert_eq!(
+            second.response.as_ref().expect("second response")["error"],
+            OPERATION_ERROR
+        );
         // SAFETY: all C ABI calls have completed and the pointer came from
         // Box::into_raw above.
         unsafe { crate::qaptr_review_session_destroy(handle) };
@@ -1655,11 +1669,15 @@ mod tests {
             .unwrap_or_else(|poison| poison.into_inner()) = Some(PendingConsent::Waiting);
 
         let request = br#"{"version":1,"operation":"decide_consent","decision":"grant"}"#;
-        let (first, second) = interleave_identical_two_passes(handle as usize, request, || {}, || {});
+        let (first, second) =
+            interleave_identical_two_passes(handle as usize, request, || {}, || {});
         assert_eq!(first.final_required, first.first_required);
         assert_eq!(second.final_required, second.first_required);
         assert_eq!(first.response.as_ref().expect("first response")["ok"], true);
-        assert_eq!(second.response.as_ref().expect("second response")["error"], OPERATION_ERROR);
+        assert_eq!(
+            second.response.as_ref().expect("second response")["error"],
+            OPERATION_ERROR
+        );
         // SAFETY: all C ABI calls have completed and the pointer came from
         // Box::into_raw above.
         unsafe { crate::qaptr_review_session_destroy(handle) };

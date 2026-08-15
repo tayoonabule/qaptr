@@ -587,19 +587,21 @@ mod tests {
 
         let mut snapshot_output = vec![0_u8; 4096];
         let snapshot_required = unsafe {
-            qaptr_store_snapshot_json(
-                handle,
-                snapshot_output.as_mut_ptr(),
-                snapshot_output.len(),
-            )
+            qaptr_store_snapshot_json(handle, snapshot_output.as_mut_ptr(), snapshot_output.len())
         };
         assert!(snapshot_required > 0 && snapshot_required <= snapshot_output.len());
         let snapshot: Value = serde_json::from_slice(&snapshot_output[..snapshot_required - 1])
             .expect("snapshot JSON");
         assert_eq!(snapshot["observations"].as_array().unwrap().len(), 1);
         assert_eq!(snapshot["workflows"].as_array().unwrap().len(), 1);
-        assert_eq!(snapshot["observations"][0]["title"], "Repeated document review");
-        assert_eq!(snapshot["workflows"][0]["title"], "Document review workflow");
+        assert_eq!(
+            snapshot["observations"][0]["title"],
+            "Repeated document review"
+        );
+        assert_eq!(
+            snapshot["workflows"][0]["title"],
+            "Document review workflow"
+        );
         assert!(!snapshot.to_string().contains("fixture-generation/"));
         assert!(!snapshot.to_string().contains("image"));
         assert!(!snapshot.to_string().contains("provider"));
@@ -609,8 +611,8 @@ mod tests {
             qaptr_review_status_json(handle, status_output.as_mut_ptr(), status_output.len())
         };
         assert!(status_required > 0 && status_required <= status_output.len());
-        let status: Value = serde_json::from_slice(&status_output[..status_required - 1])
-            .expect("status JSON");
+        let status: Value =
+            serde_json::from_slice(&status_output[..status_required - 1]).expect("status JSON");
         assert_eq!(status["review_session"]["history_available"], true);
         assert_eq!(status["review_session"]["observation_count"], 1);
         assert_eq!(status["review_session"]["workflow_count"], 1);
