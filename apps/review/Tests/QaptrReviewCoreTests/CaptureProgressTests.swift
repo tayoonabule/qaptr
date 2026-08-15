@@ -47,14 +47,20 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         XCTAssertEqual(CaptureIntervalPolicy.normalized(1), 5)
         XCTAssertEqual(CaptureIntervalPolicy.normalized(7), 5)
         XCTAssertEqual(CaptureIntervalPolicy.normalized(8), 10)
-        XCTAssertEqual(CaptureIntervalPolicy.normalized(999), 300)
+        XCTAssertEqual(CaptureIntervalPolicy.normalized(999), 1_000)
         XCTAssertEqual(CaptureIntervalPolicy.humanized(5), "5 seconds")
         XCTAssertEqual(CaptureIntervalPolicy.humanized(60), "1 minute")
-        XCTAssertEqual(CaptureIntervalPolicy.humanized(300), "5 minutes")
+        XCTAssertEqual(CaptureIntervalPolicy.humanized(1_800), "30 minutes")
 
         XCTAssertThrowsError(try CaptureControl(intervalSeconds: 6)) { error in
             XCTAssertEqual(error as? CaptureControlError, .invalidInterval(6))
         }
+    }
+
+    func testPresetChoicesCoverTheFullFiveSecondToThirtyMinuteRange() {
+        XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).first, 5)
+        XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds).last, 1_800)
+        XCTAssertEqual(CaptureIntervalPreset.allCases.map(\.seconds), CaptureIntervalPreset.allCases.map(\.seconds).sorted())
     }
 
     // MARK: - V1 schema round trip
@@ -189,4 +195,3 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.actionableReason, "Screen Recording permission not granted")
     }
 }
-

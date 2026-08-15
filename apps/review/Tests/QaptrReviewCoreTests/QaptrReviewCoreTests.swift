@@ -412,6 +412,8 @@ final class CacheLifetimeTests: XCTestCase {
     func testOrdersLifetimesFromShortestToLongestInSeconds() {
         let seconds = CacheLifetime.allCases.map(\.seconds)
         XCTAssertEqual(seconds, seconds.sorted())
+        XCTAssertEqual(seconds.first, 12 * 3_600)
+        XCTAssertEqual(seconds.last, 30 * 24 * 3_600)
     }
 }
 

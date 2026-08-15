@@ -114,8 +114,9 @@ final class CaptureCoreTests: XCTestCase {
     func testCaptureIntervalAcceptsOnlyBoundedFiveSecondSteps() throws {
         XCTAssertEqual(try CaptureInterval(seconds: 5).seconds, 5)
         XCTAssertEqual(try CaptureInterval(seconds: 300).seconds, 300)
+        XCTAssertEqual(try CaptureInterval(seconds: 1_800).seconds, 1_800)
 
-        for invalid in [0, 4, 6, 301] {
+        for invalid in [0, 4, 6, 1_801] {
             XCTAssertThrowsError(try CaptureInterval(seconds: invalid))
         }
     }

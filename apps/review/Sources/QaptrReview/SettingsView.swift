@@ -68,41 +68,55 @@ struct SettingsView: View {
 
     private var captureSection: some View {
         SettingsSection(title: "Capture") {
-            VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+            VStack(alignment: .leading, spacing: QaptrSpace.md) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Capture interval")
-                        .font(QaptrType.title())
-                        .foregroundStyle(Color.qaptrInk)
+                    VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+                        Text("Capture rhythm")
+                            .font(QaptrType.title())
+                            .foregroundStyle(Color.qaptrInk)
+                        Text("How often Qaptr takes a screenshot")
+                            .font(QaptrType.caption())
+                            .foregroundStyle(Color.qaptrInkSoft)
+                    }
                     Spacer()
                     Text(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
-                        .font(QaptrType.body(13))
-                        .foregroundStyle(Color.qaptrInkSoft)
+                        .font(QaptrType.headline(20))
+                        .foregroundStyle(Color.qaptrAccentStrong)
                 }
-                Slider(
-                    value: captureIntervalBinding,
-                    in: Double(CaptureIntervalPolicy.minimumSeconds)...Double(CaptureIntervalPolicy.maximumSeconds),
-                    step: Double(CaptureIntervalPolicy.stepSeconds)
+                CadenceGrid(
+                    selection: model.captureIntervalSeconds,
+                    select: model.setCaptureIntervalSeconds
                 )
-                .tint(Color.qaptrAccent)
-                .accessibilityLabel("Capture interval")
-                .accessibilityValue(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
-                Text("Qaptr uses this time for the next screenshot. No picture is shown here.")
+                .accessibilityLabel("Capture rhythm")
+                Text("Choose a pace from every 5 seconds to every 30 minutes. Nothing is shown in this screen.")
                     .font(QaptrType.caption())
                     .foregroundStyle(Color.qaptrInkSoft.opacity(0.8))
             }
-            SettingsFact(label: "Displays", value: "\(model.settings.availableDisplayIDs.count) available")
+
+            HStack(spacing: QaptrSpace.sm) {
+                SettingsMetric(value: "\(model.settings.availableDisplayIDs.count)", label: "Displays ready")
+                SettingsMetric(value: CaptureIntervalPolicy.humanized(model.captureIntervalSeconds), label: "Current rhythm")
+            }
 
             VStack(alignment: .leading, spacing: QaptrSpace.md) {
-                Text("Keep captures for")
-                    .font(QaptrType.title(13))
-                    .foregroundStyle(Color.qaptrInk)
-                ChoiceRail(
-                    values: CacheLifetime.allCases,
-                    selection: cacheLifetimeBinding,
-                    label: \.displayName
-                )
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+                        Text("Keep captures for")
+                            .font(QaptrType.title())
+                            .foregroundStyle(Color.qaptrInk)
+                        Text("Local history expires after this window")
+                            .font(QaptrType.caption())
+                            .foregroundStyle(Color.qaptrInkSoft)
+                    }
+                    Spacer()
+                    Text(model.settings.cacheLifetime.displayName)
+                        .font(QaptrType.body(13))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.qaptrInkSoft)
+                }
+                RetentionGrid(selection: cacheLifetimeBinding)
             }
-            .padding(.top, QaptrSpace.xs)
+            .padding(.top, QaptrSpace.sm)
         }
     }
 
@@ -217,13 +231,6 @@ struct SettingsView: View {
         )
     }
 
-    private var captureIntervalBinding: Binding<Double> {
-        Binding(
-            get: { Double(model.captureIntervalSeconds) },
-            set: { model.setCaptureIntervalSeconds(Int($0.rounded())) }
-        )
-    }
-
     private var loginItemBinding: Binding<Bool> {
         Binding(
             get: { model.settings.loginItemEnabled },
@@ -257,65 +264,145 @@ private struct SettingsSection<Content: View>: View {
     }
 }
 
-private struct SettingsFact: View {
-    let label: String
+private struct SettingsMetric: View {
     let value: String
+    let label: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label)
-                .font(QaptrType.title())
-                .foregroundStyle(Color.qaptrInk)
-            Spacer()
+        VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
             Text(value)
-                .font(QaptrType.body(13))
-                .foregroundStyle(Color.qaptrInkSoft)
+                .font(QaptrType.headline(18))
+                .foregroundStyle(Color.qaptrInk)
+            Text(label.uppercased())
+                .font(QaptrType.meta(9.5))
+                .tracking(0.7)
+                .foregroundStyle(Color.qaptrInkMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(QaptrSpace.md)
+        .background(Color.qaptrPaperMist, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+    }
+}
+
+/// A small set of deliberate choices is easier to scan than a long continuous control.
+/// Each tile also shows a tiny rhythm mark, so the control communicates the
+/// difference between a quick capture pace and a long working block.
+private struct CadenceGrid: View {
+    let selection: Int
+    let select: (Int) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: QaptrSpace.sm), GridItem(.flexible(), spacing: QaptrSpace.sm), GridItem(.flexible(), spacing: QaptrSpace.sm)], spacing: QaptrSpace.sm) {
+            ForEach(CaptureIntervalPreset.allCases, id: \.self) { preset in
+                let isSelected = selection == preset.seconds
+                Button {
+                    guard !isSelected else { return }
+                    if reduceMotion {
+                        select(preset.seconds)
+                    } else {
+                        withAnimation(QaptrMotion.easeOut(0.18)) {
+                            select(preset.seconds)
+                        }
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(preset.displayName)
+                                .font(QaptrType.title(14))
+                                .fontWeight(isSelected ? .semibold : .medium)
+                            Spacer(minLength: QaptrSpace.xs)
+                            if isSelected {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                        }
+                        HStack(spacing: 3) {
+                            ForEach(0..<5, id: \.self) { index in
+                                Capsule()
+                                    .fill(index < cadenceBars(for: preset) ? (isSelected ? Color.qaptrAccent : Color.qaptrInkMuted) : Color.qaptrHairline)
+                                    .frame(height: 4)
+                            }
+                        }
+                        Text(preset.detail)
+                            .font(QaptrType.caption(10.5))
+                            .foregroundStyle(isSelected ? Color.qaptrAccentStrong : Color.qaptrInkSoft)
+                    }
+                    .foregroundStyle(isSelected ? Color.qaptrAccentStrong : Color.qaptrInk)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(QaptrSpace.md)
+                    .background(isSelected ? Color.qaptrAccentTint : Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+                            .strokeBorder(isSelected ? Color.qaptrAccent : Color.qaptrHairline, lineWidth: isSelected ? 1.5 : 1)
+                    }
+                }
+                .buttonStyle(.tactile)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityLabel("Capture every \(CaptureIntervalPolicy.humanized(preset.seconds))")
+                .accessibilityValue(isSelected ? "Selected, \(preset.detail)" : preset.detail)
+            }
+        }
+    }
+
+    private func cadenceBars(for preset: CaptureIntervalPreset) -> Int {
+        switch preset {
+        case .fiveSeconds, .fifteenSeconds: 5
+        case .thirtySeconds, .oneMinute: 4
+        case .twoMinutes, .fiveMinutes: 3
+        case .tenMinutes, .fifteenMinutes: 2
+        case .thirtyMinutes: 1
         }
     }
 }
 
-/// A tabbed rail of choices marked by an accent underline, matching the
-/// website's own segmented-choice pattern rather than a macOS pill control.
-private struct ChoiceRail<Value: Hashable>: View {
-    let values: [Value]
-    @Binding var selection: Value
-    let label: (Value) -> String
+private struct RetentionGrid: View {
+    @Binding var selection: CacheLifetime
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: QaptrSpace.xs) {
-            ForEach(values, id: \.self) { value in
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: QaptrSpace.sm), GridItem(.flexible(), spacing: QaptrSpace.sm), GridItem(.flexible(), spacing: QaptrSpace.sm)], spacing: QaptrSpace.sm) {
+            ForEach(CacheLifetime.allCases, id: \.self) { lifetime in
+                let isSelected = selection == lifetime
                 Button {
-                    guard selection != value else { return }
+                    guard !isSelected else { return }
                     if reduceMotion {
-                        selection = value
+                        selection = lifetime
                     } else {
-                        withAnimation(QaptrMotion.easeOut(0.22)) {
-                            selection = value
+                        withAnimation(QaptrMotion.easeOut(0.18)) {
+                            selection = lifetime
                         }
                     }
                 } label: {
-                    VStack(spacing: QaptrSpace.xs) {
-                        Text(label(value))
-                            .font(QaptrType.body(13))
-                            .fontWeight(selection == value ? .semibold : .regular)
-                            .foregroundStyle(selection == value ? Color.qaptrInk : Color.qaptrInkSoft)
-                        Rectangle()
-                            .fill(selection == value ? Color.qaptrAccent : .clear)
-                            .frame(height: 1.5)
+                    HStack(spacing: QaptrSpace.sm) {
+                        Circle()
+                            .fill(isSelected ? Color.qaptrAccent : Color.qaptrHairline)
+                            .frame(width: 9, height: 9)
+                        Text(lifetime.displayName)
+                            .font(QaptrType.title(13))
+                            .fontWeight(isSelected ? .semibold : .regular)
+                        Spacer(minLength: 0)
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                        }
                     }
-                    .padding(.horizontal, QaptrSpace.sm)
-                    .padding(.vertical, QaptrSpace.xs)
-                    .contentShape(Rectangle())
+                    .foregroundStyle(isSelected ? Color.qaptrAccentStrong : Color.qaptrInkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, QaptrSpace.md)
+                    .padding(.vertical, QaptrSpace.md)
+                    .background(isSelected ? Color.qaptrAccentTint : Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+                            .strokeBorder(isSelected ? Color.qaptrAccent : Color.qaptrHairline, lineWidth: isSelected ? 1.5 : 1)
+                    }
                 }
                 .buttonStyle(.tactile)
-                .accessibilityAddTraits(selection == value ? .isSelected : [])
-                .accessibilityLabel(label(value))
-                .accessibilityValue(selection == value ? "Selected" : "Not selected")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityLabel("Keep captures for \(lifetime.displayName)")
+                .accessibilityValue(isSelected ? "Selected" : "Not selected")
             }
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityElement(children: .contain)
     }
 }
 

@@ -10,7 +10,7 @@ import Foundation
 /// setting rather than a hardcoded default.
 public enum OnboardingCopy {
     /// The capture-explanation stage's periodic-capture statement, phrased in
-    /// the single interval-slider vocabulary (no pause/sparse/frequency
+    /// the single interval-choice vocabulary (no pause/sparse/frequency
     /// terms). Always reflects the live configured interval.
     public static func periodicCaptureStatement(intervalSeconds: Int) -> String {
         "Qaptr takes one screenshot every \(CaptureIntervalPolicy.humanized(intervalSeconds))."

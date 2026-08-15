@@ -23,26 +23,32 @@ public enum ProviderChoice: String, CaseIterable, Equatable, Sendable {
 
 /// The person's chosen cache lifetime for ephemeral capture bundles (R-P2).
 public enum CacheLifetime: String, CaseIterable, Equatable, Sendable {
-    case sixHours
+    case twelveHours
     case oneDay
     case threeDays
     case sevenDays
+    case fourteenDays
+    case thirtyDays
 
     public var seconds: UInt64 {
         switch self {
-        case .sixHours: 6 * 3_600
+        case .twelveHours: 12 * 3_600
         case .oneDay: 24 * 3_600
         case .threeDays: 3 * 24 * 3_600
         case .sevenDays: 7 * 24 * 3_600
+        case .fourteenDays: 14 * 24 * 3_600
+        case .thirtyDays: 30 * 24 * 3_600
         }
     }
 
     public var displayName: String {
         switch self {
-        case .sixHours: "6 hours"
+        case .twelveHours: "12 hours"
         case .oneDay: "1 day"
         case .threeDays: "3 days"
         case .sevenDays: "7 days"
+        case .fourteenDays: "14 days"
+        case .thirtyDays: "30 days"
         }
     }
 }

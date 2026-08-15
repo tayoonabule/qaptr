@@ -7,12 +7,12 @@ private func qaptrFlock(_ descriptor: Int32, _ operation: Int32) -> Int32
 /// The helper's bounded capture interval.
 public struct CaptureInterval: Equatable, Sendable {
     public static let minimumSeconds = 5
-    public static let maximumSeconds = 300
+    public static let maximumSeconds = 1_800
     public static let stepSeconds = 5
     public static let defaultSeconds = 60
 
     /// The interval in whole seconds. It is constrained to the same values
-    /// exposed by the review app's slider.
+    /// exposed by the review app's cadence choices.
     public let seconds: Int
 
     /// Creates a validated interval.
@@ -256,7 +256,7 @@ public struct CaptureControl: Codable, Equatable, Sendable {
                 throw DecodingError.dataCorruptedError(
                     forKey: .intervalSeconds,
                     in: container,
-                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 300"
+                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 1800"
                 )
             }
             self = control

@@ -30,10 +30,10 @@ extension CaptureProgressState: Codable {
     }
 }
 
-/// The canonical interval bounds shared by the review slider and control file.
+/// The canonical interval bounds shared by the review app, helper, and control file.
 public enum CaptureIntervalPolicy {
     public static let minimumSeconds = 5
-    public static let maximumSeconds = 300
+    public static let maximumSeconds = 1_800
     public static let stepSeconds = 5
     public static let defaultSeconds = 60
 
@@ -53,6 +53,63 @@ public enum CaptureIntervalPolicy {
         guard normalized % 60 == 0 else { return "\(normalized) seconds" }
         let minutes = normalized / 60
         return "\(minutes) minute\(minutes == 1 ? "" : "s")"
+    }
+}
+
+/// The deliberate choices shown in the settings control. The underlying
+/// control file still accepts every 5-second value from 5 seconds to 30
+/// minutes, while the UI offers a small set that is quick to scan and select.
+public enum CaptureIntervalPreset: Int, CaseIterable, Equatable, Sendable {
+    case fiveSeconds = 5
+    case fifteenSeconds = 15
+    case thirtySeconds = 30
+    case oneMinute = 60
+    case twoMinutes = 120
+    case fiveMinutes = 300
+    case tenMinutes = 600
+    case fifteenMinutes = 900
+    case thirtyMinutes = 1_800
+
+    public var seconds: Int {
+        switch self {
+        case .fiveSeconds: 5
+        case .fifteenSeconds: 15
+        case .thirtySeconds: 30
+        case .oneMinute: 60
+        case .twoMinutes: 120
+        case .fiveMinutes: 300
+        case .tenMinutes: 600
+        case .fifteenMinutes: 900
+        case .thirtyMinutes: 1_800
+        }
+    }
+
+    public var displayName: String {
+        switch self {
+        case .fiveSeconds: "5 sec"
+        case .fifteenSeconds: "15 sec"
+        case .thirtySeconds: "30 sec"
+        case .oneMinute: "1 min"
+        case .twoMinutes: "2 min"
+        case .fiveMinutes: "5 min"
+        case .tenMinutes: "10 min"
+        case .fifteenMinutes: "15 min"
+        case .thirtyMinutes: "30 min"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .fiveSeconds: "Every moment"
+        case .fifteenSeconds: "Fast rhythm"
+        case .thirtySeconds: "Steady rhythm"
+        case .oneMinute: "Balanced"
+        case .twoMinutes: "Light touch"
+        case .fiveMinutes: "Deep work"
+        case .tenMinutes: "Long blocks"
+        case .fifteenMinutes: "Slow burn"
+        case .thirtyMinutes: "Big picture"
+        }
     }
 }
 
@@ -87,7 +144,7 @@ public struct CaptureControl: Codable, Equatable, Sendable {
                 throw DecodingError.dataCorruptedError(
                     forKey: .intervalSeconds,
                     in: container,
-                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 300"
+                    debugDescription: "interval_seconds must be a multiple of 5 from 5 through 1800"
                 )
             }
             self = control
