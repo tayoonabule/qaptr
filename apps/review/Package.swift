@@ -22,5 +22,9 @@ let package = Package(
             name: "QaptrReviewCoreTests",
             dependencies: ["QaptrReviewCore"]
         ),
+        .testTarget(
+            name: "QaptrReviewTests",
+            dependencies: ["QaptrReview"]
+        ),
     ]
 )

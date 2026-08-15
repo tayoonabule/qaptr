@@ -107,7 +107,26 @@ struct SettingsView: View {
                         : "Not selected"
                 )
             }
+            if showsOpenRouterKeyNotice {
+                OpenRouterKeyReadinessNotice(action: { showsProviderSetup = true })
+            }
         }
+    }
+
+    /// True only when the selected provider is OpenRouter and Qaptr has
+    /// determined, from local settings and Keychain state alone, that no key
+    /// has been saved yet. This is a bounded model-only readiness read: it
+    /// never triggers a network request and never claims the key or any
+    /// model catalog has been validated.
+    private var showsOpenRouterKeyNotice: Bool {
+        Self.showsOpenRouterKeyNotice(provider: model.settings.provider, connection: model.providerConnection)
+    }
+
+    /// Pure decision logic behind `showsOpenRouterKeyNotice`, exposed as an
+    /// internal static function so it is directly testable without standing
+    /// up a full `ReviewAppModel` or rendering a view.
+    static func showsOpenRouterKeyNotice(provider: ProviderChoice?, connection: ProviderConnectionState) -> Bool {
+        provider == .openRouter && connection.kind == .needsKey
     }
 
     private var privacySection: some View {
@@ -368,6 +387,31 @@ private struct ProviderChoiceRow: View {
         .onHover { isHovering = $0 }
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+}
+
+/// A single, concise status/recovery row shown only when OpenRouter is the
+/// selected provider and no key has been saved. It reads solely from
+/// `ProviderConnectionState`, which is derived from Keychain presence
+/// (`ProviderCredentialStoring.containsOpenRouterKey`), never from a network
+/// call. Selecting a provider must never itself validate a catalog or model;
+/// this notice states only that a key is missing and offers the one action
+/// that can resolve it (open the setup sheet), without claiming the key,
+/// once entered, has been checked against OpenRouter.
+private struct OpenRouterKeyReadinessNotice: View {
+    let action: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("OpenRouter needs a key before Qaptr can use it.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            ActionButton(title: "Add key", action: action)
+        }
+        .padding(.top, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("OpenRouter needs a key before Qaptr can use it.")
     }
 }
 
