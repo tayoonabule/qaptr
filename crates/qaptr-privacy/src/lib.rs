@@ -29,8 +29,7 @@ pub use recall::{
     DEFAULT_IOU_THRESHOLD, RecallError, RecallReport, measure_recall, measure_recall_with_threshold,
 };
 pub use recognize::{
-    ImageOrientation, ImageRecognizer, PixelRect, RecognitionResult, map_normalized_rect,
-    recognize,
+    ImageOrientation, ImageRecognizer, PixelRect, RecognitionResult, map_normalized_rect, recognize,
 };
 pub use sanitize::{
     ContextField, SanitizationError, SanitizedContext, SanitizedValue, sanitize_context,
