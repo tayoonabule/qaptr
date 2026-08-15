@@ -201,6 +201,186 @@ public enum CaptureEvent: Equatable, Sendable {
     case skippedSealing(displayID: String, reason: String)
 }
 
+/// The helper's durable, scalar capture state. This never contains image data.
+public enum CaptureProgressState: String, Codable, Equatable, Sendable {
+    case starting
+    case waiting
+    case capturing
+    case paused
+    case permissionRequired
+    case noDisplays
+    case error
+    case stopped
+}
+
+/// The only mutable capture setting exposed to the review app.
+public enum CaptureControlMode: String, Codable, Equatable, Sendable {
+    case running
+    case paused
+}
+
+public struct CaptureControl: Codable, Equatable, Sendable {
+    public let mode: CaptureControlMode
+
+    public init(mode: CaptureControlMode = .running) {
+        self.mode = mode
+    }
+
+    public static let `default` = CaptureControl()
+}
+
+/// Atomic persistence for the scalar pause/resume control.
+public struct CaptureControlStore: Sendable {
+    public let url: URL
+
+    public init(url: URL) {
+        self.url = url
+    }
+
+    public func read() throws -> CaptureControl {
+        try JSONDecoder().decode(CaptureControl.self, from: Data(contentsOf: url))
+    }
+
+    public func write(_ control: CaptureControl) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONEncoder().encode(control)
+        try data.write(to: url, options: .atomic)
+    }
+}
+
+/// The small status record shared by the capture helper and review app.
+///
+/// `captureCount` counts successfully sealed screenshots, not attempts. The
+/// review app can therefore distinguish real capture progress from an empty
+/// analysis result without seeing image contents.
+public struct CaptureProgress: Codable, Equatable, Sendable {
+    public let state: CaptureProgressState
+    public let captureCount: Int
+    public let lastCaptureAtMillis: Int64?
+    public let startedAtMillis: Int64?
+    public let updatedAtMillis: Int64
+    public let processID: Int64?
+
+    public init(
+        state: CaptureProgressState,
+        captureCount: Int = 0,
+        lastCaptureAtMillis: Int64? = nil,
+        startedAtMillis: Int64? = nil,
+        updatedAtMillis: Int64 = 0,
+        processID: Int64? = nil
+    ) {
+        self.state = state
+        self.captureCount = max(0, captureCount)
+        self.lastCaptureAtMillis = lastCaptureAtMillis
+        self.startedAtMillis = startedAtMillis
+        self.updatedAtMillis = updatedAtMillis
+        self.processID = processID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case state
+        case captureCount = "capture_count"
+        case lastCaptureAtMillis = "last_capture_at_ms"
+        case startedAtMillis = "started_at_ms"
+        case updatedAtMillis = "updated_at_ms"
+        case processID = "process_id"
+    }
+
+    public static let initial = CaptureProgress(state: .stopped)
+}
+
+/// Deterministic state machine for capture-progress transitions.
+public struct CaptureProgressTracker: Sendable {
+    public private(set) var progress: CaptureProgress
+
+    public init(initial: CaptureProgress = .initial) {
+        self.progress = initial
+    }
+
+    public mutating func start(at timestamp: Int64, processID: Int64) {
+        progress = CaptureProgress(
+            state: .waiting,
+            captureCount: progress.captureCount,
+            lastCaptureAtMillis: progress.lastCaptureAtMillis,
+            startedAtMillis: timestamp,
+            updatedAtMillis: timestamp,
+            processID: processID
+        )
+    }
+
+    public mutating func beginCapture(at timestamp: Int64) {
+        progress = replacing(state: .capturing, updatedAtMillis: timestamp)
+    }
+
+    public mutating func finishCapture(at timestamp: Int64, successfulCaptures: Int) {
+        let count = max(0, successfulCaptures)
+        progress = CaptureProgress(
+            state: .waiting,
+            captureCount: progress.captureCount + count,
+            lastCaptureAtMillis: count > 0 ? timestamp : progress.lastCaptureAtMillis,
+            startedAtMillis: progress.startedAtMillis,
+            updatedAtMillis: timestamp,
+            processID: progress.processID
+        )
+    }
+
+    public mutating func markPermissionRequired(at timestamp: Int64) {
+        progress = replacing(state: .permissionRequired, updatedAtMillis: timestamp)
+    }
+
+    public mutating func markPaused(at timestamp: Int64) {
+        progress = replacing(state: .paused, updatedAtMillis: timestamp)
+    }
+
+    public mutating func markNoDisplays(at timestamp: Int64) {
+        progress = replacing(state: .noDisplays, updatedAtMillis: timestamp)
+    }
+
+    public mutating func markError(at timestamp: Int64) {
+        progress = replacing(state: .error, updatedAtMillis: timestamp)
+    }
+
+    public mutating func stop(at timestamp: Int64) {
+        progress = replacing(state: .stopped, updatedAtMillis: timestamp)
+    }
+
+    private func replacing(state: CaptureProgressState, updatedAtMillis: Int64) -> CaptureProgress {
+        CaptureProgress(
+            state: state,
+            captureCount: progress.captureCount,
+            lastCaptureAtMillis: progress.lastCaptureAtMillis,
+            startedAtMillis: progress.startedAtMillis,
+            updatedAtMillis: updatedAtMillis,
+            processID: progress.processID
+        )
+    }
+}
+
+/// Atomic persistence for the scalar helper status record.
+public struct CaptureProgressStore: Sendable {
+    public let url: URL
+
+    public init(url: URL) {
+        self.url = url
+    }
+
+    public func read() throws -> CaptureProgress {
+        try JSONDecoder().decode(CaptureProgress.self, from: Data(contentsOf: url))
+    }
+
+    public func write(_ progress: CaptureProgress) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONEncoder().encode(progress)
+        try data.write(to: url, options: .atomic)
+    }
+}
+
 /// Coordinates one scheduled tick without owning any macOS types.
 public final class CaptureCoordinator: @unchecked Sendable {
     private let capture: ImageCapture

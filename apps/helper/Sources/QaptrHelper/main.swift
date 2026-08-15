@@ -71,7 +71,11 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     private let capture = ScreenCaptureAdapter()
     private let context = PointInTimeContextSampler()
     private let coordinator: CaptureCoordinator
+    private let progressStore: CaptureProgressStore
+    private let controlStore: CaptureControlStore
+    private var progressTracker: CaptureProgressTracker
     private var planner: TickPlanner
+    private var wasPaused = false
     private var selectedDisplayIDs = Set<String>()
     private var cycle = 0
     private var timer: DispatchSourceTimer?
@@ -81,6 +85,10 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         self.options = options
         self.instanceLock = instanceLock
         self.coordinator = CaptureCoordinator(capture: capture, sealer: sealer)
+        let progressStore = CaptureProgressStore(url: Self.captureProgressURL())
+        self.progressStore = progressStore
+        self.controlStore = CaptureControlStore(url: Self.captureControlURL())
+        self.progressTracker = CaptureProgressTracker(initial: (try? progressStore.read()) ?? .initial)
         self.planner = TickPlanner(interval: options.interval)
         super.init()
     }
@@ -89,15 +97,24 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         _ = notification
         NSApp.setActivationPolicy(.accessory)
         configureStatusItem()
+        progressTracker.start(
+            at: Self.currentTimestamp(),
+            processID: Int64(ProcessInfo.processInfo.processIdentifier)
+        )
+        persistProgress()
         do {
             selectedDisplayIDs = Set(try capture.availableDisplayIDs())
             guard !selectedDisplayIDs.isEmpty else {
+                progressTracker.markNoDisplays(at: Self.currentTimestamp())
+                persistProgress()
                 print("event=skip reason=no_displays")
                 scheduleTimer()
                 return
             }
             print("event=start pid=\(ProcessInfo.processInfo.processIdentifier) displays=\(selectedDisplayIDs.sorted().joined(separator: ",")) interval_seconds=\(options.interval.seconds)")
         } catch {
+            progressTracker.markError(at: Self.currentTimestamp())
+            persistProgress()
             print("event=skip reason=display_enumeration error=\(error)")
         }
         scheduleTimer()
@@ -107,6 +124,8 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         _ = notification
         timer?.cancel()
         timer = nil
+        progressTracker.stop(at: Self.currentTimestamp())
+        persistProgress()
     }
 
     private func configureStatusItem() {
@@ -120,12 +139,32 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
 
     private func scheduleTimer() {
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.qaptr.helper.capture"))
-        timer.schedule(deadline: .now(), repeating: options.interval.seconds, leeway: .milliseconds(100))
+        timer.schedule(deadline: .now(), repeating: min(options.interval.seconds, 1), leeway: .milliseconds(100))
         timer.setEventHandler { [weak self] in
             DispatchQueue.main.async {
-                guard let self,
-                      self.planner.action(at: ProcessInfo.processInfo.systemUptime) == .capture
-                else {
+                guard let self else {
+                    return
+                }
+                let paused = (try? self.controlStore.read().mode == .paused) ?? false
+                if paused {
+                    if !self.wasPaused {
+                        self.wasPaused = true
+                        self.progressTracker.markPaused(at: Self.currentTimestamp())
+                        self.persistProgress()
+                        self.updateStatus("Ⅱ")
+                    }
+                    return
+                }
+                if self.wasPaused {
+                    self.wasPaused = false
+                    self.planner = TickPlanner(interval: self.options.interval)
+                    self.progressTracker.start(
+                        at: Self.currentTimestamp(),
+                        processID: Int64(ProcessInfo.processInfo.processIdentifier)
+                    )
+                    self.persistProgress()
+                }
+                guard self.planner.action(at: ProcessInfo.processInfo.systemUptime) == .capture else {
                     return
                 }
                 self.runTick()
@@ -138,6 +177,8 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     private func runTick() {
         cycle += 1
         guard CGPreflightScreenCaptureAccess() else {
+            progressTracker.markPermissionRequired(at: Self.currentTimestamp())
+            persistProgress()
             updateStatus("Q")
             print("event=skip cycle=\(cycle) reason=screen_recording_permission")
             stopAfterLimitIfNeeded()
@@ -145,6 +186,8 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         }
 
         do {
+            progressTracker.beginCapture(at: Self.currentTimestamp())
+            persistProgress()
             let current = Set(try capture.availableDisplayIDs())
             let displays = selectedDisplayIDs.intersection(current).sorted()
             let events = coordinator.runTick(
@@ -158,8 +201,24 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             for event in events {
                 log(event)
             }
+            let successfulCaptures = events.reduce(into: 0) { count, event in
+                if case .sealed = event {
+                    count += 1
+                }
+            }
+            if displays.isEmpty {
+                progressTracker.markNoDisplays(at: Self.currentTimestamp())
+            } else {
+                progressTracker.finishCapture(
+                    at: Self.currentTimestamp(),
+                    successfulCaptures: successfulCaptures
+                )
+            }
+            persistProgress()
             updateStatus(events.contains { if case .sealed = $0 { return true }; return false } ? "●" : "Q")
         } catch {
+            progressTracker.markError(at: Self.currentTimestamp())
+            persistProgress()
             print("event=skip cycle=\(cycle) reason=display_enumeration error=\(error)")
         }
         stopAfterLimitIfNeeded()
@@ -178,6 +237,36 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.statusItem.button?.title = title
         }
+    }
+
+    private func persistProgress() {
+        do {
+            try progressStore.write(progressTracker.progress)
+        } catch {
+            print("event=skip reason=progress_status_unavailable detail=\(error)")
+        }
+    }
+
+    private static func captureProgressURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_CAPTURE_PROGRESS_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
+            .appendingPathComponent("capture-progress.json")
+    }
+
+    private static func captureControlURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_CAPTURE_CONTROL_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
+            .appendingPathComponent("capture-control.json")
+    }
+
+    private static func currentTimestamp() -> Int64 {
+        Int64(Date().timeIntervalSince1970 * 1_000)
     }
 
     private func log(_ event: CaptureEvent) {

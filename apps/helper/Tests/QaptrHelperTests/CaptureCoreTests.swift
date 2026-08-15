@@ -3,6 +3,51 @@ import XCTest
 @testable import QaptrHelperCore
 
 final class CaptureCoreTests: XCTestCase {
+    func testCaptureProgressCountsOnlySuccessfulSealsAcrossStates() {
+        var tracker = CaptureProgressTracker()
+        tracker.start(at: 100, processID: 42)
+        XCTAssertEqual(tracker.progress.state, .waiting)
+        XCTAssertEqual(tracker.progress.captureCount, 0)
+
+        tracker.beginCapture(at: 200)
+        XCTAssertEqual(tracker.progress.state, .capturing)
+        tracker.finishCapture(at: 300, successfulCaptures: 2)
+        XCTAssertEqual(tracker.progress.state, .waiting)
+        XCTAssertEqual(tracker.progress.captureCount, 2)
+        XCTAssertEqual(tracker.progress.lastCaptureAtMillis, 300)
+
+        tracker.markPaused(at: 400)
+        XCTAssertEqual(tracker.progress.state, .paused)
+        XCTAssertEqual(tracker.progress.captureCount, 2)
+        tracker.start(at: 500, processID: 42)
+        XCTAssertEqual(tracker.progress.state, .waiting)
+        XCTAssertEqual(tracker.progress.captureCount, 2)
+
+        tracker.beginCapture(at: 600)
+        tracker.finishCapture(at: 700, successfulCaptures: 0)
+        XCTAssertEqual(tracker.progress.captureCount, 2)
+        XCTAssertEqual(tracker.progress.lastCaptureAtMillis, 300)
+    }
+
+    func testCaptureProgressStoreRoundTripsOnlyScalarStatus() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-progress-\(UUID().uuidString)")
+            .appendingPathComponent("capture-progress.json")
+        let store = CaptureProgressStore(url: url)
+        let progress = CaptureProgress(
+            state: .waiting,
+            captureCount: 3,
+            lastCaptureAtMillis: 900,
+            startedAtMillis: 100,
+            updatedAtMillis: 900,
+            processID: 42
+        )
+
+        try store.write(progress)
+        XCTAssertEqual(try store.read(), progress)
+        XCTAssertFalse(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("image"))
+    }
+
     func testMissedTicksDoNotCatchUp() throws {
         var planner = TickPlanner(interval: try CaptureInterval(seconds: 600))
         XCTAssertEqual(planner.action(at: 0), .capture)
