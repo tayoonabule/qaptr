@@ -1,7 +1,8 @@
 # Qaptr v1 release evidence
 
-This document records evidence for commit `484de89`; it is not a release
-approval. Locally verified components do not override the blocked U23 gates in
+This document records the release-evidence baseline used by the U23 report; the
+report records the exact validated commit. It is not a release approval. Locally
+verified components do not override the blocked U23 gates in
 `bench/release_validation.md`.
 
 ## U16 provider detection evidence
