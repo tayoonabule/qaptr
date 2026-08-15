@@ -152,6 +152,7 @@ struct FakeProvider {
     detection: ProviderDetection,
     response: RawProviderResponse,
     failure: Option<ProviderError>,
+    malformed_after_first: bool,
     invocations: Cell<u32>,
 }
 
@@ -184,6 +185,7 @@ impl FakeProvider {
                 None,
             ),
             failure,
+            malformed_after_first: false,
             invocations: Cell::new(0),
         }
     }
@@ -198,6 +200,11 @@ impl FakeProvider {
             "Repeated export review",
             "Prepare the repeated export review",
         ));
+        self
+    }
+
+    fn with_malformed_response_after_first_invocation(mut self) -> Self {
+        self.malformed_after_first = true;
         self
     }
 }
@@ -219,6 +226,22 @@ impl ProviderAdapter for FakeProvider {
         assert!(!invocation.request().context().is_empty());
         if let Some(error) = &self.failure {
             return Err(error.clone());
+        }
+        if self.malformed_after_first && self.invocations.get() > 1 {
+            return Ok(RawProviderResponse::new(
+                vec![
+                    RawObservation::new(
+                        "Partial observation",
+                        "This must never be persisted",
+                        0.42,
+                    ),
+                    RawObservation::new("", "Malformed response", 0.42),
+                ],
+                Some(RawWorkflow::new(
+                    "Partial workflow",
+                    "This must never be persisted",
+                )),
+            ));
         }
         Ok(self.response.clone())
     }
@@ -419,10 +442,44 @@ fn provider_failure_is_quiet_and_capture_metadata_remains() {
         .expect("analysis");
 
     assert!(matches!(report.provider, ProviderOutcome::Failed { .. }));
+    assert_eq!(report.observations_written, 0);
     assert_eq!(provider.adapter().invocations.get(), 1);
     let snapshot = harness.store.snapshot().expect("snapshot");
     assert_eq!(snapshot.captures.len(), 1);
     assert!(snapshot.observations.is_empty());
+    assert!(snapshot.workflows.is_empty());
+}
+
+#[test]
+fn malformed_provider_response_discards_partial_workflow_and_observations() {
+    let (harness, capture) = Harness::new("malformed-provider", safe_context());
+    let provider = ProviderGate::new(
+        FakeProvider::new(None)
+            .with_workflow()
+            .with_malformed_response_after_first_invocation(),
+    );
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+
+    let report = runner(&harness, Some(&provider), &consent)
+        .run(session(), &[capture.clone(), capture])
+        .expect("malformed provider response is a quiet outcome");
+
+    assert!(matches!(
+        report.provider,
+        ProviderOutcome::Failed {
+            error: ProviderError::RuntimeFailure {
+                kind: RuntimeFailureKind::MalformedOutput { .. },
+                ..
+            },
+            ..
+        }
+    ));
+    assert_eq!(report.observations_written, 0);
+    assert_eq!(provider.adapter().invocations.get(), 2);
+    let snapshot = harness.store.snapshot().expect("snapshot");
+    assert_eq!(snapshot.captures.len(), 1);
+    assert!(snapshot.observations.is_empty());
+    assert!(snapshot.workflows.is_empty());
 }
 
 #[test]
