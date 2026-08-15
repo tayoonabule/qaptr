@@ -1,25 +1,32 @@
 # Qaptr v1 release evidence
 
+This document records evidence for commit `484de89`; it is not a release
+approval. Locally verified components do not override the blocked U23 gates in
+`bench/release_validation.md`.
+
 ## U16 provider detection evidence
 
 Recorded on 2026-08-14 UTC on the Apple-silicon development machine.
 
 | Provider | Resolved executable | Version command output | Parsed version | Detection result |
 |---|---|---|---|---|
-| Codex CLI | `/Users/light/.codex/packages/standalone/releases/0.147.0-aarch64-apple-darwin/bin/codex` | `codex-cli 0.147.0` | `0.147.0` | Installed, authenticated, gate accepted |
+| Codex CLI | `/Users/light/.codex/packages/standalone/releases/0.147.0-aarch64-apple-darwin/bin/codex` | `codex-cli 0.147.0` | `0.147.0` | Installed, existing OAuth session detected, local gate accepted |
 | Jcode CLI | `/Users/light/.jcode/builds/versions/22db449/jcode` | `jcode v0.75.23-dev (22db449)` | `0.75.23` | Installed, authenticated, gate accepted |
 
 The version strings above were parsed by U14's `VersionProbe`, not copied from
 configuration. The real detection tests were run through `ProviderGate` and
 U14's `CliRuntime` with the installed executables.
 
-Codex's sandboxed `codex login status` probe returned no status bytes and a
-signal-style non-zero exit on this machine. The adapter did not read the OAuth
-file or any token. For the production constructor only, it used a metadata-only
-fallback that checked that `~/.codex/auth.json` exists and is non-empty. This
-keeps the token inside Codex while still distinguishing the installed existing
-session from an absent login. The in-process unauthenticated test uses the CLI
-probe output and returns `NotAuthenticated` without this production fallback.
+Codex is OAuth-only through the user's existing Codex CLI login. Qaptr does not
+accept, request, or read an OpenAI API key. The sandboxed `codex login status`
+probe returned no status bytes and a signal-style non-zero exit on this machine.
+The adapter did not read the OAuth file or any token. For the production
+constructor only, it used a metadata-only fallback that checked that
+`~/.codex/auth.json` exists and is non-empty. This keeps the token inside Codex
+while still distinguishing an installed existing session from an absent login.
+The in-process unauthenticated test uses the CLI probe output and returns
+`NotAuthenticated` without this production fallback. This is local detection
+evidence, not proof of a fresh-install login flow.
 
 The sandboxed Jcode auth probe returned tabular status containing `claude`
 `available` and `openai` `available`; no credential contents were read by Qaptr.
@@ -58,6 +65,20 @@ malformed output, image-capability refusal, and identical normalized response
 shape using deterministic in-process executors. Codex and Jcode adapters expose
 no credential argument and contain no API-key environment path. Their only
 invocation path is a U13 `ProviderInvocation` proof produced by `ProviderGate`.
+
+## U23 evidence boundaries
+
+- Image-bound recognition carries source and masked-image hashes and reruns
+  recognition over the exact masked bytes. The tests prove provenance and
+  residual-detection checks for the exercised regions, not perfect discovery;
+  the published recall remains **5/6 = 0.833**.
+- The store remains image-free. The review FFI JSON snapshot has a round-trip
+  test for observations and notices, but no full review-session orchestration
+  driver exists yet.
+- Opening an empty history database exercises migration/bootstrap at the store
+  layer. A clean-machine packaged-app bootstrap that grants first-run
+  permissions, starts the helper login item, and reaches a usable review state
+  is **UNVERIFIED**.
 
 ## U22 packaging evidence
 
@@ -123,6 +144,12 @@ bash packaging/release.sh --dry-run --reproducibility-check
 This refuses a dirty checkout, archives `HEAD` twice, runs the complete dry-run
 in both clean trees, and compares hashes for every bundle file and the DMG. It is
 also part of the manual release workflow.
+
+The current clean-checkout comparison is not passing: identical source inputs
+produce different helper `LC_UUID` values, which change the ad-hoc code seal and
+downstream bundle/DMG hashes. Same-tree rebuilds are deterministic, and the
+helper/link/entitlement audits still pass. Until the UUID policy is resolved,
+the release must not claim bit-identical artifacts.
 
 ### Developer ID release procedure
 

@@ -13,6 +13,7 @@ report_path="${U23_REPORT_PATH:-$repo_root/bench/release_validation.md}"
 helper_hours="${U23_HELPER_HOURS:-0.01}"
 helper_interval="${U23_HELPER_INTERVAL_SECONDS:-5}"
 review_smoke_seconds="${U23_REVIEW_SMOKE_SECONDS:-20}"
+validated_commit=$(git -C "$repo_root" rev-parse HEAD 2>/dev/null || printf 'unknown')
 
 mkdir -p "$log_dir"
 
@@ -295,6 +296,7 @@ write_report() {
         printf '**Output directory:** `%s`\n\n' "$output_dir"
         printf 'This report is intentionally evidence-first. `UNVERIFIED` is not a pass or a fail; it means this machine cannot prove the release claim. A blocked release is reported as blocked rather than being made green by weakening a gate.\n\n'
         printf '## Machine configuration\n\n```text\n'
+        printf 'validated_commit=%s\n' "$validated_commit"
         cat "$machine_file"
         printf '```\n\n'
         printf '## Gate results\n\n| Gate | Result | Evidence |\n|---|---|---|\n'
@@ -309,15 +311,21 @@ write_report() {
             printf '%s\n' "- **U23 helper soak:** \`capture_soak.sh\` measured $helper_summary"
         fi
         printf '%s\n' "- **Opened app:** the three runs above are real production-app smoke measurements composed from \`review_budget.sh\`. They are not the required full 10-minute session. U20's prior smoke result was **29.118 MiB median** and **30.032 MiB peak**."
-        printf '%s\n' "- **Real Vision preparation:** the temporary harness uses the committed 24-capture manifest, real \`MacOcr\` and \`MacVision\`, masking, sanitization, coverage verification, and \`PreparedPayload\` proof assembly. Its measured median and peak are in \`real_vision_preparation.log\`; the budget is 900 ms. U12's **0.019 ms** figure is composition overhead only and is not used as pipeline latency."
+        printf '%s\n' "- **Real Vision preparation:** the temporary harness attempts to use the committed 24-capture manifest, real \`MacOcr\` and \`MacVision\`, masking, sanitization, coverage verification, and \`PreparedPayload\` proof assembly. The current run records a failure when masked-image recognition verification is not configured; no preparation latency pass is claimed. U12's **0.019 ms** figure is composition overhead only and is not used as pipeline latency."
         printf '%s\n' '- **Recall:** preserve the U9 disclosure of **5/6 = 0.833**. The known miss is the low-contrast text region in `low_contrast.png`; this is not a claim of perfect detection.'
         printf '%s\n' '- **Privacy:** the passing payload proof test checks sanitized classes, masked-region coverage, and the carried recall report on the artifact. The workflow test checks that a privacy refusal performs zero provider invocations and zero consent requests.'
-        printf '%s\n' '- **Provider proof:** Codex **0.147.0**, Jcode **0.75.23**, and Claude Code **2.1.228** are genuine installed local CLIs. Codex and Jcode pass sandboxed authenticated detection. Claude reaches its canonical executable, version probe, and auth probe, but its session is macOS-Keychain-backed and U14 intentionally does not grant Keychain access, so sandboxed authentication remains **UNVERIFIED** rather than being represented as a runtime failure. OpenRouter has no real endpoint/key proof in this run. All four release-gating provider implementations are present, but full four-provider proof is not achieved. OpenCode at `~/.opencode/bin/opencode` is outside the four-provider release scope and has no adapter.'
+        printf '%s\n' '- **Image provenance:** image-bound recognition carries the source image hash, masking rejects detections from different bytes, and the proof records the masked-image hash plus a recognizer rerun over the exact masked bytes. This proves provenance and absence of residual detections for the tested regions; it does not turn the published U9 recall of **5/6 = 0.833** into a perfect-recall claim.'
+        printf '%s\n' '- **History encoding:** the store remains image-free and the review FFI JSON boundary has a round-trip test for observations and notices. This is a tested serialization boundary, not proof of the unbuilt end-to-end review session.'
+        printf '%s\n' '- **Provider proof:** Codex **0.147.0**, Jcode **0.75.23**, and Claude Code **2.1.228** are genuine installed local CLIs. Codex is OAuth-only through its existing CLI login; Qaptr does not accept or read an OpenAI API key and only uses non-secret login metadata when the CLI auth probe is unavailable. Codex and Jcode pass sandboxed authenticated detection. Claude reaches its canonical executable, version probe, and auth probe, but its session is macOS-Keychain-backed and U14 intentionally does not grant Keychain access, so sandboxed authentication remains **UNVERIFIED** rather than being represented as a runtime failure. OpenRouter has no real endpoint/key proof in this run. All four release-gating provider implementations are present, but full four-provider proof is not achieved. OpenCode at `~/.opencode/bin/opencode` is outside the four-provider release scope and has no adapter.'
         printf '%s\n' '- **Reference-machine gap:** this machine is an Apple M5 MacBook Air with 24 GB RAM and one built-in Retina display. The release protocol requires 16 GB and a real attached 5K display. U4 and U20 both flagged this gap; these results are informative for this machine and do not silently become reference-machine proof.'
         printf '\n## Full review-session limitation\n\n'
-        printf 'The requested scripted review flow is **not proven**. The built `QaptrReview.app` currently exposes a read-only observation sheet and settings/onboarding surfaces. It does not expose the required analyze-session, observation-detail, workflow-generation, or four-export controls, and no committed production-shaped UI driver exists. The validator records this as a failure instead of claiming that three idle smoke launches exercised the 10-minute flow.\n\n'
+        printf 'The requested scripted review flow is **not proven**. The current `QaptrReview.app` exposes capture-progress, settings/onboarding, and a read-only durable-history observation sheet, but it does not expose the required analyze-session, observation-detail, workflow-generation, or four-export controls, and no committed production-shaped UI driver exists. The validator records this as a failure instead of claiming that three idle smoke launches exercised the 10-minute flow.\n\n'
+        printf '## Fresh-install bootstrap limitation\n\n'
+        printf 'The empty-store migration is covered by `migration_from_empty_produces_the_allowlisted_schema`, but U23 has no clean-machine install/bootstrap driver that installs the packaged app, grants first-run permissions, starts the helper login item, and reaches a usable review state. That release claim remains **UNVERIFIED**.\n\n'
         printf '## Required follow-up\n\n'
-        printf '1. Land the production-shaped review driver and wire it to the 24-capture fixture so the 10-minute budget can be measured on three consecutive runs.\n2. Repeat helper and opened-app measurements on the 16 GB reference machine with a real 5K display.\n3. Configure OpenRouter credentials and decide whether a future narrowly scoped macOS auth integration can verify Claude Keychain-backed sessions; do not widen the sandbox or read Claude credentials.\n4. Run the packaging gate after the concurrent U22 packaging pass is complete.\n'
+        printf '1. Land the production-shaped review driver and wire it to the 24-capture fixture so the 10-minute budget can be measured on three consecutive runs.\n2. Add and run a clean-machine fresh-install/bootstrap driver.\n3. Repeat helper and opened-app measurements on the 16 GB reference machine with a real 5K display.\n4. Configure OpenRouter credentials and decide whether a future narrowly scoped macOS auth integration can verify Claude Keychain-backed sessions; do not widen the sandbox or read Claude credentials.\n5. Run the packaging gate with provisioned Developer ID and notarytool credentials, then resolve the known clean-checkout UUID reproducibility failure.\n'
+        printf '\n## Reproducibility limitation\n\n'
+        printf 'The clean-checkout reproducibility check is not passing. Two clean `git archive HEAD` checkouts produce helper binaries with different Mach-O `LC_UUID` values; the ad-hoc code seal and downstream bundle/DMG hashes therefore differ. Same-tree rebuilds are deterministic, helper/link/entitlement audits pass, and no absolute checkout path is embedded. This is a toolchain/reproducibility-policy gap, not evidence of a privacy or signing failure; the bit-identical artifact claim remains **UNVERIFIED** until the UUID policy is resolved.\n'
     } > "$report_path"
 }
 
@@ -336,9 +344,16 @@ run_gate helper_tests swift test --package-path "$repo_root/apps/helper"
 
 run_real_preparation
 
+# These gates close the image provenance and review serialization claims without
+# pretending they exercise the missing production-shaped review driver.
+run_gate image_provenance cargo test -p qaptr-privacy --test mask -- --nocapture
+run_gate history_encoding cargo test --manifest-path "$repo_root/crates/qaptr-review-ffi/Cargo.toml" --lib snapshot_json_round_trips_observations_and_notices -- --nocapture
+run_gate fresh_store_bootstrap cargo test -p qaptr-store --test store migration_from_empty_produces_the_allowlisted_schema -- --nocapture
+record fresh_install_bootstrap UNVERIFIED "no clean-machine packaged-app install, permission, login-item, and first-review-state driver exists"
+
 # The existing review-budget harness is intentionally reused. Its current scope
 # is an idle smoke launch, so the full scripted-session gate is kept separate.
-record review_session_driver FAIL "ReviewAppModel only refreshes durable history; ObservationSheetView rows are read-only and no analyze/detail/workflow/export driver exists"
+record review_session_driver FAIL "current review app has capture-progress/settings and read-only durable history, but no analyze/detail/workflow/export driver exists"
 run_review_smokes
 
 helper_soak_log="$log_dir/helper_soak.log"
@@ -393,7 +408,7 @@ else
 fi
 
 # Do not race the concurrent U22 packaging pass. This is recorded, not hidden.
-record packaging UNVERIFIED "not run while the concurrent U22 packaging pass owns packaging/release.sh"
+record packaging UNVERIFIED "not run by U23; dry-run is credential-free, but Developer ID signing, notarization, stapling, Gatekeeper, and fresh-profile persistence still require release credentials and a clean runner"
 
 write_report
 printf 'U23 release validation: failures=%s unverified=%s report=%s output=%s\n' "$failures" "$unverified" "$report_path" "$output_dir"
