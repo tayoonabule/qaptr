@@ -74,6 +74,10 @@ fn remove_directory(directory: &Path) {
     fs::remove_dir_all(directory).expect("the temporary database directory must be removable");
 }
 
+fn encoded_png_text() -> String {
+    format!("iVBORw0KGgo{}", "A".repeat(256))
+}
+
 #[test]
 fn migration_from_empty_produces_the_allowlisted_schema() {
     let (directory, path) = temporary_database("migration");
@@ -129,11 +133,49 @@ fn writer_accepts_a_legitimate_long_summary() {
 }
 
 #[test]
+fn capture_writer_accepts_legitimate_scalar_text() {
+    let (directory, path) = temporary_database("capture-text");
+    let store = Store::open(&path).expect("the normal schema must open");
+    let record = capture("capture-text", 10);
+
+    store
+        .put_capture(&record)
+        .expect("legitimate capture metadata must be accepted");
+    assert_eq!(
+        store.snapshot().expect("snapshot must load").captures,
+        vec![record]
+    );
+    remove_directory(&directory);
+}
+
+#[test]
+fn capture_writer_rejects_encoded_image_material_in_text() {
+    let (directory, path) = temporary_database("capture-encoded-image");
+    let store = Store::open(&path).expect("the normal schema must open");
+    let mut record = capture("capture-encoded-image", 10);
+    record.context_summary = Some(encoded_png_text());
+
+    assert!(matches!(
+        store.put_capture(&record),
+        Err(StoreError::EncodedImageMaterial { field })
+            if field == "captures.context_summary"
+    ));
+    assert!(
+        store
+            .snapshot()
+            .expect("snapshot must load")
+            .captures
+            .is_empty()
+    );
+    remove_directory(&directory);
+}
+
+#[test]
 fn writer_rejects_base64_encoded_image_material_in_text() {
     let (directory, path) = temporary_database("encoded-image");
     let store = Store::open(&path).expect("the normal schema must open");
     let mut record = observation("encoded-image", None);
-    record.summary = format!("iVBORw0KGgo{}", "A".repeat(256));
+    record.summary = encoded_png_text();
 
     let result = store.put_observation(&record);
     assert!(matches!(
@@ -146,6 +188,44 @@ fn writer_rejects_base64_encoded_image_material_in_text() {
             .snapshot()
             .expect("snapshot must load")
             .observations
+            .is_empty()
+    );
+    remove_directory(&directory);
+}
+
+#[test]
+fn workflow_writer_accepts_legitimate_scalar_text() {
+    let (directory, path) = temporary_database("workflow-text");
+    let store = Store::open(&path).expect("the normal schema must open");
+    let record = workflow("workflow-text");
+
+    store
+        .put_workflow(&record)
+        .expect("legitimate workflow text must be accepted");
+    assert_eq!(
+        store.snapshot().expect("snapshot must load").workflows,
+        vec![record]
+    );
+    remove_directory(&directory);
+}
+
+#[test]
+fn workflow_writer_rejects_encoded_image_material_in_text() {
+    let (directory, path) = temporary_database("workflow-encoded-image");
+    let store = Store::open(&path).expect("the normal schema must open");
+    let mut record = workflow("workflow-encoded-image");
+    record.sequence = encoded_png_text();
+
+    assert!(matches!(
+        store.put_workflow(&record),
+        Err(StoreError::EncodedImageMaterial { field })
+            if field == "workflows.sequence"
+    ));
+    assert!(
+        store
+            .snapshot()
+            .expect("snapshot must load")
+            .workflows
             .is_empty()
     );
     remove_directory(&directory);
