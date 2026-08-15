@@ -153,12 +153,21 @@ a {
   padding: 0.55rem 1.1rem;
   position: relative;
   overflow: hidden;
-  transition: border-color var(--motion-fast) var(--ease-out);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
 }
 
 .cta-pill:hover,
 .cta-pill:focus-visible {
   border-color: var(--color-accent);
+}
+
+/* Discrete press feedback, not a loop, so it is not gated behind
+ * prefers-reduced-motion (per docs/design/website.md, only decorative
+ * loops/entrances are gated). Transform-only: no layout properties. */
+.cta-pill:active {
+  transform: scale(0.98);
 }
 
 .cta-pill::before {
@@ -217,6 +226,43 @@ a {
   color: var(--color-fg-muted);
   max-width: var(--measure);
   margin: 0 0 var(--space-4);
+}
+
+/* One-time hero entrance: fade + 8px upward translate, staggered ~60ms
+ * per direct child (eyebrow, h1, sub, form), using @starting-style, per
+ * the pattern already recorded in docs/design/website.md. Verified with
+ * `npm run build && npm run preview` in Chromium: @starting-style applies
+ * on the initial paint of prerendered static HTML exactly as it would for
+ * a JS-inserted element, so no CSS-animation/animation-delay fallback is
+ * needed here. Fully disabled (immediate full opacity/position) outside
+ * this media query, so it costs nothing under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero > * {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity var(--motion-medium) var(--ease-out),
+      transform var(--motion-medium) var(--ease-out);
+  }
+
+  .hero > *:nth-child(2) {
+    transition-delay: 60ms;
+  }
+
+  .hero > *:nth-child(3) {
+    transition-delay: 120ms;
+  }
+
+  .hero > *:nth-child(4) {
+    transition-delay: 180ms;
+  }
+
+  @starting-style {
+    .hero > * {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
 }
 
 /* ---------- Waitlist form ---------- */
@@ -279,6 +325,13 @@ a {
 .waitlist-submit:focus-visible {
   background: var(--color-accent-ink);
   border-color: var(--color-accent-ink);
+}
+
+/* Discrete press feedback, transform-only, no layout properties. Not
+ * gated behind prefers-reduced-motion: it is a one-shot state change on
+ * click, not a loop or entrance. */
+.waitlist-submit:active {
+  transform: scale(0.98);
 }
 
 .waitlist-status {
@@ -406,6 +459,18 @@ a {
       transform var(--motion-medium) var(--ease-out);
   }
 
+  /* Stagger so the three passages don't pop simultaneously when they
+   * cross the IntersectionObserver threshold together (e.g. a fast
+   * scroll, or a tall viewport). Still IntersectionObserver-gated; this
+   * only delays the CSS transition once .is-visible is added. */
+  .passage:nth-of-type(2) {
+    transition-delay: 100ms;
+  }
+
+  .passage:nth-of-type(3) {
+    transition-delay: 200ms;
+  }
+
   .passage.is-visible {
     opacity: 1;
     transform: none;
@@ -471,4 +536,61 @@ a {
 .confirmation-body {
   color: var(--color-fg-muted);
   margin: 0 0 var(--space-4);
+}
+
+/* One-time entrance for the confirmation moment: heading, body, and the
+ * "back to Qaptr" CTA fade in with an 8px upward translate, staggered
+ * 60ms apart, same @starting-style pattern as the hero entrance above.
+ * The mono-label status line above the heading is intentionally left
+ * out of the stagger (it reads as a fixed status/report marker, not
+ * part of the editorial voice, matching the mono-vs-serif distinction
+ * in docs/design/website.md). This uses only the `translate` and
+ * `opacity` properties (not `transform`), because `.cta-pill:active`
+ * already uses `transform: scale()` for press feedback; animating the
+ * entrance on the standalone `translate` property instead keeps the two
+ * independent so a click during/after the entrance still gets an
+ * instant, undelayed press response. The "no amber accent on error
+ * tone" rule is satisfied by construction: no color is introduced by
+ * this rule at all, for either tone. */
+@media (prefers-reduced-motion: no-preference) {
+  .confirmation-heading,
+  .confirmation-body,
+  .confirmation .cta-pill {
+    opacity: 1;
+    translate: 0 0;
+    transition:
+      opacity var(--motion-medium) var(--ease-out),
+      translate var(--motion-medium) var(--ease-out);
+  }
+
+  /* `.confirmation .cta-pill` is more specific than the base `.cta-pill`
+   * rule, so its `transition` shorthand fully replaces the base one
+   * rather than merging with it. Re-declare `.cta-pill`'s own
+   * border-color/transform transitions here alongside the entrance's
+   * opacity/translate transition so hover and :active press feedback
+   * keep working on this page. */
+  .confirmation .cta-pill {
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out),
+      opacity var(--motion-medium) var(--ease-out),
+      translate var(--motion-medium) var(--ease-out);
+  }
+
+  .confirmation-body {
+    transition-delay: 60ms;
+  }
+
+  .confirmation .cta-pill {
+    transition-delay: 120ms;
+  }
+
+  @starting-style {
+    .confirmation-heading,
+    .confirmation-body,
+    .confirmation .cta-pill {
+      opacity: 0;
+      translate: 0 8px;
+    }
+  }
 }
