@@ -16,10 +16,13 @@ age = "0.11.1"
 fs2 = "0.4.3"
 qaptr-domain = { path = "../qaptr-domain" }
 qaptr-macos = { path = "../qaptr-macos" }
+qaptr-privacy = { path = "../qaptr-privacy" }
 qaptr-policy = { path = "../qaptr-policy" }
 qaptr-store = { path = "../qaptr-store" }
 qaptr-vault = { path = "../qaptr-vault" }
+png = "0.17.16"
 serde_json = "1.0.145"
+thiserror = "2.0"
 
 [lints.rust]
 warnings = "deny"

@@ -17,6 +17,8 @@ mod error;
 #[cfg(target_os = "macos")]
 mod credentials;
 #[cfg(target_os = "macos")]
+mod image;
+#[cfg(target_os = "macos")]
 mod login_item;
 #[cfg(target_os = "macos")]
 mod ocr;
@@ -31,6 +33,8 @@ pub use error::MacosError;
 
 #[cfg(target_os = "macos")]
 pub use credentials::{KEYCHAIN_SERVICE, MacCredentials};
+#[cfg(target_os = "macos")]
+pub use image::MacImageRecognizer;
 #[cfg(target_os = "macos")]
 pub use login_item::MacLoginItem;
 #[cfg(target_os = "macos")]

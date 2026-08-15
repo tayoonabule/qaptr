@@ -8,6 +8,8 @@ description = "macOS adapters for Qaptr credentials, permissions, and login item
 
 [dependencies]
 qaptr-domain.workspace = true
+qaptr-privacy = { path = "../qaptr-privacy" }
+png = "0.17.16"
 thiserror.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -19,6 +19,7 @@
 #![allow(unsafe_code)]
 
 mod bootstrap;
+pub mod local;
 mod support;
 mod system;
 
