@@ -8,6 +8,18 @@ import SwiftUI
 /// honest confidence line, closer to a note than a control panel (R-D3).
 struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Whether the entrance animation for `observationList` has already
+    /// played. The staggered fade-and-rise is tied to this view's own
+    /// `onAppear` rather than to `snapshot` changes: `.onAppear { model.refresh() }`
+    /// can fire a re-render with identical data (e.g. window refocus), and
+    /// keying the animation off "did the snapshot change" would replay the
+    /// stagger on every routine refresh. Tying it to "has this view instance
+    /// appeared before" plays the entrance once per appearance of the sheet,
+    /// which reads as a genuine first-render effect without re-animating on
+    /// every background poll.
+    @State private var hasPlayedEntrance = false
 
     var body: some View {
         ScrollView {
@@ -31,7 +43,10 @@ struct ObservationSheetView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color(nsColor: .textBackgroundColor))
-        .onAppear { model.refresh() }
+        .onAppear {
+            model.refresh()
+            hasPlayedEntrance = true
+        }
     }
 
     private var header: some View {
@@ -46,8 +61,11 @@ struct ObservationSheetView: View {
 
     private var observationList: some View {
         VStack(alignment: .leading, spacing: 24) {
-            ForEach(model.snapshot.recentObservations) { observation in
-                ObservationRow(observation: observation)
+            ForEach(Array(model.snapshot.recentObservations.enumerated()), id: \.element.id) { index, observation in
+                ObservationRow(
+                    observation: observation,
+                    entranceDelay: reduceMotion || hasPlayedEntrance ? nil : Double(index) * 0.04
+                )
                 Divider()
             }
         }
@@ -61,6 +79,12 @@ struct ObservationSheetView: View {
 /// not implement; the row is read-only in U20.
 private struct ObservationRow: View {
     let observation: QaptrObservation
+    /// Stagger delay in seconds for this row's entrance, or `nil` to skip the
+    /// entrance animation entirely (reduced motion, or the sheet has already
+    /// played its entrance once).
+    let entranceDelay: Double?
+
+    @State private var hasAppeared = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -75,6 +99,25 @@ private struct ObservationRow: View {
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
         }
+        .opacity(entranceOpacity)
+        .offset(y: entranceOffset)
+        .onAppear {
+            guard let entranceDelay else {
+                hasAppeared = true
+                return
+            }
+            withAnimation(.easeOut(duration: 0.24).delay(entranceDelay)) {
+                hasAppeared = true
+            }
+        }
+    }
+
+    private var entranceOpacity: Double {
+        entranceDelay == nil || hasAppeared ? 1 : 0
+    }
+
+    private var entranceOffset: Double {
+        entranceDelay == nil || hasAppeared ? 0 : 4
     }
 }
 

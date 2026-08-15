@@ -8,20 +8,29 @@ import SwiftUI
 struct OnboardingView: View {
     @Bindable var model: ReviewAppModel
     @State private var stage: OnboardingStage = .permissions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
+            progressIndicator
+
             Text(stage.title)
                 .font(.system(size: 26, weight: .semibold))
 
-            content
+            if reduceMotion {
+                content
+            } else {
+                content
+                    .id(stage)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
 
             HStack {
                 Spacer()
                 Button(stage == .privacyConsent ? "Finish" : "Continue") {
                     advance()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
                 .font(.system(size: 15, weight: .medium))
                 .padding(.horizontal, 4)
                 .underline()
@@ -31,6 +40,23 @@ struct OnboardingView: View {
         .frame(maxWidth: 560, alignment: .leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    /// Five thin hairline segments showing onboarding position, using the
+    /// same plain-shape-on-background visual language as the app's existing
+    /// `Divider()` boundaries. Current and passed stages read as `.primary`,
+    /// future stages fade to a very low opacity. No new state: position and
+    /// fill are derived directly from `OnboardingStage.allCases` and the
+    /// current `stage`'s `rawValue`.
+    private var progressIndicator: some View {
+        HStack(spacing: 6) {
+            ForEach(OnboardingStage.allCases, id: \.self) { candidate in
+                Capsule()
+                    .fill(.primary)
+                    .opacity(candidate.rawValue <= stage.rawValue ? 0.8 : 0.12)
+                    .frame(height: 2)
+            }
+        }
     }
 
     @ViewBuilder
@@ -61,7 +87,7 @@ struct OnboardingView: View {
                         .foregroundStyle(.tertiary)
                     if model.settings.screenRecordingStatus != .granted {
                         Button("Grant Screen Recording") { model.requestScreenRecording() }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.tactile)
                             .underline()
                     }
                 }
@@ -77,7 +103,7 @@ struct OnboardingView: View {
                         .foregroundStyle(.tertiary)
                     if model.settings.accessibilityContextStatus != .granted {
                         Button("Grant (optional)") { model.requestAccessibilityContext() }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.tactile)
                             .underline()
                     }
                 }
@@ -145,6 +171,16 @@ struct OnboardingView: View {
     }
 
     private func advance() {
+        if reduceMotion {
+            advanceStage()
+        } else {
+            withAnimation(.easeOut(duration: 0.22)) {
+                advanceStage()
+            }
+        }
+    }
+
+    private func advanceStage() {
         if let next = stage.next {
             stage = next
         } else {

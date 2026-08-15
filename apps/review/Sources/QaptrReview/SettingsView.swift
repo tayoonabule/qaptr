@@ -134,7 +134,7 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
             if status != .granted {
                 Button("Request", action: request)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                     .foregroundStyle(.primary)
                     .underline()
             }
@@ -155,7 +155,7 @@ struct SettingsView: View {
                     Text(entry)
                     Spacer()
                     Button("Remove") { remove(entry) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.tactile)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -166,7 +166,7 @@ struct SettingsView: View {
                     add(newValue.wrappedValue)
                     newValue.wrappedValue = ""
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
                 .foregroundStyle(.primary)
                 .underline()
             }
