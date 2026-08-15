@@ -81,8 +81,8 @@ impl DetailedCaptureProfile {
 /// The capture mode exposed to the scheduler and visible-state boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CaptureProfileState {
-    /// The helper must use its quiet sparse capture behavior.
-    Sparse,
+    /// The helper must use its configured interval capture behavior.
+    Interval,
     /// Detailed capture is active until the supplied fixed end bound.
     Detailed {
         /// The instant at which the user started detailed capture.
@@ -101,7 +101,7 @@ impl CaptureProfileState {
     /// Returns the fixed detailed-capture end bound, if active.
     pub const fn ends_at(self) -> Option<SystemTime> {
         match self {
-            Self::Sparse => None,
+            Self::Interval => None,
             Self::Detailed { ends_at, .. } => Some(ends_at),
         }
     }
@@ -120,7 +120,7 @@ pub struct CaptureProfileLifecycle {
 }
 
 impl CaptureProfileLifecycle {
-    /// Creates a lifecycle in sparse mode.
+    /// Creates a lifecycle in configured-interval mode.
     pub const fn new() -> Self {
         Self { active: None }
     }
@@ -156,7 +156,7 @@ impl CaptureProfileLifecycle {
         Ok(profile)
     }
 
-    /// Ends detailed capture immediately and returns to sparse mode.
+    /// Ends detailed capture immediately and returns to configured-interval mode.
     pub fn end(&mut self) -> Result<(), ProfileError> {
         if self.active.take().is_some() {
             Ok(())
@@ -173,7 +173,7 @@ impl CaptureProfileLifecycle {
                 started_at: profile.started_at(),
                 ends_at: profile.ends_at(),
             },
-            None => CaptureProfileState::Sparse,
+            None => CaptureProfileState::Interval,
         }
     }
 

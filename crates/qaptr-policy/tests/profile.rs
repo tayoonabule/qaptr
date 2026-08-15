@@ -55,7 +55,7 @@ fn detailed_profile_expires_automatically_at_its_bound() {
     );
 
     clock.set(instant(130));
-    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Sparse);
+    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Interval);
     assert_eq!(lifecycle.active_profile(), None);
 }
 
@@ -69,7 +69,10 @@ fn profile_expiry_is_observed_after_restart_even_if_the_app_was_not_running() {
 
     let mut restarted = CaptureProfileLifecycle::from_active_profile(profile);
     let after_window = FixedClock::new(instant(131));
-    assert_eq!(restarted.state(&after_window), CaptureProfileState::Sparse);
+    assert_eq!(
+        restarted.state(&after_window),
+        CaptureProfileState::Interval
+    );
     assert_eq!(restarted.active_profile(), None);
 }
 
@@ -86,10 +89,10 @@ fn moving_the_clock_backwards_does_not_extend_or_reactivate_the_window() {
     clock.set(instant(90));
     assert!(lifecycle.state(&clock).is_detailed());
     clock.set(instant(130));
-    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Sparse);
+    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Interval);
 
     clock.set(instant(110));
-    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Sparse);
+    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Interval);
 }
 
 #[test]
@@ -110,7 +113,7 @@ fn a_second_start_is_rejected_without_stacking_or_extending_the_first_window() {
 }
 
 #[test]
-fn ending_early_returns_to_sparse_mode_immediately() {
+fn ending_early_returns_to_interval_mode_immediately() {
     let clock = FixedClock::new(instant(100));
     let mut lifecycle = CaptureProfileLifecycle::new();
     lifecycle
@@ -118,7 +121,7 @@ fn ending_early_returns_to_sparse_mode_immediately() {
         .expect("start detailed profile");
 
     lifecycle.end().expect("end detailed profile");
-    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Sparse);
+    assert_eq!(lifecycle.state(&clock), CaptureProfileState::Interval);
     assert_eq!(lifecycle.end(), Err(ProfileError::NotActive));
 }
 

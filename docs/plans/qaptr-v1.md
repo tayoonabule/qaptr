@@ -46,7 +46,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 6. The first screen presents a small number of smart observations combining chronological context, repeated patterns, and candidate workflows.
 7. A person can select an observation and choose **Qaptr in more detail**.
 8. Qaptr recommends an appropriate detailed-capture interval and explains it simply.
-9. Detailed capture continues until the person explicitly stops it. A subtle persistent menu-bar state makes enhanced capture visible.
+9. Detailed capture runs for the accepted bounded profile window, then returns to the configured interval. A subtle persistent menu-bar state makes enhanced capture visible.
 10. After analysis, Qaptr creates a canonical Workflow document describing the goal, context, tools, sequence, decisions, variations, and evidence confidence.
 11. The person can export that Workflow as polished Markdown tailored for automation, team handoff, onboarding, or a general SOP. Qaptr does not launch agents, create workflows, or execute automations.
 
@@ -129,7 +129,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 - AE2. Given a cache of recent captures, when the person opens Qaptr, then analysis begins without the helper having performed OCR or provider work.
 - AE3. Given a capture containing an email address, an API key, and a face, when the capture is prepared for a provider, then every detected value of an enumerated sensitive class is replaced by its placeholder, any image payload has every recognizer-detected region masked, the coverage proof passes, and the measured recall floor for undetected material is disclosed.
 - AE4. Given one capture whose redaction confidence gate fails, when analysis runs, then that capture is excluded, the remaining captures are analyzed, and the person sees a quiet one-line exclusion notice.
-- AE5. Given an observation, when the person chooses **Qaptr in more detail** and accepts the recommended profile, then detailed capture becomes visibly active in the menu bar and continues until manually stopped.
+- AE5. Given an observation, when the person chooses **Qaptr in more detail** and accepts the recommended profile, then detailed capture becomes visibly active in the menu bar for the fixed profile window and returns to the configured interval when the window expires or the person stops it.
 - AE6. Given a 24-hour cache lifetime, when a capture passes 24 hours, then its encryption keys are destroyed and its image and derived files unlinked, while its summaries remain available.
 - AE7. Given OpenRouter configured and one proven CLI installed, when analysis runs, then either provider completes the full observation flow and produces identical normalized output shapes.
 - AE8. Given an analyzed session, when the person exports a Workflow, then Qaptr writes a canonical document and four purpose-specific Markdown exports without launching any tool.
@@ -533,12 +533,12 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 
 ### U18. Detailed capture profile lifecycle
 
-- **Goal:** **Qaptr in more detail** from recommendation through visible active state to manual stop.
+- **Goal:** **Qaptr in more detail** from recommendation through visible active state to fixed-bound expiry or manual stop.
 - **Requirements:** R-D1, R-D3; AE5.
 - **Dependencies:** U7, U17.
 - **Files:** `crates/qaptr-policy/src/profile.rs`, `crates/qaptr-workflow/src/recommend.rs`, `apps/helper/Sources/QaptrHelper/StatusItem.swift`, `crates/qaptr-policy/tests/profile.rs`.
-- **Approach:** A recommended interval derived from observed activity density with a plain-language explanation, an explicit accept step, a persistent visible menu-bar state, and no automatic time-based stop.
-- **Test scenarios:** Recommendation is deterministic for a fixed session fixture and includes its rationale. Accepting activates the profile and changes menu-bar state. Detailed capture never auto-stops on a timer. Manual stop returns to the configured interval immediately. A restart while detailed capture is active preserves the active state and its visibility.
+- **Approach:** A recommended bounded profile window derived from observed activity density with a plain-language explanation, an explicit accept step, a persistent visible menu-bar state, and a fixed automatic end bound.
+- **Test scenarios:** Recommendation is deterministic for a fixed session fixture and includes its rationale. Accepting activates the profile and changes menu-bar state. Detailed capture expires at its fixed end bound. Manual stop returns to the configured interval immediately. A restart while detailed capture is active preserves the active state and its visibility until the same bound.
 - **Verification:** AE5 passes.
 
 ### U19. Canonical Workflow document and four Markdown exports
