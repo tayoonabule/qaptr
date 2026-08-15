@@ -16,6 +16,7 @@
 mod catalog;
 mod client;
 
+pub use OpenRouterCatalogCache as CatalogCache;
 pub use catalog::{CATALOG_ENDPOINT, CatalogParseError, MAX_CATALOG_MODELS, parse_catalog};
 pub use client::{
     CatalogTransport, HttpResponse, HttpTransport, MAX_RESPONSE_BYTES, OpenRouterHttpClient,
@@ -25,7 +26,7 @@ pub use client::{
 use std::time::SystemTime;
 
 use qaptr_domain::{
-    Duration,
+    Duration, FixedClock,
     ports::{CredentialKey, CredentialPort, PortOutcome},
 };
 use qaptr_policy::ModelCatalog;
@@ -73,6 +74,69 @@ pub enum OpenRouterCatalogError {
     /// The response did not contain a safe compatible model set.
     #[error("OpenRouter catalog response was rejected: {0}")]
     Parse(#[from] CatalogParseError),
+}
+
+/// A bounded, single-entry cache for validated OpenRouter catalog snapshots.
+///
+/// The cache stores only the policy-safe [`ModelCatalog`] projection. It does
+/// not store credentials, provider responses, or endpoint metadata. Each
+/// lookup still reads the current credential before a cache hit is returned,
+/// so caching cannot turn an unauthenticated provider into a ready one.
+#[derive(Debug, Default)]
+pub struct OpenRouterCatalogCache {
+    entry: Option<CachedCatalog>,
+}
+
+#[derive(Debug)]
+struct CachedCatalog {
+    catalog: ModelCatalog,
+    freshness_window: Duration,
+}
+
+impl OpenRouterCatalogCache {
+    /// Creates an empty catalog cache with capacity for one snapshot.
+    pub const fn new() -> Self {
+        Self { entry: None }
+    }
+
+    /// Removes the cached snapshot, forcing the next lookup to fetch.
+    pub fn invalidate(&mut self) {
+        self.entry = None;
+    }
+
+    /// Returns a fresh cached snapshot or fetches and validates a new one.
+    ///
+    /// `now` is supplied by the caller so cache behavior is deterministic and
+    /// tests never need a real clock or network. Expired entries are never
+    /// returned as a fallback. A failed refresh invalidates the prior entry,
+    /// so a transient failure cannot later reactivate an expired snapshot.
+    pub fn get_or_fetch<C, H>(
+        &mut self,
+        adapter: &OpenRouterAdapter<C, H>,
+        now: SystemTime,
+        freshness_window: Duration,
+    ) -> Result<ModelCatalog, OpenRouterCatalogError>
+    where
+        C: CredentialPort,
+        H: CatalogTransport,
+    {
+        let provider = adapter.descriptor.id().clone();
+        let key = adapter.read_key(&provider, RuntimeFailureKind::Detection)?;
+        if let Some(entry) = &self.entry
+            && entry.freshness_window == freshness_window
+            && entry.catalog.is_fresh(&FixedClock::new(now))
+        {
+            return Ok(entry.catalog.clone());
+        }
+
+        self.invalidate();
+        let catalog = adapter.fetch_catalog_with_key(&key, now, freshness_window)?;
+        self.entry = Some(CachedCatalog {
+            catalog: catalog.clone(),
+            freshness_window,
+        });
+        Ok(catalog)
+    }
 }
 
 /// A credential-port-backed OpenRouter adapter.
@@ -158,7 +222,19 @@ impl<C, H> OpenRouterAdapter<C, H> {
     {
         let provider = self.descriptor.id().clone();
         let key = self.read_key(&provider, RuntimeFailureKind::Detection)?;
-        let response = self.client.get_json(CATALOG_ENDPOINT, &key)?;
+        self.fetch_catalog_with_key(&key, fetched_at, freshness_window)
+    }
+
+    fn fetch_catalog_with_key(
+        &self,
+        key: &str,
+        fetched_at: SystemTime,
+        freshness_window: Duration,
+    ) -> Result<ModelCatalog, OpenRouterCatalogError>
+    where
+        H: CatalogTransport,
+    {
+        let response = self.client.get_json(CATALOG_ENDPOINT, key)?;
         if response.status == 429 {
             return Err(OpenRouterCatalogError::RateLimited);
         }

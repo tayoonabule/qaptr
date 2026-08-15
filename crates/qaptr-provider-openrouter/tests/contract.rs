@@ -2,7 +2,10 @@
 
 mod support;
 
-use std::rc::Rc;
+use std::{
+    rc::Rc,
+    time::{Duration as StdDuration, SystemTime, UNIX_EPOCH},
+};
 
 use qaptr_domain::{
     Duration,
@@ -11,8 +14,8 @@ use qaptr_domain::{
 use qaptr_policy::ModelId;
 use qaptr_provider::{ProviderError, ProviderGate, RuntimeFailureKind};
 use qaptr_provider_openrouter::{
-    CatalogParseError, CatalogTransport, HttpResponse, HttpTransport, MAX_RESPONSE_BYTES,
-    OpenRouterAdapter, OpenRouterCatalogError, TransportError,
+    CatalogCache, CatalogParseError, CatalogTransport, HttpResponse, HttpTransport,
+    MAX_RESPONSE_BYTES, OpenRouterAdapter, OpenRouterCatalogError, TransportError,
 };
 
 #[derive(Debug)]
@@ -99,6 +102,28 @@ fn adapter(body: &str) -> OpenRouterAdapter<FakeCredentials, FakeHttp> {
         "test-model",
     )
     .expect("fixed OpenRouter test configuration is valid")
+}
+
+fn catalog_adapter(
+    body: &str,
+    calls: Rc<std::cell::Cell<u32>>,
+) -> OpenRouterAdapter<FakeCredentials, FakeHttp> {
+    OpenRouterAdapter::new(
+        FakeCredentials::configured("test-key"),
+        FakeHttp {
+            response: Ok(HttpResponse {
+                status: 200,
+                body: body.to_owned(),
+            }),
+            calls,
+        },
+        "test-model",
+    )
+    .expect("fixed OpenRouter test configuration is valid")
+}
+
+fn instant(seconds: u64) -> SystemTime {
+    UNIX_EPOCH + StdDuration::from_secs(seconds)
 }
 
 const RESPONSE: &str = r#"{"observations":[{"title":"Observed","summary":"A repeated workflow","confidence":0.8}],"workflow":{"title":"Workflow","goal":"Repeat the steps"}}"#;
@@ -227,6 +252,142 @@ fn catalog_fetch_maps_network_failure_and_missing_credentials_without_requesting
         OpenRouterCatalogError::Provider(ProviderError::NotAuthenticated { .. })
     ));
     assert_eq!(calls.get(), 0);
+}
+
+#[test]
+fn catalog_cache_hits_without_network_until_expiry() {
+    let calls = Rc::new(std::cell::Cell::new(0));
+    let adapter = catalog_adapter(CATALOG_RESPONSE, Rc::clone(&calls));
+    let mut cache = CatalogCache::new();
+
+    let first = cache
+        .get_or_fetch(&adapter, instant(0), Duration::from_secs(60))
+        .expect("first catalog fetch should succeed");
+    let hit = cache
+        .get_or_fetch(&adapter, instant(59), Duration::from_secs(60))
+        .expect("fresh catalog cache hit should succeed");
+    assert_eq!(calls.get(), 1);
+    assert_eq!(first, hit);
+
+    let refreshed = cache
+        .get_or_fetch(&adapter, instant(60), Duration::from_secs(60))
+        .expect("expired catalog should refresh");
+    assert_eq!(calls.get(), 2);
+    assert_eq!(refreshed.fetched_at(), instant(60));
+}
+
+#[test]
+fn catalog_cache_invalidation_forces_a_refresh() {
+    let calls = Rc::new(std::cell::Cell::new(0));
+    let adapter = catalog_adapter(CATALOG_RESPONSE, Rc::clone(&calls));
+    let mut cache = CatalogCache::new();
+
+    cache
+        .get_or_fetch(&adapter, instant(0), Duration::from_secs(900))
+        .expect("first catalog fetch should succeed");
+    cache.invalidate();
+    let refreshed = cache
+        .get_or_fetch(&adapter, instant(1), Duration::from_secs(900))
+        .expect("invalidated catalog should refresh");
+
+    assert_eq!(calls.get(), 2);
+    assert_eq!(refreshed.fetched_at(), instant(1));
+}
+
+#[test]
+fn catalog_cache_rejects_malformed_refresh_without_serving_expired_data() {
+    let valid_calls = Rc::new(std::cell::Cell::new(0));
+    let valid_adapter = catalog_adapter(CATALOG_RESPONSE, Rc::clone(&valid_calls));
+    let mut cache = CatalogCache::new();
+    cache
+        .get_or_fetch(&valid_adapter, instant(0), Duration::from_secs(60))
+        .expect("first catalog fetch should succeed");
+
+    let malformed_calls = Rc::new(std::cell::Cell::new(0));
+    let malformed_adapter = catalog_adapter(
+        r#"{"data":[{"id":"unstructured","architecture":{"input_modalities":["text"],"output_modalities":["text"]},"supported_parameters":["tools"]}]}"#,
+        Rc::clone(&malformed_calls),
+    );
+    let error = cache
+        .get_or_fetch(&malformed_adapter, instant(60), Duration::from_secs(60))
+        .expect_err("expired catalog must not fall back after malformed refresh");
+
+    assert!(matches!(
+        error,
+        OpenRouterCatalogError::Parse(CatalogParseError::NoCompatibleModels)
+    ));
+    assert_eq!(malformed_calls.get(), 1);
+    assert_eq!(valid_calls.get(), 1);
+
+    cache
+        .get_or_fetch(&valid_adapter, instant(60), Duration::from_secs(60))
+        .expect("a later valid refresh should be allowed");
+    assert_eq!(valid_calls.get(), 2);
+}
+
+#[test]
+fn catalog_cache_failure_is_conservative_and_does_not_bypass_authentication() {
+    let valid_calls = Rc::new(std::cell::Cell::new(0));
+    let valid_adapter = catalog_adapter(CATALOG_RESPONSE, Rc::clone(&valid_calls));
+    let mut cache = CatalogCache::new();
+    cache
+        .get_or_fetch(&valid_adapter, instant(0), Duration::from_secs(60))
+        .expect("first catalog fetch should succeed");
+
+    let network_calls = Rc::new(std::cell::Cell::new(0));
+    let network_adapter = OpenRouterAdapter::new(
+        FakeCredentials::configured("test-key"),
+        FakeHttp {
+            response: Err(TransportError::Network),
+            calls: Rc::clone(&network_calls),
+        },
+        "test-model",
+    )
+    .expect("fixed OpenRouter test configuration is valid");
+    let network_error = cache
+        .get_or_fetch(&network_adapter, instant(60), Duration::from_secs(60))
+        .expect_err("expired catalog must not fall back after network failure");
+    assert!(matches!(
+        network_error,
+        OpenRouterCatalogError::Transport(TransportError::Network)
+    ));
+    assert_eq!(network_calls.get(), 1);
+
+    cache
+        .get_or_fetch(&valid_adapter, instant(1), Duration::from_secs(60))
+        .expect("a later valid refresh should be allowed");
+    assert_eq!(valid_calls.get(), 2);
+
+    let auth_calls = Rc::new(std::cell::Cell::new(0));
+    let unauthenticated_adapter = OpenRouterAdapter::new(
+        FakeCredentials {
+            value: None,
+            partial: false,
+            writes: Rc::new(std::cell::Cell::new(0)),
+        },
+        FakeHttp {
+            response: Ok(HttpResponse {
+                status: 200,
+                body: CATALOG_RESPONSE.to_owned(),
+            }),
+            calls: Rc::clone(&auth_calls),
+        },
+        "test-model",
+    )
+    .expect("fixed OpenRouter test configuration is valid");
+    let auth_error = cache
+        .get_or_fetch(
+            &unauthenticated_adapter,
+            instant(1),
+            Duration::from_secs(60),
+        )
+        .expect_err("a cache hit must still require current credentials");
+    assert!(matches!(
+        auth_error,
+        OpenRouterCatalogError::Provider(ProviderError::NotAuthenticated { .. })
+    ));
+    assert_eq!(auth_calls.get(), 0);
+    assert_eq!(valid_calls.get(), 2);
 }
 
 #[test]
