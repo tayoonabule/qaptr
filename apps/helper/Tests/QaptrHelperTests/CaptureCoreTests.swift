@@ -170,6 +170,112 @@ final class CaptureCoreTests: XCTestCase {
         )
     }
 
+    func testSealedEventPersistsWaitingStatusAndIncrementsCaptureCount() throws {
+        var tracker = CaptureProgressTracker()
+        tracker.start(at: 100, processID: 42, selectedDisplayIDs: ["display-1"], activeIntervalSeconds: 60)
+        tracker.beginCapture(at: 200)
+        let event = CaptureEvent.sealed(captureID: "capture-1", displayID: "display-1", width: 1_920, height: 1_080)
+
+        if case .sealed = event {
+            tracker.finishCapture(at: 300, successfulCaptures: 1, selectedDisplayIDs: ["display-1"], activeIntervalSeconds: 60)
+        }
+        let persisted = try persistAndRead(tracker.progress)
+
+        XCTAssertEqual(persisted.state, .waiting)
+        XCTAssertEqual(persisted.captureCount, 1)
+        XCTAssertEqual(persisted.lastCaptureAtMillis, 300)
+        XCTAssertNil(persisted.failureReason)
+    }
+
+    func testRefusedOverlapEventPersistsWaitingStatusWithoutCountingCapture() throws {
+        var tracker = CaptureProgressTracker()
+        tracker.start(at: 100, processID: 42)
+        tracker.beginCapture(at: 200)
+        let event = CaptureEvent.refusedOverlap
+
+        if case .refusedOverlap = event {
+            tracker.finishCapture(at: 300, successfulCaptures: 0)
+        }
+        let persisted = try persistAndRead(tracker.progress)
+
+        XCTAssertEqual(persisted.state, .waiting)
+        XCTAssertEqual(persisted.captureCount, 0)
+        XCTAssertNil(persisted.lastCaptureAtMillis)
+        XCTAssertNil(persisted.failureReason)
+    }
+
+    func testSkippedPermissionEventPersistsPermissionRequiredStatus() throws {
+        var tracker = CaptureProgressTracker()
+        let event = CaptureEvent.skippedPermission
+
+        if case .skippedPermission = event {
+            tracker.markPermissionRequired(at: 300, selectedDisplayIDs: ["display-1"], activeIntervalSeconds: 60)
+        }
+        let persisted = try persistAndRead(tracker.progress)
+
+        XCTAssertEqual(persisted.state, .permissionRequired)
+        XCTAssertEqual(persisted.lastAttemptedAtMillis, 300)
+        XCTAssertEqual(persisted.selectedDisplayIDs, ["display-1"])
+    }
+
+    func testSkippedNoDisplaysEventPersistsNoDisplaysStatus() throws {
+        var tracker = CaptureProgressTracker()
+        let event = CaptureEvent.skippedNoDisplays
+
+        if case .skippedNoDisplays = event {
+            tracker.markNoDisplays(at: 300, selectedDisplayIDs: [], activeIntervalSeconds: 60)
+        }
+        let persisted = try persistAndRead(tracker.progress)
+
+        XCTAssertEqual(persisted.state, .noDisplays)
+        XCTAssertEqual(persisted.lastAttemptedAtMillis, 300)
+        XCTAssertEqual(persisted.selectedDisplayIDs, [])
+    }
+
+    func testSkippedCaptureEventPersistsWaitingStatusAndFailureReason() throws {
+        var tracker = CaptureProgressTracker()
+        tracker.start(at: 100, processID: 42)
+        tracker.beginCapture(at: 200)
+        let event = CaptureEvent.skippedCapture(displayID: "display-1", reason: "camera unavailable")
+
+        if case let .skippedCapture(displayID, reason) = event {
+            tracker.finishCapture(
+                at: 300,
+                successfulCaptures: 0,
+                selectedDisplayIDs: [displayID],
+                activeIntervalSeconds: 60,
+                failureReason: "capture failed on \(displayID): \(reason)"
+            )
+        }
+        let persisted = try persistAndRead(tracker.progress)
+
+        XCTAssertEqual(persisted.state, .waiting)
+        XCTAssertEqual(persisted.captureCount, 0)
+        XCTAssertEqual(persisted.failureReason, "capture failed on display-1: camera unavailable")
+    }
+
+    func testSkippedSealingEventPersistsWaitingStatusAndFailureReason() throws {
+        var tracker = CaptureProgressTracker()
+        tracker.start(at: 100, processID: 42)
+        tracker.beginCapture(at: 200)
+        let event = CaptureEvent.skippedSealing(displayID: "display-1", reason: "vault unavailable")
+
+        if case let .skippedSealing(displayID, reason) = event {
+            tracker.finishCapture(
+                at: 300,
+                successfulCaptures: 0,
+                selectedDisplayIDs: [displayID],
+                activeIntervalSeconds: 60,
+                failureReason: "sealing failed on \(displayID): \(reason)"
+            )
+        }
+        let persisted = try persistAndRead(tracker.progress)
+
+        XCTAssertEqual(persisted.state, .waiting)
+        XCTAssertEqual(persisted.captureCount, 0)
+        XCTAssertEqual(persisted.failureReason, "sealing failed on display-1: vault unavailable")
+    }
+
     func testBrowserContextDropsPathQueryAndFragment() {
         XCTAssertEqual(reducedBrowserHost(from: "https://example.com/private?q=secret#fragment"), "https://example.com")
         XCTAssertNil(reducedBrowserHost(from: "not a url"))
@@ -183,6 +289,18 @@ final class CaptureCoreTests: XCTestCase {
             coordinator.runTick(displays: ["1"], context: SampledContext(application: "Editor")) { _ in "capture-1" },
             [.skippedSealing(displayID: "1", reason: "Error Domain=tests Code=1 \"intentional failure\" UserInfo={NSLocalizedDescription=intentional failure}")]
         )
+    }
+}
+
+private extension CaptureCoreTests {
+    func persistAndRead(_ progress: CaptureProgress) throws -> CaptureProgress {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-capture-event-status-\(UUID().uuidString)")
+            .appendingPathComponent("capture-progress.json")
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        let store = CaptureProgressStore(url: url)
+        try store.write(progress)
+        return try store.read()
     }
 }
 
