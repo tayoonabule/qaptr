@@ -141,7 +141,7 @@
 
 ### 4.3 Canonical Workflow generation
 - [x] Generate a canonical `WorkflowDocument` from the selected observation/candidate workflow using only observed or explicitly supplied scalar material.
-- [ ] Persist the scalar workflow summary through `qaptr-store` and make it visible after relaunch.
+- [x] Persist the scalar workflow summary through `qaptr-store` and make it visible after relaunch. The FFI snapshot contract now writes a scalar workflow, destroys and reopens the opaque review-store handle, and verifies the same workflow is returned in snapshot JSON (`qaptr-review-ffi` test `snapshot_json_round_trips_scalar_history_after_reopen`; 12 FFI tests and targeted clippy pass).
 - [x] Ensure missing sequence/details remain visibly missing rather than inferred.
 - [x] Test generation from high, low, and sparse evidence; validate stable IDs and honest confidence/provenance.
 

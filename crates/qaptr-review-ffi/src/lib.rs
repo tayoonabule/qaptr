@@ -275,8 +275,8 @@ fn snapshot_to_json(
 
 #[cfg(test)]
 mod tests {
-    use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId};
-    use qaptr_store::{CaptureRecord, UnixMillis};
+    use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
+    use qaptr_store::{CaptureRecord, UnixMillis, WorkflowRecord};
 
     use super::*;
 
@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_json_round_trips_observations_and_notices() {
+    fn snapshot_json_round_trips_scalar_history_after_reopen() {
         let root = tempfile::tempdir().expect("temporary root");
         let db_path = root.path().join("history.sqlite3");
         let path_bytes = db_path.to_string_lossy().into_owned();
@@ -347,6 +347,25 @@ mod tests {
                 .expect("notice"),
             )
             .expect("notice insert");
+        store_ref
+            .put_workflow(&WorkflowRecord {
+                id: WorkflowId::new("workflow-1").expect("workflow id"),
+                session_id: SessionId::new("session-1").expect("session id"),
+                title: "Document review workflow".to_owned(),
+                goal: "Review a shared document".to_owned(),
+                context: "Editor".to_owned(),
+                tools: "[]".to_owned(),
+                sequence: "[]".to_owned(),
+                decisions: "[]".to_owned(),
+                variations: "[]".to_owned(),
+                evidence_confidence: Confidence::new(0.72).expect("confidence"),
+                created_at: UnixMillis::from_millis(2_000),
+            })
+            .expect("workflow insert");
+
+        unsafe { qaptr_store_destroy(handle) };
+        let handle = unsafe { qaptr_store_open(path_bytes.as_bytes().as_ptr(), path_bytes.len()) };
+        assert!(!handle.is_null());
 
         let mut output = vec![0_u8; 4096];
         let required =
@@ -362,6 +381,11 @@ mod tests {
         assert_eq!(observations.len(), 1);
         assert_eq!(observations[0]["title"], "Reviewed a document");
         assert_eq!(observations[0]["confidence"], 0.72_f32 as f64);
+
+        let workflows = value["workflows"].as_array().expect("workflows array");
+        assert_eq!(workflows.len(), 1);
+        assert_eq!(workflows[0]["title"], "Document review workflow");
+        assert_eq!(workflows[0]["sequence"], "[]");
 
         let notices = value["notices"].as_array().expect("notices array");
         assert_eq!(notices.len(), 1);
