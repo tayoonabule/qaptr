@@ -649,12 +649,8 @@ mod tests {
         let home = std::env::var_os("HOME").expect("test has a home directory");
         let home = PathBuf::from(home);
         let working_directory = home.join("qaptr-test-working-directory");
-        let profile = sandbox_profile(
-            std::path::Path::new("/bin/echo"),
-            &working_directory,
-            &[],
-        )
-        .expect("test paths are valid sandbox paths");
+        let profile = sandbox_profile(std::path::Path::new("/bin/echo"), &working_directory, &[])
+            .expect("test paths are valid sandbox paths");
         let home_deny = format!(
             "(deny file-write* (subpath \"{}\"))",
             home.to_str().expect("test home is UTF-8")
