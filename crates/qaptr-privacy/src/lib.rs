@@ -30,7 +30,7 @@ pub use recall::{
 };
 pub use recognize::{
     ImageOrientation, ImageRecognizer, PixelRect, RecognitionResult, map_normalized_rect,
-    recognize, recognize_for_image,
+    recognize,
 };
 pub use sanitize::{
     ContextField, SanitizationError, SanitizedContext, SanitizedValue, sanitize_context,

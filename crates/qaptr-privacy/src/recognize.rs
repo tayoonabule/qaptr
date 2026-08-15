@@ -203,26 +203,6 @@ where
     })
 }
 
-/// Runs recognition and binds its result to the exact image being prepared.
-///
-/// The adapters supplied here must inspect the same image bytes represented by
-/// `image`; the returned provenance then prevents a later masking call from
-/// silently accepting detections for another image.
-pub fn recognize_for_image<O, V>(
-    ocr: &O,
-    vision: &V,
-    capture: &CaptureId,
-    image: &Image,
-) -> Result<RecognitionResult>
-where
-    O: OcrPort,
-    V: VisionPort,
-{
-    let mut result = recognize(ocr, vision, capture)?;
-    result.source_image_hash = Some(crate::ImageHash::of(image));
-    Ok(result)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{ImageOrientation, map_normalized_rect};
