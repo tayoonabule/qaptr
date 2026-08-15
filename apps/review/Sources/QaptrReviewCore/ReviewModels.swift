@@ -103,3 +103,130 @@ public struct ReviewSnapshot: Equatable, Sendable {
         observations.sorted { $0.createdAtMillis > $1.createdAtMillis }
     }
 }
+
+/// The durable-history store's open/ready state, as reported by the bridge.
+public struct ReviewStoreStatus: Equatable, Sendable {
+    public let ready: Bool
+
+    public init(ready: Bool) {
+        self.ready = ready
+    }
+}
+
+/// The review session's durable-history counts.
+///
+/// This never reports a live capture or analysis session: it only describes
+/// what has already been durably recorded.
+public struct ReviewSessionStatus: Equatable, Sendable {
+    public let state: String
+    public let historyAvailable: Bool
+    public let observationCount: Int
+    public let workflowCount: Int
+    public let noticeCount: Int
+
+    public init(
+        state: String,
+        historyAvailable: Bool,
+        observationCount: Int,
+        workflowCount: Int,
+        noticeCount: Int
+    ) {
+        self.state = state
+        self.historyAvailable = historyAvailable
+        self.observationCount = observationCount
+        self.workflowCount = workflowCount
+        self.noticeCount = noticeCount
+    }
+}
+
+/// Live-analysis availability.
+///
+/// `qaptr-review-ffi` never exposes live provider analysis: `provider` is
+/// always absent and `reason` explains why, never inventing an active
+/// session or a provider name.
+public struct ReviewAnalysisStatus: Equatable, Sendable {
+    public let state: String
+    public let provider: String?
+    public let reason: String?
+
+    public init(state: String, provider: String?, reason: String?) {
+        self.state = state
+        self.provider = provider
+        self.reason = reason
+    }
+}
+
+/// The complete, decoded status returned by `qaptr_review_status_json`.
+///
+/// This is a scalar summary only: store readiness, durable-history counts,
+/// and live-analysis availability. It never carries observation or workflow
+/// content; use [`ReviewSnapshot`] for that.
+public struct ReviewStatus: Equatable, Sendable {
+    public let store: ReviewStoreStatus
+    public let reviewSession: ReviewSessionStatus
+    public let analysis: ReviewAnalysisStatus
+
+    public init(store: ReviewStoreStatus, reviewSession: ReviewSessionStatus, analysis: ReviewAnalysisStatus) {
+        self.store = store
+        self.reviewSession = reviewSession
+        self.analysis = analysis
+    }
+}
+
+/// Decodes the JSON produced by `qaptr_review_status_json`.
+public enum ReviewStatusDecoder {
+    public static func decode(_ data: Data) throws -> ReviewStatus {
+        let json: Any
+        do {
+            json = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw ReviewSnapshotDecodeError.invalidJSON(String(describing: error))
+        }
+        guard let root = json as? [String: Any] else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("root is not an object")
+        }
+        guard let storeFields = root["store"] as? [String: Any] else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("status missing a \"store\" object")
+        }
+        guard let sessionFields = root["review_session"] as? [String: Any] else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("status missing a \"review_session\" object")
+        }
+        guard let analysisFields = root["analysis"] as? [String: Any] else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("status missing an \"analysis\" object")
+        }
+
+        guard let ready = storeFields["ready"] as? Bool else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("store status missing \"ready\"")
+        }
+
+        guard
+            let sessionState = sessionFields["state"] as? String,
+            let historyAvailable = sessionFields["history_available"] as? Bool,
+            let observationCount = (sessionFields["observation_count"] as? NSNumber)?.intValue,
+            let workflowCount = (sessionFields["workflow_count"] as? NSNumber)?.intValue,
+            let noticeCount = (sessionFields["notice_count"] as? NSNumber)?.intValue
+        else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("review session status missing a required field")
+        }
+
+        guard let analysisState = analysisFields["state"] as? String else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("analysis status missing \"state\"")
+        }
+
+        return ReviewStatus(
+            store: ReviewStoreStatus(ready: ready),
+            reviewSession: ReviewSessionStatus(
+                state: sessionState,
+                historyAvailable: historyAvailable,
+                observationCount: observationCount,
+                workflowCount: workflowCount,
+                noticeCount: noticeCount
+            ),
+            analysis: ReviewAnalysisStatus(
+                state: analysisState,
+                provider: analysisFields["provider"] as? String,
+                reason: analysisFields["reason"] as? String
+            )
+        )
+    }
+}

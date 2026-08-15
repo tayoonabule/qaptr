@@ -91,6 +91,88 @@ final class ReviewSnapshotDecoderTests: XCTestCase {
     }
 }
 
+final class ReviewStatusDecoderTests: XCTestCase {
+    func testDecodesAReadyStatusWithHistoryAvailable() throws {
+        let json = """
+        {
+          "store": { "ready": true },
+          "review_session": {
+            "state": "ready",
+            "history_available": true,
+            "observation_count": 1,
+            "workflow_count": 0,
+            "notice_count": 0
+          },
+          "analysis": {
+            "state": "unavailable",
+            "provider": null,
+            "reason": "live provider analysis is not exposed by qaptr-review-ffi"
+          }
+        }
+        """
+        let status = try ReviewStatusDecoder.decode(Data(json.utf8))
+        XCTAssertEqual(status.store.ready, true)
+        XCTAssertEqual(status.reviewSession.state, "ready")
+        XCTAssertEqual(status.reviewSession.historyAvailable, true)
+        XCTAssertEqual(status.reviewSession.observationCount, 1)
+        XCTAssertEqual(status.reviewSession.workflowCount, 0)
+        XCTAssertEqual(status.reviewSession.noticeCount, 0)
+        XCTAssertEqual(status.analysis.state, "unavailable")
+        XCTAssertNil(status.analysis.provider)
+        XCTAssertEqual(
+            status.analysis.reason,
+            "live provider analysis is not exposed by qaptr-review-ffi"
+        )
+    }
+
+    func testDecodesHistoryUnavailableWhenNothingHasBeenRecorded() throws {
+        let json = """
+        {
+          "store": { "ready": true },
+          "review_session": {
+            "state": "ready",
+            "history_available": false,
+            "observation_count": 0,
+            "workflow_count": 0,
+            "notice_count": 0
+          },
+          "analysis": { "state": "unavailable", "provider": null, "reason": "no analysis" }
+        }
+        """
+        let status = try ReviewStatusDecoder.decode(Data(json.utf8))
+        XCTAssertEqual(status.reviewSession.historyAvailable, false)
+    }
+
+    func testRejectsNonObjectRoot() {
+        XCTAssertThrowsError(try ReviewStatusDecoder.decode(Data("[]".utf8))) { error in
+            XCTAssertEqual(error as? ReviewSnapshotDecodeError, .unexpectedShape("root is not an object"))
+        }
+    }
+
+    func testRejectsMissingReviewSessionObject() {
+        let json = """
+        { "store": { "ready": true }, "analysis": { "state": "unavailable" } }
+        """
+        XCTAssertThrowsError(try ReviewStatusDecoder.decode(Data(json.utf8))) { error in
+            XCTAssertEqual(
+                error as? ReviewSnapshotDecodeError,
+                .unexpectedShape("status missing a \"review_session\" object")
+            )
+        }
+    }
+
+    func testRejectsReviewSessionMissingARequiredField() {
+        let json = """
+        {
+          "store": { "ready": true },
+          "review_session": { "state": "ready", "history_available": true, "observation_count": 0 },
+          "analysis": { "state": "unavailable" }
+        }
+        """
+        XCTAssertThrowsError(try ReviewStatusDecoder.decode(Data(json.utf8)))
+    }
+}
+
 final class ReviewSnapshotOrderingTests: XCTestCase {
     func testOrdersObservationsMostRecentFirst() {
         let older = QaptrObservation(

@@ -36,6 +36,11 @@ private typealias StoreLastErrorFunction = @convention(c) (
     UnsafeMutableRawPointer?,
     Int
 ) -> Int
+private typealias ReviewStatusFunction = @convention(c) (
+    UnsafeMutableRawPointer,
+    UnsafeMutableRawPointer?,
+    Int
+) -> Int
 private typealias KeyBootstrapFunction = @convention(c) (
     UnsafeRawPointer?,
     Int,
@@ -92,6 +97,7 @@ private final class ReviewFFILibrary: @unchecked Sendable {
     let storeDestroy: StoreDestroyFunction
     let storeSnapshot: StoreSnapshotFunction
     let storeLastError: StoreLastErrorFunction
+    let reviewStatus: ReviewStatusFunction
     let keyBootstrap: KeyBootstrapFunction
     let permissionState: PermissionStateFunction
     let permissionRequest: PermissionRequestFunction
@@ -117,6 +123,7 @@ private final class ReviewFFILibrary: @unchecked Sendable {
             self.storeDestroy = try Self.load("qaptr_store_destroy", from: handle)
             self.storeSnapshot = try Self.load("qaptr_store_snapshot_json", from: handle)
             self.storeLastError = try Self.load("qaptr_store_last_error", from: handle)
+            self.reviewStatus = try Self.load("qaptr_review_status_json", from: handle)
             self.keyBootstrap = try Self.load("qaptr_key_bootstrap_json", from: handle)
             self.permissionState = try Self.load("qaptr_permission_state", from: handle)
             self.permissionRequest = try Self.load("qaptr_permission_request", from: handle)
@@ -248,6 +255,32 @@ public final class ReviewBridge: @unchecked Sendable {
                 let data = Data(buffer.prefix(required - 1))
                 do {
                     return try ReviewSnapshotDecoder.decode(data)
+                } catch {
+                    throw ReviewBridgeError.snapshotUnavailable(String(describing: error))
+                }
+            }
+            capacity = required
+        }
+    }
+
+    /// Reads a compact review status: durable-history availability and
+    /// counts, plus live-analysis availability. This never reports a live
+    /// capture session or provider result; use `snapshot()` for durable
+    /// content.
+    public func reviewStatus() throws -> ReviewStatus {
+        var capacity = 1_024
+        while true {
+            var buffer = [UInt8](repeating: 0, count: capacity)
+            let required = buffer.withUnsafeMutableBytes { bytes in
+                library.reviewStatus(storeHandle, bytes.baseAddress, capacity)
+            }
+            if required == 0 {
+                throw ReviewBridgeError.snapshotUnavailable(lastStoreError())
+            }
+            if required <= capacity {
+                let data = Data(buffer.prefix(required - 1))
+                do {
+                    return try ReviewStatusDecoder.decode(data)
                 } catch {
                     throw ReviewBridgeError.snapshotUnavailable(String(describing: error))
                 }
