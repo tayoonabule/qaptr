@@ -347,24 +347,21 @@ fn eligible_sealed_capture_prepares_before_any_provider_request() {
 
     // Preparation runs, and the recorded state order places "preparing"
     // strictly before the provider is ever detected or invoked.
-    assert_eq!(states.first(), Some(&"ingesting"));
-    assert!(
-        states.contains(&"preparing"),
-        "expected a preparing state, got {states:?}"
+    assert_eq!(
+        states,
+        vec!["ingesting", "preparing", "analyzing", "completed"]
     );
     assert_eq!(provider.adapter().detections.get(), 1);
     assert_eq!(provider.adapter().invocations.get(), 1);
     assert_eq!(consent.requests.get(), 1);
     assert!(matches!(report.provider, ProviderOutcome::Completed { .. }));
     assert_eq!(report.observations_written, 1);
+    let snapshot = harness.store.snapshot().expect("snapshot");
+    assert_eq!(snapshot.captures.len(), 1);
+    assert_eq!(snapshot.observations.len(), 1);
     assert_eq!(
-        harness
-            .store
-            .snapshot()
-            .expect("snapshot")
-            .observations
-            .len(),
-        1
+        coordinator.last_capture_ids(),
+        vec![CaptureId::new("coordinator-granted").expect("capture id")]
     );
 }
 
@@ -404,21 +401,18 @@ fn declined_consent_through_coordinator_makes_zero_provider_calls() {
         })
         .expect("coordinator session");
 
-    assert_eq!(states.first(), Some(&"ingesting"));
-    assert!(states.contains(&"preparing"));
+    assert_eq!(states, vec!["ingesting", "preparing", "completed"]);
     assert_eq!(consent.requests.get(), 1);
     // Consent gates the provider invocation, never the handshake needed to
     // know which provider to ask consent for.
     assert_eq!(provider.adapter().invocations.get(), 0);
     assert!(matches!(report.provider, ProviderOutcome::ConsentDeclined));
     assert_eq!(report.observations_written, 0);
+    let snapshot = harness.store.snapshot().expect("snapshot");
+    assert_eq!(snapshot.captures.len(), 1);
+    assert_eq!(snapshot.observations.len(), 0);
     assert_eq!(
-        harness
-            .store
-            .snapshot()
-            .expect("snapshot")
-            .observations
-            .len(),
-        0
+        coordinator.last_capture_ids(),
+        vec![CaptureId::new("coordinator-declined").expect("capture id")]
     );
 }
