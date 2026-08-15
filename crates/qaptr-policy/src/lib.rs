@@ -20,11 +20,11 @@ mod profile;
 mod retention;
 
 pub use exclusions::{
-    seal_if_allowed, CaptureDecision, ExclusionReason, ExclusionRules, PolicyError,
+    CaptureDecision, ExclusionReason, ExclusionRules, PolicyError, seal_if_allowed,
 };
 pub use profile::{
     CaptureProfileLifecycle, CaptureProfileState, DetailedCaptureProfile, ProfileError,
 };
 pub use retention::{
-    enforce_retention, RetentionBundle, RetentionError, RetentionPolicy, RetentionReport,
+    RetentionBundle, RetentionError, RetentionPolicy, RetentionReport, enforce_retention,
 };
