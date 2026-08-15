@@ -6,6 +6,7 @@ struct OnboardingView: View {
     @Bindable var model: ReviewAppModel
     @State private var stage: OnboardingStage = .permissions
     @State private var direction: StageDirection = .forward
+    @State private var showsProviderSetup = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -51,6 +52,9 @@ struct OnboardingView: View {
         .frame(maxWidth: 560, alignment: .leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.qaptrSurface)
+        .sheet(isPresented: $showsProviderSetup, onDismiss: model.dismissProviderSetup) {
+            ProviderSetupSheet(model: model)
+        }
     }
 
     private enum StageDirection {
@@ -176,7 +180,12 @@ struct OnboardingView: View {
             Text("This saves your choice. Qaptr will not send anything just because you choose it.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
-            ProviderChoiceList(selection: providerBinding)
+            ProviderChoiceList(selection: model.settings.provider) { provider in
+                model.connectProvider(provider)
+                if provider == .openRouter {
+                    showsProviderSetup = true
+                }
+            }
                 .padding(.top, 2)
         }
     }
@@ -195,19 +204,6 @@ struct OnboardingView: View {
                     .padding(.top, 4)
             }
         }
-    }
-
-    private var providerBinding: Binding<ProviderChoice?> {
-        Binding(
-            get: { model.settings.provider },
-            set: { newValue in
-                if let newValue {
-                    model.setProvider(newValue)
-                } else {
-                    model.clearProvider()
-                }
-            }
-        )
     }
 
     private func advance() {
@@ -262,13 +258,14 @@ private struct PermissionRow: View {
 }
 
 private struct ProviderChoiceList: View {
-    @Binding var selection: ProviderChoice?
+    let selection: ProviderChoice?
+    let select: (ProviderChoice) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(ProviderChoice.allCases, id: \.self) { provider in
                 ProviderRow(provider: provider, isSelected: provider == selection) {
-                    selection = provider
+                    select(provider)
                 }
             }
         }
