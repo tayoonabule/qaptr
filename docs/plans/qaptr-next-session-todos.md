@@ -101,18 +101,18 @@
 - [ ] Make the resolved provider/model immutable for one consented request and record it in scalar result metadata.
 
 ### 3.2 OpenRouter catalog strategy
-- [ ] Add a bounded OpenRouter model-catalog/configuration transport that uses credentials transiently and never logs or persists the key/response payload.
-- [ ] Parse catalog responses defensively, rejecting malformed/unstructured entries and only accepting models that satisfy Qaptr’s structured-output/capability requirements.
-- [ ] Select the versioned preferred model if valid; otherwise select the next validated fallback and emit a clear change notice.
+- [x] Add a bounded OpenRouter model-catalog/configuration transport that uses credentials transiently and never logs or persists the key/response payload. `OpenRouterAdapter::fetch_catalog` enforces the response bound at its public adapter boundary, treats credentials as read-only/transient, redacts adapter debug output, and makes zero transport calls when credentials are absent (`b1f9265`, `1bcb939`; `cargo test -p qaptr-provider-openrouter` passes 14 tests).
+- [x] Parse catalog responses defensively, rejecting malformed/unstructured entries and only accepting models that satisfy Qaptr’s structured-output/capability requirements. Parser and public adapter contract tests reject oversized, malformed, and unstructured catalogs without partial results while accepting only capability-qualified models in source order (`b1f9265`, `1bcb939`; `cargo test -p qaptr-provider-openrouter` passes 14 tests).
+- [x] Select the versioned preferred model if valid; otherwise select the next validated fallback and emit a clear change notice. `ModelPolicy` tests cover validated preferred selection, deterministic first-valid fallback selection, and typed readiness/change guidance (`cdf2e8b`; `cargo test -p qaptr-policy` passes 32 tests).
 - [ ] Cache validated catalog entries with a bounded freshness period and invalidate/revalidate before analysis.
-- [ ] Make an unavailable explicit override block analysis with setup guidance rather than falling back silently.
+- [x] Make an unavailable explicit override block analysis with setup guidance rather than falling back silently. `unavailable_override_blocks_resolution_without_falling_back` verifies the typed blocked result and recovery guidance (`cdf2e8b`; `cargo test -p qaptr-policy` passes 32 tests).
 - [ ] Do not fetch the catalog merely from provider/model selection UI; model availability validation must be consent-safe and distinctly disclosed.
 
 ### 3.3 CLI provider strategy
 - [x] Keep the supported provider list limited to OpenRouter, Claude CLI, Codex CLI, and Jcode CLI. `ProviderChoice` is an exact closed enum and its isolated review-core contract test locks the four presentation identifiers (`7fe77b8`; `QaptrReviewCoreTests` target builds cleanly).
 - [x] Derive CLI availability from each adapter’s supported detection/authentication capability check. Claude, Codex, and Jcode adapters each probe the executable, version, and documented authentication boundary, returning typed not-installed/not-authenticated outcomes rather than optimistic selection; `cargo test -p qaptr-provider-cli` passes its deterministic suite with only three explicitly environment-dependent real-CLI tests ignored, and targeted clippy passes.
-- [ ] Do not expose detected-but-unusable CLI providers as selectable.
-- [ ] Resolve a CLI’s documented default model unless a supported explicit override exists.
+- [x] Do not expose detected-but-unusable CLI providers as selectable. `ProviderDetection::is_usable` now requires location, version, and typed authenticated status before the shared provider gate can verify a provider; contract regressions cover unauthenticated and incomplete detection (`02571ee`; `cargo test -p qaptr-provider --test contract` passes 9 tests).
+- [x] Resolve a CLI’s documented default model unless a supported explicit override exists. The policy-level CLI default path resolves without a fallback list, while validated explicit overrides retain precedence (`cdf2e8b`; `cargo test -p qaptr-policy` passes 32 tests). Review-session/consent display wiring remains open below.
 - [ ] Surface the resolved CLI model or an honest “provider default” label in consent and result metadata.
 - [ ] Do not read or widen access to Claude credentials. Any macOS authentication integration requires separate explicit user approval and a narrow design review.
 
