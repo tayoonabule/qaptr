@@ -17,11 +17,13 @@ struct ProviderConnectionState: Equatable {
         }
     }
 
-    enum Kind: Equatable { case notConnected, needsKey, checking, connected, failed(Failure) }
+    enum Kind: Equatable { case notConnected, needsKey, configured, checking, connected, failed(Failure) }
     let kind: Kind
 
     static let notConnected = Self(kind: .notConnected)
     static let needsKey = Self(kind: .needsKey)
+    /// A Keychain entry exists, but this process has not verified it with the provider.
+    static let configured = Self(kind: .configured)
     static let checking = Self(kind: .checking)
     static let connected = Self(kind: .connected)
 
@@ -31,6 +33,7 @@ struct ProviderConnectionState: Equatable {
         switch kind {
         case .notConnected: "Not connected"
         case .needsKey: "Add a key"
+        case .configured: "Key saved"
         case .checking: "Checking"
         case .connected: "Connected"
         case .failed: "Try again"
@@ -38,8 +41,11 @@ struct ProviderConnectionState: Equatable {
     }
 
     var detail: String {
-        if case .failed(let failure) = kind { return failure.message }
-        return title
+        switch kind {
+        case .failed(let failure): failure.message
+        case .configured: "A key is saved. Paste it again to verify the provider."
+        default: title
+        }
     }
 }
 

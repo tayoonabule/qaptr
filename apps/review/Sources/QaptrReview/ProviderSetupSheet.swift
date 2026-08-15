@@ -47,6 +47,13 @@ struct ProviderSetupSheet: View {
                         .accessibilityLabel("Connection failed: \(failure.message)")
             }
 
+            if model.providerConnection == .configured {
+                Text(model.providerConnection.detail)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft)
+                    .accessibilityLabel("Connection status: \(model.providerConnection.detail)")
+            }
+
             HStack {
                 if model.providerConnection == .checking {
                     ProgressView("Checking")
@@ -61,7 +68,7 @@ struct ProviderSetupSheet: View {
                     }
                 }
                 Spacer()
-                Button(model.providerConnection == .connected ? "Connected" : "Connect") {
+                Button(model.providerConnection == .connected ? "Connected" : "Verify connection") {
                     model.startOpenRouterConnectionCheck(key)
                 }
                 .buttonStyle(.qaptrPrimary)

@@ -191,7 +191,7 @@ final class ReviewAppModel {
         setProvider(provider)
         guard provider == .openRouter else { return }
         providerSetupRequest = .openRouter
-        providerConnection = credentialStore.containsOpenRouterKey() ? .notConnected : .needsKey
+        providerConnection = credentialStore.containsOpenRouterKey() ? .configured : .needsKey
     }
 
     func dismissProviderSetup() {
@@ -226,7 +226,9 @@ final class ReviewAppModel {
             providerConnection = .notConnected
             return
         }
-        providerConnection = provider == .openRouter && !credentialStore.containsOpenRouterKey() ? .needsKey : .notConnected
+        providerConnection = provider == .openRouter
+            ? (credentialStore.containsOpenRouterKey() ? .configured : .needsKey)
+            : .notConnected
     }
 
     func addExcludedApplication(_ raw: String) {

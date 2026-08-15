@@ -61,7 +61,7 @@ final class ReviewAppModelOnboardingCompletionTests: XCTestCase {
         XCTAssertTrue(connected.hasUsableProvider)
 
         let notYetConnected: [ProviderConnectionState.Kind] = [
-            .notConnected, .needsKey, .checking, .failed(.invalidKey), .failed(.unavailable), .failed(.unableToSave),
+            .notConnected, .needsKey, .configured, .checking, .failed(.invalidKey), .failed(.unavailable), .failed(.unableToSave),
         ]
         for kind in notYetConnected {
             let inputs = ReviewAppModel.onboardingCompletionInputs(
@@ -72,6 +72,21 @@ final class ReviewAppModelOnboardingCompletionTests: XCTestCase {
             )
             XCTAssertFalse(inputs.hasUsableProvider, "OpenRouter must not be usable while \(kind)")
         }
+    }
+
+    func testSavedKeyIsVisibleButDoesNotClaimVerifiedProviderConnection() {
+        XCTAssertEqual(ProviderConnectionState.configured.title, "Key saved")
+        XCTAssertEqual(
+            ProviderConnectionState.configured.detail,
+            "A key is saved. Paste it again to verify the provider."
+        )
+        let inputs = ReviewAppModel.onboardingCompletionInputs(
+            screenRecordingStatus: .granted,
+            availableDisplayCount: 1,
+            provider: .openRouter,
+            providerConnectionKind: .configured
+        )
+        XCTAssertFalse(inputs.hasUsableProvider)
     }
 
     func testCliProvidersDoNotBlockCompletionSinceNoReadinessCheckExistsYet() {
