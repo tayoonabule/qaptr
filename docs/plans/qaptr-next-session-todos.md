@@ -78,7 +78,7 @@
 ### 2.3 Persist and expose results safely
 - [ ] Normalize only schema-valid provider responses into bounded observations and candidate workflows.
 - [ ] Persist observation summaries, workflow summaries, and exclusion notices through `qaptr-store` allowlisted writers only.
-- [ ] Confirm the store rejects encoded-image-looking scalar text at every new writer boundary.
+- [x] Confirm the store rejects encoded-image-looking scalar text at every new writer boundary. Capture, observation, workflow, and notice writer coverage rejects PNG-like encoded strings while accepting legitimate scalar text (`d7d3f4d`; `cargo test -p qaptr-store` passes 21 tests).
 - [ ] Extend the bridge with coarse operations only: start, progress, grant/decline consent, cancel, retry, observation detail, workflow generation, and export.
 - [ ] Do not mirror vault, privacy, provider, or raw domain models across the C/Swift bridge.
 - [ ] Add bridge contract tests for output shape, errors, no-image invariant, and restart persistence.
