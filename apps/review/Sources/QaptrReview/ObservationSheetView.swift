@@ -2,11 +2,6 @@ import QaptrReviewCore
 import SwiftUI
 
 /// The primary surface: a small, honest list of recent observations.
-///
-/// The redesign trades the previous build's bordered card boxes for a single
-/// hairline rhythm -- one rule between every section, matching the
-/// website's own section dividers. Nothing here is boxed; the page reads as
-/// one continuous column, the way Linear and Apple's own utility windows do.
 struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
     let showSettings: () -> Void
@@ -17,9 +12,12 @@ struct ObservationSheetView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.xl)
-
-                reviewStatusSummary
+                if model.reviewStatus != nil || model.reviewStatusError != nil {
+                    QaptrCard(padding: QaptrSpace.lg) {
+                        reviewStatusSummary
+                    }
+                    .padding(.top, QaptrSpace.md)
+                }
 
                 if model.loadError != nil {
                     ErrorStateView(retry: model.refresh)
@@ -31,7 +29,12 @@ struct ObservationSheetView: View {
                         EmptyStateView(progress: model.captureProgress)
                             .padding(.top, QaptrSpace.xl)
                     } else {
-                        Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.xl)
+                        Text("RECENT OBSERVATIONS")
+                            .font(QaptrType.meta(10.5))
+                            .tracking(1)
+                            .foregroundStyle(Color.qaptrInkMuted)
+                            .padding(.top, QaptrSpace.xl)
+                            .padding(.bottom, QaptrSpace.sm)
                         observationList
                     }
                 }
@@ -41,8 +44,8 @@ struct ObservationSheetView: View {
                         .padding(.top, QaptrSpace.xl)
                 }
             }
-            .padding(QaptrSpace.xl)
-            .frame(maxWidth: 620, alignment: .leading)
+            .padding(QaptrSpace.lg)
+            .frame(maxWidth: 680, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .background(Color.qaptrSurface)
@@ -62,10 +65,15 @@ struct ObservationSheetView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: QaptrSpace.lg) {
             VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-                Text("QAPTR")
-                    .font(QaptrType.meta())
-                    .tracking(1.2)
-                    .foregroundStyle(Color.qaptrInkSoft)
+                HStack(spacing: QaptrSpace.xs) {
+                    Circle()
+                        .fill(model.captureProgress.helperIsRunning ? Color.qaptrLive : Color.qaptrInkSoft.opacity(0.35))
+                        .frame(width: 6, height: 6)
+                    Text("QAPTR")
+                        .font(QaptrType.meta())
+                        .tracking(1.2)
+                        .foregroundStyle(Color.qaptrInkSoft)
+                }
                 Text(headerTitle)
                     .font(QaptrType.display())
                     .foregroundStyle(Color.qaptrInk)
@@ -73,6 +81,12 @@ struct ObservationSheetView: View {
             Spacer(minLength: QaptrSpace.lg)
             Button("Settings", action: showSettings)
                 .buttonStyle(.qaptrOutline)
+        }
+        .padding(QaptrSpace.lg)
+        .background(Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.feature, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: QaptrRadius.feature, style: .continuous)
+                .strokeBorder(Color.qaptrHairline, lineWidth: 1)
         }
     }
 
@@ -84,7 +98,8 @@ struct ObservationSheetView: View {
     }
 
     private var captureProgress: some View {
-        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+        QaptrCard {
+            VStack(alignment: .leading, spacing: QaptrSpace.sm) {
             HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.xxl) {
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Screenshots captured")
@@ -98,9 +113,15 @@ struct ObservationSheetView: View {
                     Text("Capture state")
                         .font(QaptrType.meta())
                         .foregroundStyle(Color.qaptrInkSoft)
-                    Text(model.captureProgress.statusLabel)
-                        .font(QaptrType.body())
-                        .foregroundStyle(Color.qaptrInk)
+                        Text(model.captureProgress.statusLabel)
+                            .font(QaptrType.body())
+                            .foregroundStyle(model.captureProgress.helperIsRunning ? Color.qaptrInk : Color.qaptrInkSoft)
+                            .padding(.horizontal, QaptrSpace.sm)
+                            .padding(.vertical, QaptrSpace.xxs)
+                            .background(
+                            model.captureProgress.helperIsRunning ? Color.qaptrAccentTint : Color.qaptrPaperMist,
+                            in: Capsule()
+                        )
                 }
             }
             if let lastCaptureDate = model.captureProgress.lastCaptureDate {
@@ -116,6 +137,7 @@ struct ObservationSheetView: View {
                 .font(QaptrType.caption())
                 .foregroundStyle(Color.qaptrInkSoft)
                 .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -150,7 +172,7 @@ struct ObservationSheetView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .combine)
         } else if model.reviewStatusError != nil {
             Text("History status unavailable. Saved observations may still be shown.")
                 .font(QaptrType.body(13))
@@ -166,16 +188,15 @@ struct ObservationSheetView: View {
     }
 
     private var observationList: some View {
-        VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+        VStack(alignment: .leading, spacing: QaptrSpace.md) {
             ForEach(Array(model.snapshot.recentObservations.enumerated()), id: \.element.id) { index, observation in
-                ObservationRow(
-                    observation: observation,
-                    index: index,
-                    reduceMotion: reduceMotion,
-                    select: { selectedObservation = observation }
-                )
-                if observation.id != model.snapshot.recentObservations.last?.id {
-                    Divider().overlay(Color.qaptrHairline)
+                QaptrCard(padding: QaptrSpace.lg) {
+                    ObservationRow(
+                        observation: observation,
+                        index: index,
+                        reduceMotion: reduceMotion,
+                        select: { selectedObservation = observation }
+                    )
                 }
             }
         }
@@ -249,7 +270,10 @@ private struct ConfidenceTag: View {
     var body: some View {
         Text(band.label)
             .font(QaptrType.meta(10.5))
-            .foregroundStyle(band == .high ? Color.qaptrAccent : Color.qaptrInkSoft)
+            .foregroundStyle(band == .high ? Color.qaptrSuccess : Color.qaptrInkSoft)
+            .padding(.horizontal, QaptrSpace.sm)
+            .padding(.vertical, QaptrSpace.xxs)
+            .background(band == .high ? Color.qaptrSoftMint : Color.qaptrPaperMist, in: Capsule())
     }
 }
 

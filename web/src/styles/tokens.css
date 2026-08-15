@@ -1,72 +1,109 @@
-/* Hallmark · macrostructure: bespoke (doc-specified: header/hero-form/arc/passages/form/footer)
- * theme: bespoke custom · vibe: "near-monochrome editorial, one amber signal, serif voice + mono report"
- * paper oklch(100% 0 0) / dark oklch(9% 0 0) · accent oklch(72% 0.16 65) warm-amber
- * display: ui-serif ("New York") · body: same serif · meta: ui-monospace
- * axes: paper=light(inverts dark) / display-style=roman-serif / accent-hue=warm
- * studied: yes · DNA-source: study of shopify.design, see docs/design/website.md
- */
-
 :root {
-  /* ---- color: light (default) ---- */
-  --color-paper: oklch(100% 0 0);
-  --color-paper-2: oklch(97% 0 0);
-  --color-ink: oklch(20% 0 0); /* #111 equivalent */
-  --color-ink-soft: oklch(45% 0 0);
-  --color-hairline: oklch(88% 0 0);
-  --color-accent: oklch(72% 0.16 65); /* warm signal amber */
-  --color-accent-ink: oklch(30% 0.1 65);
-  --color-focus: oklch(72% 0.16 65);
-  --color-error: oklch(52% 0.18 25);
+  color-scheme: light;
 
-  /* ---- type ---- */
-  --font-serif: "New York", ui-serif, Georgia, "Times New Roman", serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Qaptr's light, paper-like palette. */
+  --color-canvas-white: #ffffff;
+  --color-paper-mist: #f5f5f5;
+  --color-ash: #e5e5e5;
+  --color-smoke: #d4d4d4;
+  --color-pebble: #c8c8c8;
+  --color-midnight-ink: #0a0a0a;
+  --color-charcoal: #171717;
+  --color-graphite: #262626;
+  --color-slate: #404040;
+  --color-steel: #525252;
+  --color-fog: #737373;
+  --color-silver: #a3a3a3;
+  --color-electric-blue: #2563eb;
+  --color-deep-sapphire: #1e40af;
+  --color-soft-mint: #dcfce7;
+  --color-vivid-green: #16a34a;
+  --color-tangerine: #ea580c;
+  --color-lavender: #7c3aed;
+  --color-primary-action-fill: #000000;
 
-  --text-display: clamp(3.2rem, 2.1rem + 5.6vw, 9.5rem);
-  --text-headline: clamp(2rem, 1.5rem + 2.2vw, 3.4rem);
-  --text-subhead: clamp(1.15rem, 1rem + 0.5vw, 1.5rem);
-  --text-body: 1.0625rem;
-  --text-meta: 0.8125rem;
+  --color-blue-wash: #dbeaff;
+  --color-orange-wash: #fff1e8;
+  --color-green-wash: #effcf2;
+  --color-violet-wash: #f3efff;
 
-  --tracking-display: -0.035em;
-  --tracking-body: -0.008em;
-  --tracking-meta: 0.05em;
+  /* Satoshi / Inter / Geist Mono are intentionally system-first. */
+  --font-satoshi: "Satoshi", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-inter: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-geist-mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 
-  --leading-display: 0.92;
-  --leading-body: 1.55;
+  --text-caption: 0.6875rem;
+  --text-body: 0.875rem;
+  --text-body-lg: 1rem;
+  --text-body-xl: 1.125rem;
+  --text-subheading: 1.25rem;
+  --text-heading-sm: 1.5rem;
+  --text-heading: 1.875rem;
+  --text-heading-lg: 2.25rem;
+  --text-display: clamp(2.75rem, 7vw, 4rem);
 
-  /* ---- space (4pt scale) ---- */
-  --space-3xs: 0.25rem;
-  --space-2xs: 0.5rem;
-  --space-xs: 0.75rem;
-  --space-sm: 1rem;
-  --space-md: 1.5rem;
-  --space-lg: 2.5rem;
-  --space-xl: 4rem;
-  --space-2xl: 6rem;
-  --space-3xl: 9rem;
+  --spacing-4: 0.25rem;
+  --spacing-8: 0.5rem;
+  --spacing-12: 0.75rem;
+  --spacing-16: 1rem;
+  --spacing-20: 1.25rem;
+  --spacing-24: 1.5rem;
+  --spacing-28: 1.75rem;
+  --spacing-32: 2rem;
+  --spacing-36: 2.25rem;
+  --spacing-40: 2.5rem;
+  --spacing-48: 3rem;
+  --spacing-56: 3.5rem;
+  --spacing-64: 4rem;
+  --spacing-80: 5rem;
+  --spacing-96: 6rem;
+  --spacing-112: 7rem;
 
-  /* ---- motion ---- */
+  --radius-tag: 9999px;
+  --radius-card: 0.75rem;
+  --radius-input: 0.375rem;
+  --radius-button: 0.5rem;
+  --radius-large-card: 1rem;
+
+  --shadow-subtle: rgba(0, 0, 0, 0.05) 0 1px 2px 0;
+  --shadow-mockup: rgba(0, 0, 0, 0.1) 0 0 0 4px;
+
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-fade: 240ms;
   --dur-sweep: 900ms;
   --dur-sheen: 2400ms;
 
-  /* ---- misc ---- */
+  /* Compatibility aliases for the existing Astro component vocabulary. */
+  --color-paper: var(--color-canvas-white);
+  --color-paper-2: var(--color-paper-mist);
+  --color-ink: var(--color-charcoal);
+  --color-ink-soft: var(--color-steel);
+  --color-hairline: var(--color-ash);
+  --color-accent: var(--color-electric-blue);
+  --color-accent-ink: var(--color-deep-sapphire);
+  --color-focus: var(--color-electric-blue);
+  --color-error: var(--color-tangerine);
+  --font-serif: var(--font-satoshi);
+  --font-mono: var(--font-geist-mono);
+  --text-subhead: var(--text-body-xl);
+  --text-meta: var(--text-caption);
+  --tracking-display: -0.025em;
+  --tracking-body: 0;
+  --tracking-meta: 0.06em;
+  --leading-display: 1.06;
+  --leading-headline: 1.2;
+  --leading-body: 1.5;
+  --space-3xs: var(--spacing-4);
+  --space-2xs: var(--spacing-8);
+  --space-xs: var(--spacing-12);
+  --space-sm: var(--spacing-16);
+  --space-md: var(--spacing-24);
+  --space-lg: var(--spacing-40);
+  --space-xl: var(--spacing-64);
+  --space-2xl: var(--spacing-96);
+  --space-3xl: var(--spacing-112);
   --rule-width: 1px;
-  --radius-sm: 3px;
-  --measure: 42rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-paper: oklch(9% 0 0); /* #0a0a0a equivalent */
-    --color-paper-2: oklch(14% 0 0);
-    --color-ink: oklch(95% 0 0); /* #f2f2f2 equivalent */
-    --color-ink-soft: oklch(68% 0 0);
-    --color-hairline: oklch(26% 0 0);
-    --color-accent-ink: oklch(85% 0.1 65);
-  }
+  --radius-sm: var(--radius-input);
+  --measure: 44rem;
 }

@@ -249,8 +249,80 @@ final class ReviewAppModel {
         settings.excludedWindowTitles = preferences.excludedWindowTitles
     }
 
-    func completeOnboarding() {
-        preferences.onboardingCompleted = true
-        onboardingCompleted = true
+    /// Marks onboarding complete only when every required local setup
+    /// decision (checklist 5.1) is actually satisfied by live state.
+    /// Otherwise this is a no-op: `onboardingCompleted` stays false, so
+    /// onboarding can never be durably completed on a guess or a default.
+    @discardableResult
+    func completeOnboarding() -> Bool {
+        let completed = preferences.completeOnboardingIfEligible(currentOnboardingCompletionInputs())
+        if completed {
+            onboardingCompleted = true
+        }
+        return completed
+    }
+
+    /// Whether onboarding is currently eligible to complete, so a caller can
+    /// gate the Finish action's enabled state without duplicating the
+    /// eligibility policy itself.
+    var isOnboardingCompletionEligible: Bool {
+        OnboardingCompletionPolicy.isEligible(currentOnboardingCompletionInputs())
+    }
+
+    private func currentOnboardingCompletionInputs() -> OnboardingCompletionInputs {
+        Self.onboardingCompletionInputs(
+            screenRecordingStatus: settings.screenRecordingStatus,
+            availableDisplayCount: settings.availableDisplayIDs.count,
+            provider: settings.provider,
+            providerConnectionKind: providerConnection.kind
+        )
+    }
+
+    /// Derives checklist 5.1's completion inputs from already-known live
+    /// state. Pure and directly testable, so the gating logic behind
+    /// `completeOnboarding()` doesn't need a full `ReviewAppModel` (bridge,
+    /// Keychain, filesystem) to exercise.
+    ///
+    /// Display selection: Qaptr has no display-selection UI yet (tracked
+    /// separately by checklist 5.2/1.x), so `hasSelectedDisplay` truthfully
+    /// reflects whether at least one display is actually attached and
+    /// available -- matching the helper's real auto-select-all-available-
+    /// displays capture behavior -- rather than inventing a per-display
+    /// selection that does not exist.
+    ///
+    /// Provider usability: leaving the provider unset is a legitimate
+    /// capture-only choice (see `OnboardingProviderChoiceList`), so it counts
+    /// as usable. OpenRouter usability is the real Keychain-backed connection
+    /// state. The three CLI providers (`claudeCLI`, `codexCLI`, `jcodeCLI`)
+    /// have no live readiness check implemented anywhere in this codebase
+    /// yet -- that is checklist 5.1's separate, still-open "let the user
+    /// select a provider only when readiness checks make it usable" item,
+    /// not this gate. Forcing a fabricated `false` here would durably brick
+    /// onboarding for that choice with no recovery UI to unblock it, which
+    /// is a worse and unrequested regression than leaving this specific
+    /// sub-check ungated; forcing a fabricated `true` would falsely claim a
+    /// readiness check occurred. So a CLI provider selection is treated the
+    /// same as no selection: it does not block completion, matching this
+    /// path's actual pre-existing behavior, and the missing readiness check
+    /// is reported as an open item rather than silently faked in either
+    /// direction.
+    nonisolated static func onboardingCompletionInputs(
+        screenRecordingStatus: PermissionStatus,
+        availableDisplayCount: Int,
+        provider: ProviderChoice?,
+        providerConnectionKind: ProviderConnectionState.Kind
+    ) -> OnboardingCompletionInputs {
+        let hasUsableProvider: Bool
+        switch provider {
+        case nil, .claudeCLI, .codexCLI, .jcodeCLI:
+            hasUsableProvider = true
+        case .openRouter:
+            hasUsableProvider = providerConnectionKind == .connected
+        }
+        return OnboardingCompletionInputs(
+            hasSelectedDisplay: availableDisplayCount > 0,
+            screenRecordingStatus: screenRecordingStatus,
+            hasUsableProvider: hasUsableProvider
+        )
     }
 }

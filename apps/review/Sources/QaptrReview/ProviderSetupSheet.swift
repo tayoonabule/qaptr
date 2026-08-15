@@ -12,8 +12,9 @@ struct ProviderSetupSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: QaptrSpace.lg) {
-            HStack(alignment: .top) {
+        QaptrCard(padding: QaptrSpace.xl) {
+            VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+                HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Connect OpenRouter")
                         .font(QaptrType.headline(18))
@@ -23,25 +24,27 @@ struct ProviderSetupSheet: View {
                         .foregroundStyle(Color.qaptrInkSoft)
                 }
                 Spacer()
-                Button("Disconnect") { model.disconnectProvider() }
-                    .buttonStyle(.qaptrQuiet)
-            }
+                    Button("Disconnect") { model.disconnectProvider() }
+                        .buttonStyle(.qaptrQuiet)
+                }
 
             Text("Your key stays in your Mac Keychain. This check sends no screenshots or notes.")
                 .font(QaptrType.caption())
                 .foregroundStyle(Color.qaptrInkSoft)
 
             SecureField("OpenRouter key", text: $key)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.qaptr)
                 .focused($keyFocused)
                 .disabled(model.providerConnection == .checking)
                 .accessibilityLabel("OpenRouter key")
 
             if case .failed(let failure) = model.providerConnection.kind {
-                Text(failure.message)
-                    .font(QaptrType.caption())
-                    .foregroundStyle(Color.qaptrError)
-                    .accessibilityLabel("Connection failed: \(failure.message)")
+                    Text(failure.message)
+                        .font(QaptrType.caption())
+                        .foregroundStyle(Color.qaptrError)
+                        .padding(QaptrSpace.sm)
+                        .background(Color.qaptrError.opacity(0.08), in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+                        .accessibilityLabel("Connection failed: \(failure.message)")
             }
 
             HStack {
@@ -72,9 +75,10 @@ struct ProviderSetupSheet: View {
                 Button("Done") { dismiss() }
                     .buttonStyle(.qaptrOutline)
             }
+            }
         }
-        .padding(QaptrSpace.xl)
-        .frame(width: 420)
-        .background(Color.qaptrSurface)
+        .frame(width: 460)
+        .padding(QaptrSpace.sm)
+        .background(Color.qaptrPaperMist)
     }
 }

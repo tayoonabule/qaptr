@@ -3,10 +3,10 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
 ---
 
 <BaseLayout title="That email does not look right — Qaptr">
-  <section class="confirm wrap reveal">
-    <p class="meta confirm__eyebrow">Private beta &middot; macOS</p>
-    <h1 class="confirm__headline">That email does not look right.</h1>
-    <p class="confirm__body">Check for a typo and try again — it takes one field.</p>
+  <section class="status status--warning wrap reveal">
+    <p class="meta status__eyebrow">Private beta &middot; macOS</p>
+    <h1 class="status__headline">That email does not look right.</h1>
+    <p class="status__body">Check for a typo and try again. It takes one field.</p>
 
     <form class="retry-form" method="post" action="/api/waitlist">
       <input type="hidden" name="source" value="unknown" />
@@ -21,111 +21,15 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
           autocomplete="email"
           required
         />
-        <button class="retry-form__submit" type="submit">Try again</button>
+        <button class="status__submit" type="submit">Try again</button>
       </div>
     </form>
 
-    <a class="confirm__link" href="/">Back to the homepage</a>
+    <a class="status__link" href="/">Back to the homepage</a>
   </section>
 
   <script>
     document.getElementById("retry-waitlist-email")?.focus();
   </script>
 
-  <style>
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
-
-    .confirm {
-      padding-block: clamp(4rem, 14vw, 8rem);
-      max-width: 36rem;
-    }
-
-    .confirm__eyebrow {
-      margin-bottom: var(--space-sm);
-    }
-
-    .confirm__headline {
-      font-size: var(--text-headline);
-      letter-spacing: var(--tracking-display);
-      line-height: var(--leading-headline);
-    }
-
-    .confirm__body {
-      margin-top: var(--space-md);
-      color: var(--color-ink-soft);
-      max-width: 36ch;
-    }
-
-    .retry-form {
-      margin-top: var(--space-xl);
-      max-width: 30rem;
-    }
-
-    .retry-form__row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-sm);
-      border-bottom: 1.5px solid var(--color-ink);
-      padding-bottom: var(--space-sm);
-    }
-
-    .retry-form__input {
-      flex: 1 1 14rem;
-      min-width: 0;
-      border: none;
-      background: transparent;
-      font-family: var(--font-serif);
-      font-size: var(--text-subhead);
-      color: var(--color-ink);
-      padding: var(--space-2xs) 0;
-    }
-
-    .retry-form__input:focus {
-      outline: none;
-    }
-
-    .retry-form__submit {
-      flex: 0 0 auto;
-      background: var(--color-ink);
-      color: var(--color-paper);
-      border: none;
-      border-radius: 999px;
-      padding: var(--space-xs) var(--space-lg);
-      font-family: var(--font-mono);
-      font-size: var(--text-meta);
-      letter-spacing: var(--tracking-meta);
-      text-transform: uppercase;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .confirm__link {
-      display: inline-block;
-      margin-top: var(--space-xl);
-      font-family: var(--font-mono);
-      font-size: var(--text-meta);
-      letter-spacing: var(--tracking-meta);
-      text-transform: uppercase;
-      border-bottom: 1px solid var(--color-ink);
-      text-decoration: none;
-    }
-
-    @media (max-width: 480px) {
-      .retry-form__row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .retry-form__submit {
-        width: 100%;
-      }
-    }
-  </style>
 </BaseLayout>

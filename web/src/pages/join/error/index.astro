@@ -3,44 +3,10 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
 ---
 
 <BaseLayout title="Something went wrong — Qaptr">
-  <section class="confirm wrap reveal">
-    <p class="meta confirm__eyebrow">Private beta &middot; macOS</p>
-    <h1 class="confirm__headline">Something went wrong on our end.</h1>
-    <p class="confirm__body">Your email was not saved. Please try again in a moment.</p>
-    <a class="confirm__link" href="/">Back to the homepage</a>
+  <section class="status status--error wrap reveal">
+    <p class="meta status__eyebrow">Private beta &middot; macOS</p>
+    <h1 class="status__headline">Something went wrong on our end.</h1>
+    <p class="status__body">Your email was not saved. Please try again in a moment.</p>
+    <a class="status__link" href="/">Back to the homepage</a>
   </section>
-
-  <style>
-    .confirm {
-      padding-block: clamp(4rem, 14vw, 8rem);
-      max-width: 36rem;
-    }
-
-    .confirm__eyebrow {
-      margin-bottom: var(--space-sm);
-    }
-
-    .confirm__headline {
-      font-size: var(--text-headline);
-      letter-spacing: var(--tracking-display);
-      line-height: var(--leading-headline);
-    }
-
-    .confirm__body {
-      margin-top: var(--space-md);
-      color: var(--color-ink-soft);
-      max-width: 36ch;
-    }
-
-    .confirm__link {
-      display: inline-block;
-      margin-top: var(--space-xl);
-      font-family: var(--font-mono);
-      font-size: var(--text-meta);
-      letter-spacing: var(--tracking-meta);
-      text-transform: uppercase;
-      border-bottom: 1px solid var(--color-ink);
-      text-decoration: none;
-    }
-  </style>
 </BaseLayout>

@@ -9,83 +9,105 @@ const formId = `join-${variant}`;
 const emailId = `${formId}-email`;
 ---
 
-<form id={formId} class="waitlist-form" method="post" action="/api/waitlist">
+<form id={formId} class={`waitlist-form waitlist-form--${variant}`} method="post" action="/api/waitlist" data-waitlist-form>
   {heading && <p class="meta waitlist-form__label">{heading}</p>}
   <input type="hidden" name="source" value={variant} />
-  <div class="waitlist-form__row">
-    <label class="visually-hidden" for={emailId}>Email address</label>
-    <input
-      id={emailId}
-      class="waitlist-form__input"
-      type="email"
-      name="email"
-      placeholder="you@example.com"
-      autocomplete="email"
-      required
-    />
-    <button class="waitlist-form__submit" type="submit">
-      <span>Join the waitlist</span>
-    </button>
+  <div class="waitlist-form__shell">
+    <div class="waitlist-form__row">
+      <label class="visually-hidden" for={emailId}>Email address</label>
+      <input
+        id={emailId}
+        class="waitlist-form__input"
+        type="email"
+        name="email"
+        placeholder="you@example.com"
+        autocomplete="email"
+        required
+        aria-describedby={`${formId}-note`}
+      />
+      <button class="waitlist-form__submit" type="submit">
+        <span>Join the waitlist</span>
+      </button>
+    </div>
+    <p id={`${formId}-note`} class="waitlist-form__note">One email when your invite is ready. No tracking.</p>
   </div>
 </form>
 
 <style>
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+  .waitlist-form__label {
+    margin-bottom: var(--spacing-8);
   }
 
-  .waitlist-form__label {
-    margin-bottom: var(--space-xs);
+  .waitlist-form__shell {
+    border: 1px solid var(--color-ash);
+    border-radius: var(--radius-card);
+    background: var(--color-canvas-white);
+    padding: var(--spacing-8);
+    box-shadow: var(--shadow-subtle);
   }
 
   .waitlist-form__row {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-sm);
-    border-bottom: 1.5px solid var(--color-ink);
-    padding-bottom: var(--space-sm);
+    gap: var(--spacing-8);
+    align-items: stretch;
   }
 
   .waitlist-form__input {
-    flex: 1 1 16rem;
+    flex: 1 1 auto;
     min-width: 0;
-    border: none;
-    background: transparent;
-    font-family: var(--font-serif);
-    font-size: var(--text-subhead);
-    color: var(--color-ink);
-    padding: var(--space-2xs) 0;
+    min-height: 2.75rem;
+    border: 1px solid var(--color-midnight-ink);
+    border-radius: var(--radius-input);
+    background: var(--color-canvas-white);
+    color: var(--color-charcoal);
+    padding: var(--spacing-8) var(--spacing-12);
+    transition: border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
   }
 
   .waitlist-form__input::placeholder {
-    color: var(--color-ink-soft);
-    opacity: 0.6;
+    color: var(--color-fog);
   }
 
   .waitlist-form__input:focus {
-    outline: none;
+    border-color: var(--color-electric-blue);
+    outline: 2px solid rgba(37, 99, 235, 0.22);
+    outline-offset: 1px;
+  }
+
+  .waitlist-form__input:user-invalid {
+    border-color: var(--color-tangerine);
   }
 
   .waitlist-form__submit {
     position: relative;
     flex: 0 0 auto;
-    background: var(--color-ink);
-    color: var(--color-paper);
-    border: none;
-    border-radius: 999px;
-    padding: var(--space-xs) var(--space-lg);
-    font-family: var(--font-mono);
-    font-size: var(--text-meta);
-    letter-spacing: var(--tracking-meta);
-    text-transform: uppercase;
-    cursor: pointer;
+    min-height: 2.75rem;
     overflow: hidden;
+    border: 1px solid var(--color-primary-action-fill);
+    border-radius: var(--radius-button);
+    background: var(--color-primary-action-fill);
+    color: var(--color-canvas-white);
+    padding: var(--spacing-8) var(--spacing-16);
+    font-size: var(--text-body);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
     white-space: nowrap;
+  }
+
+  .waitlist-form__submit:hover,
+  .waitlist-form__submit:focus-visible {
+    border-color: var(--color-deep-sapphire);
+    background: var(--color-deep-sapphire);
+  }
+
+  .waitlist-form__submit:active {
+    transform: translateY(1px);
+  }
+
+  .waitlist-form__submit:disabled {
+    cursor: wait;
+    opacity: 0.64;
   }
 
   .waitlist-form__submit span {
@@ -93,19 +115,28 @@ const emailId = `${formId}-email`;
     z-index: 1;
   }
 
+  .waitlist-form__note {
+    margin-top: var(--spacing-8);
+    color: var(--color-fog);
+    font-size: var(--text-caption);
+  }
+
   .js-motion .waitlist-form__submit::after {
-    content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-      100deg,
-      transparent 30%,
-      color-mix(in oklch, var(--color-accent) 55%, transparent) 50%,
-      transparent 70%
-    );
+    background: linear-gradient(100deg, transparent 30%, rgba(37, 99, 235, 0.55) 50%, transparent 70%);
     background-size: 220% 100%;
     background-position: 140% 0;
+    content: "";
     animation: sheen var(--dur-sheen) var(--ease-in-out) infinite;
+  }
+
+  .waitlist-form[data-submitting] .waitlist-form__submit::after {
+    display: none;
+  }
+
+  .waitlist-form[data-submitting] .waitlist-form__submit {
+    background: var(--color-deep-sapphire);
   }
 
   @keyframes sheen {
@@ -116,20 +147,18 @@ const emailId = `${formId}-email`;
 
   @media (prefers-reduced-motion: reduce) {
     .js-motion .waitlist-form__submit::after {
-      animation: none;
       display: none;
+      animation: none;
     }
   }
 
   @media (max-width: 480px) {
     .waitlist-form__row {
       flex-direction: column;
-      align-items: stretch;
     }
 
     .waitlist-form__submit {
       width: 100%;
-      text-align: center;
     }
   }
 </style>

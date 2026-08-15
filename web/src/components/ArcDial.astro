@@ -13,17 +13,17 @@
     <path
       d="M 40 200 A 160 160 0 0 1 360 200"
       fill="none"
-      stroke="var(--color-hairline)"
+      stroke="var(--color-ash)"
       stroke-width="1.5"
     ></path>
 
-    <line x1="40" y1="200" x2="40" y2="212" stroke="var(--color-ink-soft)" stroke-width="1.5"></line>
-    <line x1="360" y1="200" x2="360" y2="212" stroke="var(--color-ink-soft)" stroke-width="1.5"></line>
+    <line x1="40" y1="200" x2="40" y2="212" stroke="var(--color-steel)" stroke-width="1.5"></line>
+    <line x1="360" y1="200" x2="360" y2="212" stroke="var(--color-steel)" stroke-width="1.5"></line>
 
     <g class="arc-dial__needle">
-      <line x1="200" y1="200" x2="200" y2="52" stroke="var(--color-accent)" stroke-width="3" stroke-linecap="round"
+      <line x1="200" y1="200" x2="200" y2="52" stroke="var(--color-electric-blue)" stroke-width="3" stroke-linecap="round"
       ></line>
-      <circle cx="200" cy="200" r="6" fill="var(--color-accent)"></circle>
+      <circle cx="200" cy="200" r="6" fill="var(--color-electric-blue)"></circle>
     </g>
   </svg>
 
@@ -35,7 +35,7 @@
 
 <style>
   .arc-dial {
-    max-width: 32rem;
+    width: min(100%, 34rem);
     margin-inline: auto;
   }
 
@@ -71,7 +71,8 @@
   .arc-dial__labels {
     display: flex;
     justify-content: space-between;
-    margin-top: var(--space-2xs);
-    padding-inline: var(--space-md);
+    margin-top: var(--spacing-8);
+    padding-inline: var(--spacing-8);
+    color: var(--color-steel);
   }
 </style>

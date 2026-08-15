@@ -1,40 +1,30 @@
 import SwiftUI
 
-/// Qaptr's shared design tokens: color, type, space, and motion.
+/// Qaptr's shared design tokens for the native utility surfaces.
 ///
-/// Every color value here is the exact sRGB conversion of the OKLCH palette
-/// defined once in `web/src/styles/tokens.css` (paper `oklch(100% 0 0)` /
-/// dark `oklch(9% 0 0)`, accent `oklch(72% 0.16 65)` warm amber). The app and
-/// the website are not "inspired by" the same palette -- they render the
-/// same numbers, so a person moving between the marketing site and the
-/// native app sees one continuous surface rather than two loosely matched
-/// ones.
-///
-/// Typography mirrors the website's two-voice pairing: a serif display face
-/// (New York, matching the web's `--font-serif`) for titles the person reads
-/// as a heading, and the system sans for everything they read as an
-/// instruction or a control label. A monospaced caps voice marks the small
-/// section eyebrows, matching the website's `--font-mono` metadata role.
+/// The native app intentionally stays on the light product canvas: white
+/// surfaces, hairline borders, compact 4pt spacing, and one blue interaction
+/// accent. Cards use borders rather than decorative gradients or heavy shadow.
 enum QaptrHex {
-    // Light
-    static let paperLight = NSColor(qaptrHex: 0xFF_FF_FF)
-    static let paperLight2 = NSColor(qaptrHex: 0xF5_F5_F5)
-    static let inkLight = NSColor(qaptrHex: 0x16_16_16)
-    static let inkSoftLight = NSColor(qaptrHex: 0x55_55_55)
-    static let hairlineLight = NSColor(qaptrHex: 0xD7_D7_D7)
-    static let accentInkLight = NSColor(qaptrHex: 0x4E_1E_00)
-
-    // Dark
-    static let paperDark = NSColor(qaptrHex: 0x02_02_02)
-    static let paperDark2 = NSColor(qaptrHex: 0x09_09_09)
-    static let inkDark = NSColor(qaptrHex: 0xEE_EE_EE)
-    static let inkSoftDark = NSColor(qaptrHex: 0x98_98_98)
-    static let hairlineDark = NSColor(qaptrHex: 0x24_24_24)
-    static let accentInkDark = NSColor(qaptrHex: 0xFC_C0_87)
-
-    // Theme-invariant
-    static let accent = NSColor(qaptrHex: 0xE7_8C_08)
-    static let error = NSColor(qaptrHex: 0xBA_2B_2E)
+    static let canvasWhite = NSColor(qaptrHex: 0xFF_FF_FF)
+    static let paperMist = NSColor(qaptrHex: 0xF5_F5_F5)
+    static let ash = NSColor(qaptrHex: 0xE5_E5_E5)
+    static let smoke = NSColor(qaptrHex: 0xD4_D4_D4)
+    static let pebble = NSColor(qaptrHex: 0xC8_C8_C8)
+    static let midnightInk = NSColor(qaptrHex: 0x0A_0A_0A)
+    static let charcoal = NSColor(qaptrHex: 0x17_17_17)
+    static let graphite = NSColor(qaptrHex: 0x26_26_26)
+    static let slate = NSColor(qaptrHex: 0x40_40_40)
+    static let steel = NSColor(qaptrHex: 0x52_52_52)
+    static let fog = NSColor(qaptrHex: 0x73_73_73)
+    static let silver = NSColor(qaptrHex: 0xA3_A3_A3)
+    static let electricBlue = NSColor(qaptrHex: 0x25_63_EB)
+    static let deepSapphire = NSColor(qaptrHex: 0x1E_40_AF)
+    static let softMint = NSColor(qaptrHex: 0xDC_FC_E7)
+    static let vividGreen = NSColor(qaptrHex: 0x16_A3_4A)
+    static let tangerine = NSColor(qaptrHex: 0xEA_58_0C)
+    static let lavender = NSColor(qaptrHex: 0x7C_3A_ED)
+    static let error = NSColor(qaptrHex: 0xB4_23_18)
 }
 
 private extension NSColor {
@@ -48,58 +38,58 @@ private extension NSColor {
     }
 }
 
-private func qaptrIsDarkAppearance(_ appearance: NSAppearance) -> Bool {
-    appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-}
-
 private func qaptrDynamicColor(light: NSColor, dark: NSColor) -> Color {
-    Color(nsColor: NSColor(name: nil, dynamicProvider: { qaptrIsDarkAppearance($0) ? dark : light }))
+    // Qaptr is deliberately a white-canvas utility app. Keeping the dynamic
+    // factory preserves the AppKit/SwiftUI boundary without introducing a
+    // second visual theme that is outside the product design system.
+    _ = dark
+    return Color(nsColor: light)
 }
 
-/// A single dynamic NSColor factory shared by the SwiftUI `Color.qaptrSurface`
-/// token below and the AppKit window setup in `QaptrReviewApp.swift`, so the
-/// transparent titlebar and the SwiftUI content beneath it always agree.
+/// The AppKit window surface. The content and titlebar always share the same
+/// white canvas, so no system gray can leak through around the traffic lights.
 func qaptrSurfaceNSColor(appearance: NSAppearance) -> NSColor {
-    qaptrIsDarkAppearance(appearance) ? QaptrHex.paperDark : QaptrHex.paperLight
+    _ = appearance
+    return QaptrHex.canvasWhite
 }
 
 extension Color {
-    /// The app's base window surface. Numerically identical to the
-    /// website's `--color-paper`.
-    static let qaptrSurface = qaptrDynamicColor(light: QaptrHex.paperLight, dark: QaptrHex.paperDark)
-
-    /// A barely-distinct raised surface, used only for the rare place a
-    /// control needs to read as a distinct hit target (e.g. a hovered row).
-    /// Never used to draw a card or a panel.
-    static let qaptrSurfaceRaised = qaptrDynamicColor(light: QaptrHex.paperLight2, dark: QaptrHex.paperDark2)
-
-    /// Primary text.
-    static let qaptrInk = qaptrDynamicColor(light: QaptrHex.inkLight, dark: QaptrHex.inkDark)
-
-    /// Secondary text: detail lines, captions, inactive state.
-    static let qaptrInkSoft = qaptrDynamicColor(light: QaptrHex.inkSoftLight, dark: QaptrHex.inkSoftDark)
-
-    /// The one rule used by every divider in the app. No boxes, no card
-    /// borders -- sections are separated by this hairline alone.
-    static let qaptrHairline = qaptrDynamicColor(light: QaptrHex.hairlineLight, dark: QaptrHex.hairlineDark)
-
-    /// The one warm accent: selection, progress, and the one deliberate
-    /// primary action per screen. Matches the website's `--color-accent`
-    /// exactly and does not shift between light and dark.
-    static let qaptrAccent = Color(nsColor: QaptrHex.accent)
-
-    /// The ink color used *on top of* an accent-filled surface (a primary
-    /// button's label). Matches the website's `--color-accent-ink` pairing.
-    static let qaptrAccentInk = qaptrDynamicColor(light: QaptrHex.accentInkLight, dark: QaptrHex.accentInkDark)
-
-    /// The one error color, used only for an actual failure message.
+    static let qaptrSurface = qaptrDynamicColor(light: QaptrHex.canvasWhite, dark: QaptrHex.canvasWhite)
+    static let qaptrSurfaceRaised = Color(nsColor: QaptrHex.paperMist)
+    static let qaptrPaperMist = Color(nsColor: QaptrHex.paperMist)
+    static let qaptrInk = Color(nsColor: QaptrHex.charcoal)
+    static let qaptrInkSoft = Color(nsColor: QaptrHex.steel)
+    static let qaptrInkMuted = Color(nsColor: QaptrHex.fog)
+    static let qaptrSlate = Color(nsColor: QaptrHex.slate)
+    static let qaptrHairline = Color(nsColor: QaptrHex.ash)
+    static let qaptrBorderStrong = Color(nsColor: QaptrHex.smoke)
+    static let qaptrInputBorder = Color(nsColor: QaptrHex.midnightInk)
+    static let qaptrAccent = Color(nsColor: QaptrHex.electricBlue)
+    static let qaptrAccentStrong = Color(nsColor: QaptrHex.deepSapphire)
+    static let qaptrAccentInk = Color.white
+    static let qaptrPrimaryAction = Color(nsColor: QaptrHex.midnightInk)
+    static let qaptrSuccess = Color(nsColor: QaptrHex.vividGreen)
+    static let qaptrSoftMint = Color(nsColor: QaptrHex.softMint)
+    static let qaptrWarning = Color(nsColor: QaptrHex.tangerine)
+    static let qaptrLavender = Color(nsColor: QaptrHex.lavender)
     static let qaptrError = Color(nsColor: QaptrHex.error)
+
+    // Compatibility names used by the existing state and accessibility copy.
+    static let qaptrAccentTint = Color(nsColor: QaptrHex.electricBlue).opacity(0.10)
+    static let qaptrAccentTintStrong = Color(nsColor: QaptrHex.electricBlue).opacity(0.16)
+    static let qaptrLive = Color(nsColor: QaptrHex.vividGreen)
 }
 
-/// The 4pt spacing scale, sized for a compact utility window rather than the
-/// website's marketing canvas.
+enum QaptrRadius {
+    static let control: CGFloat = 8
+    static let card: CGFloat = 12
+    static let feature: CGFloat = 16
+    static let input: CGFloat = 6
+}
+
+/// The compact 4pt spacing scale used by every native surface.
 enum QaptrSpace {
-    static let xxs: CGFloat = 2
+    static let xxs: CGFloat = 4
     static let xs: CGFloat = 4
     static let sm: CGFloat = 8
     static let md: CGFloat = 12
@@ -109,50 +99,59 @@ enum QaptrSpace {
     static let xxxl: CGFloat = 48
 }
 
-/// The three-voice type system: serif display, system body, mono meta.
+/// Satoshi-like medium display voice with a system sans body voice.
 enum QaptrType {
-    /// A page-level title (the Observation Sheet's or an onboarding stage's
-    /// headline). New York, matching the website's display voice.
-    static func display(_ size: CGFloat = 26) -> Font {
-        .system(size: size, weight: .semibold, design: .serif)
+    static func display(_ size: CGFloat = 30) -> Font {
+        .system(size: size, weight: .medium, design: .rounded)
     }
 
-    /// A dialog or detail-sheet title.
-    static func headline(_ size: CGFloat = 19) -> Font {
-        .system(size: size, weight: .semibold, design: .serif)
+    static func headline(_ size: CGFloat = 20) -> Font {
+        .system(size: size, weight: .medium, design: .rounded)
     }
 
-    /// A section or row title in the system sans.
     static func title(_ size: CGFloat = 14) -> Font {
         .system(size: size, weight: .medium)
     }
 
-    /// Ordinary reading text.
-    static func body(_ size: CGFloat = 13.5) -> Font {
+    static func body(_ size: CGFloat = 14) -> Font {
         .system(size: size)
     }
 
-    /// A short secondary line beneath a title.
     static func caption(_ size: CGFloat = 12) -> Font {
         .system(size: size)
     }
 
-    /// A tracked, uppercase section eyebrow in the mono meta voice, matching
-    /// the website's `--font-mono` metadata role.
     static func meta(_ size: CGFloat = 11) -> Font {
-        .system(size: size, weight: .medium, design: .monospaced)
+        .system(size: size, weight: .semibold, design: .monospaced)
     }
 }
 
-/// The one named easing used by every state change in the app, matching the
-/// website's `--ease-out`. There is no second easing and no spring: a
-/// structural surface switch (Observation Sheet <-> Settings, one onboarding
-/// stage to the next) crossfades on this curve; nothing bounces.
 enum QaptrMotion {
     static func easeOut(_ duration: Double = 0.2) -> Animation {
         .timingCurve(0.16, 1, 0.3, 1, duration: duration)
     }
 
-    /// The single press-feedback duration shared by every button style.
     static let press = Animation.easeOut(duration: 0.12)
+}
+
+/// A real product card surface: white fill, one ash border, no decorative
+/// elevation. The component keeps padding and radius consistent everywhere.
+struct QaptrCard<Content: View>: View {
+    let padding: CGFloat
+    @ViewBuilder let content: Content
+
+    init(padding: CGFloat = QaptrSpace.lg, @ViewBuilder content: () -> Content) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(padding)
+            .background(Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
+                    .strokeBorder(Color.qaptrHairline, lineWidth: 1)
+            }
+    }
 }

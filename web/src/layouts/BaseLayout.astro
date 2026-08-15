@@ -23,8 +23,11 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
 
     <header class="site-header">
       <div class="wrap site-header__row">
-        <a class="site-header__mark" href="/">Qaptr</a>
-        <a class="pill-link" href="/#join">Join the waitlist</a>
+        <a class="site-header__mark" href="/" aria-label="Qaptr home">
+          <span class="site-header__mark-dot" aria-hidden="true"></span>
+          <span>Qaptr</span>
+        </a>
+        <a class="site-header__cta" href="/#join">Join the waitlist</a>
       </div>
     </header>
 
@@ -34,7 +37,10 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
 
     <footer class="site-footer">
       <div class="wrap site-footer__row">
-        <span class="site-footer__mark">Qaptr</span>
+        <span class="site-footer__mark">
+          <span class="site-footer__mark-dot" aria-hidden="true"></span>
+          Qaptr
+        </span>
         <p class="meta site-footer__privacy">
           We only ever store the email you submit. No tracking, no third parties.
         </p>
@@ -65,51 +71,85 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
       } else {
         document.querySelectorAll(".reveal").forEach((el) => el.classList.add("is-visible"));
       }
+
+      document.querySelectorAll("form[data-waitlist-form]").forEach((form) => {
+        form.addEventListener("submit", () => {
+          const submit = form.querySelector("button[type='submit']");
+          if (!(submit instanceof HTMLButtonElement)) return;
+          form.setAttribute("data-submitting", "true");
+          submit.disabled = true;
+          const label = submit.querySelector("span");
+          if (label) label.textContent = "Joining…";
+        });
+      });
     </script>
 
     <style>
       .site-header {
         position: relative;
         z-index: 10;
+        border-bottom: 1px solid var(--color-ash);
+        background: var(--color-canvas-white);
       }
 
       .site-header__row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding-block: var(--space-md);
-        gap: var(--space-md);
+        padding-block: var(--spacing-16);
+        gap: var(--spacing-16);
       }
 
       .site-header__mark {
-        font-family: var(--font-serif);
-        font-size: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-8);
+        color: var(--color-charcoal);
+        font-family: var(--font-satoshi);
+        font-size: var(--text-heading-sm);
         font-weight: 500;
         text-decoration: none;
-        letter-spacing: var(--tracking-body);
+        letter-spacing: -0.02em;
       }
 
-      .pill-link {
-        font-family: var(--font-mono);
-        font-size: var(--text-meta);
-        letter-spacing: var(--tracking-meta);
-        text-transform: uppercase;
+      .site-header__mark-dot,
+      .site-footer__mark-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--color-electric-blue);
+      }
+
+      .site-header__cta {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.5rem;
+        border: 1px solid var(--color-primary-action-fill);
+        border-radius: var(--radius-button);
+        background: var(--color-primary-action-fill);
+        color: var(--color-canvas-white);
+        padding: var(--spacing-8) var(--spacing-16);
+        font-size: var(--text-body);
+        font-weight: 600;
         text-decoration: none;
-        border: 1px solid var(--color-ink);
-        border-radius: 999px;
-        padding: var(--space-2xs) var(--space-md);
         white-space: nowrap;
-        transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out);
+        transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
       }
 
-      .pill-link:hover {
-        background: var(--color-ink);
-        color: var(--color-paper);
+      .site-header__cta:hover,
+      .site-header__cta:focus-visible {
+        border-color: var(--color-deep-sapphire);
+        background: var(--color-deep-sapphire);
+      }
+
+      .site-header__cta:active {
+        transform: translateY(1px);
       }
 
       .site-footer {
-        border-top: var(--rule-width) solid var(--color-hairline);
-        margin-top: var(--space-2xl);
+        border-top: 1px solid var(--color-ash);
+        margin-top: var(--spacing-64);
+        background: var(--color-paper-mist);
       }
 
       .site-footer__row {
@@ -117,25 +157,35 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
         flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
-        gap: var(--space-sm);
-        padding-block: var(--space-lg);
+        gap: var(--spacing-16);
+        padding-block: var(--spacing-24);
       }
 
       .site-footer__mark {
-        font-family: var(--font-serif);
-        font-size: 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-8);
+        font-family: var(--font-satoshi);
+        font-size: var(--text-subheading);
+        font-weight: 500;
       }
 
       .site-footer__privacy {
-        flex: 1 1 16rem;
+        flex: 1 1 18rem;
         min-width: 0;
         text-align: center;
       }
 
       @media (max-width: 480px) {
         .site-footer__row {
-          justify-content: center;
+          align-items: flex-start;
+          justify-content: flex-start;
           text-align: center;
+        }
+
+        .site-footer__privacy {
+          flex-basis: 100%;
+          order: 3;
         }
       }
     </style>

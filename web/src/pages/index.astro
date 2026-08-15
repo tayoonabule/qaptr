@@ -6,21 +6,111 @@ import ArcDial from "../components/ArcDial.astro";
 
 <BaseLayout title="Qaptr — private beta for macOS">
   <section class="hero wrap">
-    <p class="meta hero__eyebrow reveal">Private beta &middot; macOS</p>
-    <h1 class="hero__headline reveal">Qaptr keeps the ten minutes you forget you spent.</h1>
-    <p class="hero__subhead reveal">
-      A quiet macOS companion that captures what you did, so the record exists before you need it.
-    </p>
-    <div class="hero__form reveal">
-      <WaitlistForm variant="hero" />
+    <div class="hero__content">
+      <p class="meta hero__eyebrow reveal">Private beta &middot; macOS</p>
+      <h1 class="hero__headline reveal">Qaptr keeps the ten minutes you forget you spent.</h1>
+      <p class="hero__subhead reveal">
+        A quiet macOS companion that captures what you did, so the record exists before you need it.
+      </p>
+
+      <ul class="feature-pills reveal" aria-label="Qaptr product principles">
+        <li class="feature-pill feature-pill--orange">
+          <span class="feature-pill__dot" aria-hidden="true"></span>
+          Private by default
+        </li>
+        <li class="feature-pill feature-pill--green">
+          <span class="feature-pill__dot" aria-hidden="true"></span>
+          Capture on your terms
+        </li>
+        <li class="feature-pill feature-pill--violet">
+          <span class="feature-pill__dot" aria-hidden="true"></span>
+          Review before sharing
+        </li>
+      </ul>
+
+      <div class="hero__form reveal">
+        <WaitlistForm variant="hero" />
+      </div>
     </div>
+
+    <figure class="workspace-preview reveal" aria-labelledby="workspace-preview-caption">
+      <div class="workspace-preview__appbar">
+        <div class="workspace-preview__brand">
+          <span class="workspace-preview__brand-dot" aria-hidden="true"></span>
+          <span>Qaptr</span>
+        </div>
+        <span class="workspace-preview__mode">Capture-only mode</span>
+      </div>
+
+      <div class="workspace-preview__body">
+        <aside class="workspace-preview__sidebar" aria-label="Illustrative workspace navigation">
+          <p class="meta workspace-preview__sidebar-label">Workspace</p>
+          <span class="workspace-preview__nav workspace-preview__nav--active">Sessions</span>
+          <span class="workspace-preview__nav">Review queue</span>
+          <span class="workspace-preview__nav">Settings</span>
+          <div class="workspace-preview__sidebar-foot">
+            <span class="workspace-preview__privacy-dot" aria-hidden="true"></span>
+            Private on this Mac
+          </div>
+        </aside>
+
+        <div class="workspace-preview__main">
+          <div class="workspace-preview__toolbar">
+            <div>
+              <p class="meta">Recent session</p>
+              <h2>Working notes</h2>
+            </div>
+            <span class="workspace-preview__status">Ready to review</span>
+          </div>
+
+          <div class="workspace-preview__summary">
+            <span class="workspace-preview__summary-mark" aria-hidden="true"></span>
+            <div>
+              <strong>Your activity, in order.</strong>
+              <p>A plain-language record to skim before you share anything.</p>
+            </div>
+          </div>
+
+          <div class="workspace-preview__rows" aria-label="Illustrative session activity">
+            <div class="workspace-preview__row">
+              <span class="workspace-preview__row-marker" aria-hidden="true"></span>
+              <span>Drafted a project brief</span>
+              <span class="meta">Captured</span>
+            </div>
+            <div class="workspace-preview__row">
+              <span class="workspace-preview__row-marker" aria-hidden="true"></span>
+              <span>Reviewed reference notes</span>
+              <span class="meta">Captured</span>
+            </div>
+            <div class="workspace-preview__row">
+              <span class="workspace-preview__row-marker" aria-hidden="true"></span>
+              <span>Prepared the next step</span>
+              <span class="meta">Captured</span>
+            </div>
+          </div>
+          <p class="workspace-preview__sample meta">Illustrative workspace preview</p>
+        </div>
+      </div>
+      <figcaption id="workspace-preview-caption" class="workspace-preview__caption">
+        A product-first look at the review workspace, before any approved text is shared.
+      </figcaption>
+    </figure>
   </section>
 
-  <section class="dial-section wrap reveal">
-    <ArcDial />
-    <p class="meta dial-section__caption">
-      Choose one capture interval from 5 to 300 seconds. Qaptr keeps that interval until you change it.
-    </p>
+  <section class="dial-section blueprint-surface reveal">
+    <div class="wrap dial-section__inner">
+      <div class="dial-section__intro">
+        <p class="meta">Capture interval</p>
+        <h2>Set the rhythm once.</h2>
+        <p>Qaptr stays quiet in the background and keeps the interval you choose.</p>
+      </div>
+      <div class="dial-section__visual">
+        <ArcDial />
+        <p class="meta dial-section__caption">
+          Choose one interval from 5 to 300 seconds. Change it whenever your work changes.
+        </p>
+      </div>
+    </div>
   </section>
 
   <section class="passages wrap">
@@ -34,7 +124,7 @@ import ArcDial from "../components/ArcDial.astro";
       </p>
     </article>
 
-    <article class="passage reveal">
+    <article class="passage passage--offset reveal">
       <p class="meta passage__eyebrow">What it never captures</p>
       <p class="passage__statement">Anything you have not explicitly agreed to share.</p>
       <p class="passage__body">
@@ -55,121 +145,464 @@ import ArcDial from "../components/ArcDial.astro";
     </article>
   </section>
 
-  <section id="join" class="join wrap reveal">
-    <p class="meta join__eyebrow">Join the waitlist</p>
-    <h2 class="join__headline">Be the first to try it.</h2>
-    <WaitlistForm variant="footer" />
+  <section id="join" class="join join--paper reveal">
+    <div class="wrap join__inner">
+      <div>
+        <p class="meta join__eyebrow">Private beta for macOS</p>
+        <h2 class="join__headline">Be the first to try it.</h2>
+        <p class="join__body">A short note when your invite is ready. Nothing else.</p>
+      </div>
+      <div class="join__form">
+        <WaitlistForm variant="footer" />
+      </div>
+    </div>
   </section>
 
   <style>
     .hero {
-      padding-block: clamp(3rem, 10vw, 6rem) clamp(2.5rem, 6vw, 4rem);
+      display: grid;
+      gap: var(--spacing-40);
+      padding-block: clamp(var(--spacing-48), 9vw, var(--spacing-96)) var(--spacing-64);
+    }
+
+    .hero__content {
+      max-width: 54rem;
     }
 
     .hero__eyebrow {
-      margin-bottom: var(--space-sm);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-8);
+      margin-bottom: var(--spacing-16);
+    }
+
+    .hero__eyebrow::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-electric-blue);
+      content: "";
     }
 
     .hero__headline {
+      max-width: 14ch;
+      color: var(--color-charcoal);
       font-size: var(--text-display);
       letter-spacing: var(--tracking-display);
       line-height: var(--leading-display);
-      max-width: 20ch;
     }
 
     .hero__subhead {
-      margin-top: var(--space-md);
-      font-size: var(--text-subhead);
-      color: var(--color-ink-soft);
-      max-width: 42ch;
+      max-width: 46ch;
+      margin-top: var(--spacing-20);
+      color: var(--color-steel);
+      font-size: var(--text-body-xl);
+      line-height: 1.55;
+    }
+
+    .feature-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-8);
+      margin: var(--spacing-28) 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .feature-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-8);
+      min-height: 2.25rem;
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-tag);
+      background: var(--color-canvas-white);
+      padding: var(--spacing-8) var(--spacing-12);
+      color: var(--color-charcoal);
+      font-size: var(--text-body);
+      font-weight: 500;
+      transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+    }
+
+    .feature-pill:hover {
+      border-color: var(--color-smoke);
+      background: var(--color-paper-mist);
+      transform: translateY(-1px);
+    }
+
+    .feature-pill__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-tangerine);
+    }
+
+    .feature-pill--green .feature-pill__dot {
+      background: var(--color-vivid-green);
+    }
+
+    .feature-pill--violet .feature-pill__dot {
+      background: var(--color-lavender);
     }
 
     .hero__form {
-      margin-top: var(--space-xl);
-      max-width: 34rem;
+      max-width: 40rem;
+      margin-top: var(--spacing-28);
+    }
+
+    .workspace-preview {
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-large-card);
+      background: var(--color-canvas-white);
+      box-shadow: var(--shadow-mockup);
+    }
+
+    .workspace-preview__appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-16);
+      border-bottom: 1px solid var(--color-ash);
+      padding: var(--spacing-12) var(--spacing-16);
+    }
+
+    .workspace-preview__brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-8);
+      font-size: var(--text-body);
+      font-weight: 600;
+    }
+
+    .workspace-preview__brand-dot,
+    .workspace-preview__privacy-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-electric-blue);
+    }
+
+    .workspace-preview__mode,
+    .workspace-preview__status {
+      border-radius: var(--radius-tag);
+      background: var(--color-blue-wash);
+      padding: var(--spacing-4) var(--spacing-8);
+      color: var(--color-deep-sapphire);
+      font-size: var(--text-caption);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .workspace-preview__body {
+      display: grid;
+      grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+      min-height: 22rem;
+    }
+
+    .workspace-preview__sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-4);
+      border-right: 1px solid var(--color-ash);
+      background: var(--color-paper-mist);
+      padding: var(--spacing-16);
+    }
+
+    .workspace-preview__sidebar-label {
+      margin-bottom: var(--spacing-8);
+    }
+
+    .workspace-preview__nav {
+      border-radius: var(--radius-button);
+      padding: var(--spacing-8);
+      color: var(--color-slate);
+      font-size: var(--text-body);
+    }
+
+    .workspace-preview__nav--active {
+      background: var(--color-blue-wash);
+      color: var(--color-deep-sapphire);
+      font-weight: 600;
+    }
+
+    .workspace-preview__sidebar-foot {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-8);
+      margin-top: auto;
+      padding-top: var(--spacing-16);
+      color: var(--color-steel);
+      font-size: var(--text-caption);
+    }
+
+    .workspace-preview__privacy-dot {
+      background: var(--color-vivid-green);
+    }
+
+    .workspace-preview__main {
+      min-width: 0;
+      padding: clamp(var(--spacing-16), 4vw, var(--spacing-32));
+    }
+
+    .workspace-preview__toolbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--spacing-16);
+    }
+
+    .workspace-preview h2 {
+      margin-top: var(--spacing-4);
+      color: var(--color-charcoal);
+      font-size: var(--text-heading-sm);
+    }
+
+    .workspace-preview__summary {
+      display: flex;
+      gap: var(--spacing-12);
+      margin-top: var(--spacing-24);
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-card);
+      background: var(--color-paper-mist);
+      padding: var(--spacing-16);
+    }
+
+    .workspace-preview__summary-mark {
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      margin-top: 4px;
+      border-radius: 50%;
+      background: var(--color-electric-blue);
+      box-shadow: 0 0 0 4px var(--color-blue-wash);
+    }
+
+    .workspace-preview__summary strong {
+      display: block;
+      font-size: var(--text-body);
+    }
+
+    .workspace-preview__summary p {
+      margin-top: var(--spacing-4);
+      color: var(--color-steel);
+      font-size: var(--text-body);
+    }
+
+    .workspace-preview__rows {
+      margin-top: var(--spacing-24);
+      border-top: 1px solid var(--color-ash);
+    }
+
+    .workspace-preview__row {
+      display: grid;
+      grid-template-columns: 8px minmax(0, 1fr) auto;
+      gap: var(--spacing-12);
+      align-items: center;
+      min-height: 3.25rem;
+      border-bottom: 1px solid var(--color-ash);
+      color: var(--color-graphite);
+      font-size: var(--text-body);
+    }
+
+    .workspace-preview__row-marker {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-electric-blue);
+    }
+
+    .workspace-preview__sample {
+      margin-top: var(--spacing-12);
+      color: var(--color-fog);
+    }
+
+    .workspace-preview__caption {
+      border-top: 1px solid var(--color-ash);
+      padding: var(--spacing-12) var(--spacing-16);
+      color: var(--color-steel);
+      font-size: var(--text-caption);
     }
 
     .dial-section {
-      padding-block: clamp(2rem, 6vw, 4rem);
-      text-align: center;
+      border-top: 1px solid var(--color-ash);
+      border-bottom: 1px solid var(--color-ash);
+    }
+
+    .dial-section__inner {
+      display: grid;
+      gap: var(--spacing-32);
+      align-items: center;
+      padding-block: clamp(var(--spacing-48), 8vw, var(--spacing-80));
+    }
+
+    .dial-section__intro {
+      max-width: 28rem;
+    }
+
+    .dial-section h2 {
+      margin-top: var(--spacing-8);
+      color: var(--color-charcoal);
+      font-size: var(--text-heading-lg);
+      letter-spacing: -0.02em;
+    }
+
+    .dial-section__intro > p:last-child {
+      margin-top: var(--spacing-12);
+      color: var(--color-steel);
+    }
+
+    .dial-section__visual {
+      min-width: 0;
     }
 
     .dial-section__caption {
-      margin-top: var(--space-md);
-      max-width: 40ch;
-      margin-inline: auto;
+      max-width: 48ch;
+      margin: var(--spacing-12) auto 0;
+      text-align: center;
     }
 
     .passages {
       display: grid;
-      gap: clamp(2.5rem, 6vw, 4rem);
-      padding-block: clamp(2rem, 8vw, 5rem);
+      gap: var(--spacing-48);
+      padding-block: clamp(var(--spacing-48), 9vw, var(--spacing-96));
     }
 
     .passage {
-      max-width: var(--measure);
+      display: grid;
+      grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 0.9fr) minmax(0, 0.75fr);
+      gap: var(--spacing-24);
+      align-items: start;
+      border-top: 1px solid var(--color-ash);
+      padding-top: var(--spacing-16);
     }
 
-    .passage:nth-child(2) {
-      margin-left: auto;
-      text-align: right;
-    }
-
-    .passage:nth-child(2) .passage__body {
-      margin-left: auto;
-    }
-
-    .passage__eyebrow {
-      margin-bottom: var(--space-xs);
+    .passage--offset {
+      grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 0.75fr) minmax(0, 0.9fr);
+      padding-left: clamp(0rem, 10vw, 8rem);
     }
 
     .passage__statement {
-      font-size: var(--text-headline);
-      line-height: var(--leading-headline);
-      letter-spacing: var(--tracking-display);
-      max-width: 18ch;
-    }
-
-    .passage:nth-child(2) .passage__statement {
-      margin-left: auto;
+      max-width: 17ch;
+      color: var(--color-charcoal);
+      font-family: var(--font-satoshi);
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
     }
 
     .passage__body {
-      margin-top: var(--space-md);
-      max-width: 46ch;
-      color: var(--color-ink-soft);
+      max-width: 42ch;
+      color: var(--color-steel);
+      font-size: var(--text-body-lg);
     }
 
     .join {
-      border-top: var(--rule-width) solid var(--color-hairline);
-      padding-block: clamp(3rem, 8vw, 5rem);
-      text-align: center;
+      border-top: 1px solid var(--color-ash);
+      background: var(--color-paper-mist);
     }
 
-    .join__eyebrow {
-      margin-bottom: var(--space-xs);
+    .join__inner {
+      display: grid;
+      gap: var(--spacing-24);
+      align-items: center;
+      padding-block: clamp(var(--spacing-48), 8vw, var(--spacing-80));
     }
 
     .join__headline {
-      font-size: var(--text-headline);
-      letter-spacing: var(--tracking-display);
-      margin-bottom: var(--space-lg);
+      margin-top: var(--spacing-8);
+      color: var(--color-charcoal);
+      font-family: var(--font-satoshi);
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1.08;
+    }
+
+    .join__body {
+      margin-top: var(--spacing-12);
+      color: var(--color-steel);
+    }
+
+    .join__form {
+      min-width: 0;
     }
 
     .join :global(.waitlist-form) {
-      max-width: 34rem;
-      margin-inline: auto;
+      max-width: 40rem;
     }
 
-    @media (max-width: 640px) {
-      .passage:nth-child(2) {
-        margin-left: 0;
-        text-align: left;
+    @media (min-width: 768px) {
+      .hero {
+        grid-template-columns: minmax(0, 0.8fr) minmax(28rem, 1.2fr);
+        gap: clamp(var(--spacing-40), 7vw, var(--spacing-80));
+        align-items: center;
       }
 
-      .passage:nth-child(2) .passage__body,
-      .passage:nth-child(2) .passage__statement {
-        margin-left: 0;
+      .workspace-preview {
+        margin-top: var(--spacing-16);
+      }
+
+      .dial-section__inner,
+      .join__inner {
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      }
+    }
+
+    @media (max-width: 639px) {
+      .workspace-preview__body {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace-preview__sidebar {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--spacing-4);
+        border-right: 0;
+        border-bottom: 1px solid var(--color-ash);
+      }
+
+      .workspace-preview__sidebar-label,
+      .workspace-preview__sidebar-foot {
+        grid-column: 1 / -1;
+      }
+
+      .workspace-preview__sidebar-foot {
+        margin-top: var(--spacing-8);
+        padding-top: var(--spacing-8);
+      }
+
+      .passage,
+      .passage--offset {
+        display: block;
+        padding-left: 0;
+      }
+
+      .passage__statement {
+        margin-top: var(--spacing-12);
+      }
+
+      .passage__body {
+        margin-top: var(--spacing-16);
+      }
+    }
+
+    @media (max-width: 400px) {
+      .workspace-preview__appbar,
+      .workspace-preview__toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .workspace-preview__row {
+        grid-template-columns: 8px minmax(0, 1fr);
+        padding-block: var(--spacing-8);
+      }
+
+      .workspace-preview__row .meta {
+        grid-column: 2;
       }
     }
   </style>

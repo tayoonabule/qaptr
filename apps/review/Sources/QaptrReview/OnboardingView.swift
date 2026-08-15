@@ -17,26 +17,28 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: QaptrSpace.md) {
-                progressIndicator
+            HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.md) {
+                Text("QAPTR")
+                    .font(QaptrType.meta())
+                    .tracking(1.2)
+                    .foregroundStyle(Color.qaptrInk)
                 Spacer(minLength: QaptrSpace.md)
                 Text("STEP \(stage.rawValue + 1) OF \(OnboardingStage.allCases.count)")
                     .font(QaptrType.meta(10.5))
                     .tracking(1.0)
-                    .foregroundStyle(Color.qaptrInkSoft)
+                    .foregroundStyle(Color.qaptrInkMuted)
             }
-            .padding(.bottom, QaptrSpace.xl)
+            progressIndicator
+                .padding(.top, QaptrSpace.md)
 
             if reduceMotion {
-                stageHeader
-                content.padding(.top, QaptrSpace.lg)
+                stageCard
+                    .padding(.top, QaptrSpace.xl)
             } else {
-                VStack(alignment: .leading, spacing: QaptrSpace.lg) {
-                    stageHeader
-                    content
-                }
+                stageCard
                 .id(stage)
                 .transition(stageTransition)
+                .padding(.top, QaptrSpace.xl)
             }
 
             Spacer(minLength: QaptrSpace.xxl)
@@ -51,11 +53,14 @@ struct OnboardingView: View {
                 Spacer()
                 Button(stage == .privacyConsent ? "Finish" : "Continue", action: advance)
                     .buttonStyle(.qaptrPrimary)
-                    .disabled(stage == .privacyConsent && model.loadError != nil)
+                    .disabled(
+                        stage == .privacyConsent
+                            && (model.loadError != nil || !model.isOnboardingCompletionEligible)
+                    )
             }
         }
-        .padding(QaptrSpace.xxl)
-        .frame(maxWidth: 560, alignment: .leading)
+        .padding(QaptrSpace.xl)
+        .frame(maxWidth: 600, alignment: .leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.qaptrSurface)
         .sheet(isPresented: $showsProviderSetup, onDismiss: model.dismissProviderSetup) {
@@ -85,8 +90,17 @@ struct OnboardingView: View {
 
     private var stageHeader: some View {
         Text(stage.title)
-            .font(QaptrType.display(23))
+            .font(QaptrType.display(30))
             .foregroundStyle(Color.qaptrInk)
+    }
+
+    private var stageCard: some View {
+        QaptrCard(padding: QaptrSpace.xl) {
+            VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+                stageHeader
+                content
+            }
+        }
     }
 
     /// A row of hairline segments, one per stage, filled with the accent as
@@ -98,7 +112,7 @@ struct OnboardingView: View {
             ForEach(OnboardingStage.allCases, id: \.self) { candidate in
                 Capsule()
                     .fill(fill(for: candidate))
-                    .frame(height: candidate == stage ? 2.5 : 1.5)
+                    .frame(height: candidate == stage ? 3 : 2)
                     .animation(reduceMotion ? nil : QaptrMotion.easeOut(0.18), value: stage)
                     .accessibilityHidden(true)
             }
@@ -289,11 +303,11 @@ private struct OnboardingProviderChoiceList: View {
                 } label: {
                     HStack(spacing: QaptrSpace.sm) {
                         Circle()
-                            .strokeBorder(selection == provider ? Color.qaptrAccent : Color.qaptrHairline, lineWidth: 1.5)
-                            .frame(width: 15, height: 15)
+                            .strokeBorder(selection == provider ? Color.qaptrAccent : Color.qaptrBorderStrong, lineWidth: 1.5)
+                            .frame(width: 16, height: 16)
                             .overlay {
                                 if selection == provider {
-                                    Circle().fill(Color.qaptrAccent).frame(width: 7, height: 7)
+                                    Circle().fill(Color.qaptrAccent).frame(width: 8, height: 8)
                                 }
                             }
                         Text(provider.displayName)
@@ -301,7 +315,12 @@ private struct OnboardingProviderChoiceList: View {
                             .foregroundStyle(Color.qaptrInk)
                         Spacer()
                     }
-                    .padding(.vertical, QaptrSpace.xs)
+                    .padding(.horizontal, QaptrSpace.sm)
+                    .padding(.vertical, QaptrSpace.sm)
+                    .background(
+                        selection == provider ? Color.qaptrAccentTint : Color.clear,
+                        in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.tactile)

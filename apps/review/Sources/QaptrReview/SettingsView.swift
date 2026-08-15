@@ -3,9 +3,8 @@ import SwiftUI
 
 /// The control surface for the small number of choices that affect Qaptr.
 ///
-/// Redesigned around the same hairline-rhythm language as the Observation
-/// Sheet: no bordered card boxes, one rule between sections, the mono meta
-/// voice for eyebrows. `showsOpenRouterKeyNotice` is a static, directly
+/// Redesigned around compact bordered product cards and the mono meta voice.
+/// `showsOpenRouterKeyNotice` is a static, directly
 /// testable decision function -- its signature is a preserved contract
 /// (`SettingsViewOpenRouterReadinessTests`) and must not change shape.
 struct SettingsView: View {
@@ -19,7 +18,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.xl)
+                    .padding(.bottom, QaptrSpace.md)
 
                 captureSection
                 sectionDivider
@@ -29,8 +28,8 @@ struct SettingsView: View {
                 sectionDivider
                 exclusionsSection
             }
-            .padding(QaptrSpace.xl)
-            .frame(maxWidth: 620, alignment: .leading)
+            .padding(QaptrSpace.lg)
+            .frame(maxWidth: 680, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .background(Color.qaptrSurface)
@@ -45,23 +44,25 @@ struct SettingsView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: QaptrSpace.lg) {
-            VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+        QaptrCard(padding: QaptrSpace.xl) {
+            HStack(alignment: .top, spacing: QaptrSpace.lg) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xs) {
                 Text("QAPTR")
                     .font(QaptrType.meta())
                     .tracking(1.2)
                     .foregroundStyle(Color.qaptrInkSoft)
-                Text("Settings")
-                    .font(QaptrType.display())
+                    Text("Settings")
+                        .font(QaptrType.display())
                     .foregroundStyle(Color.qaptrInk)
-                Text("Choose what Qaptr can use and what it must leave alone.")
-                    .font(QaptrType.body())
-                    .foregroundStyle(Color.qaptrInkSoft)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text("Choose what Qaptr can use and what it must leave alone.")
+                        .font(QaptrType.body())
+                        .foregroundStyle(Color.qaptrInkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: QaptrSpace.lg)
+                Button("Observations", action: showObservations)
+                    .buttonStyle(.qaptrOutline)
             }
-            Spacer(minLength: QaptrSpace.lg)
-            Button("Observations", action: showObservations)
-                .buttonStyle(.qaptrOutline)
         }
     }
 
@@ -128,10 +129,15 @@ struct SettingsView: View {
                         if model.settings.provider == provider {
                             Text(model.providerConnection.title)
                                 .font(QaptrType.meta(10.5))
-                                .foregroundStyle(Color.qaptrInkSoft)
+                                .foregroundStyle(Color.qaptrAccent)
                         }
                     }
+                    .padding(.horizontal, QaptrSpace.sm)
                     .padding(.vertical, QaptrSpace.sm)
+                    .background(
+                        model.settings.provider == provider ? Color.qaptrAccentTint : Color.clear,
+                        in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.tactile)
@@ -226,10 +232,7 @@ struct SettingsView: View {
     }
 }
 
-/// A section of settings rows, separated from its neighbors by a hairline
-/// rather than a card border. No background fill, no corner radius, no
-/// stroke -- the section title in the mono meta voice is the only
-/// separator the eye needs.
+/// A bordered settings card with a compact eyebrow and direct controls.
 private struct SettingsSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
@@ -240,13 +243,15 @@ private struct SettingsSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: QaptrSpace.lg) {
-            Text(title.uppercased())
-                .font(QaptrType.meta(10.5))
-                .tracking(1.0)
-                .foregroundStyle(Color.qaptrInkSoft)
+        QaptrCard {
             VStack(alignment: .leading, spacing: QaptrSpace.lg) {
-                content
+                Text(title.uppercased())
+                    .font(QaptrType.meta(10.5))
+                    .tracking(1.0)
+                    .foregroundStyle(Color.qaptrInkMuted)
+                VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+                    content
+                }
             }
         }
     }
@@ -442,7 +447,7 @@ private struct ExclusionEditor: View {
 
             HStack(spacing: QaptrSpace.md) {
                 TextField(placeholder, text: $newValue)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.qaptr)
                     .accessibilityLabel(title)
                     .onSubmit(addEntry)
                 Button("Add", action: addEntry)
