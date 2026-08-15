@@ -181,6 +181,7 @@
 - [ ] Run the 24-capture preparation corpus and record the raw measured result and environment.
 - [ ] Preserve the published 5/6 = 0.833 recall disclosure unless a newly measured corpus changes it.
 - [ ] Treat missing recognizer configuration or an inconclusive result as fail-closed, not as a passing test.
+- [x] Preserve ordinary sampled text, including surnames, while redacting contact PII such as email addresses and phone numbers. `sanitize_text` now keeps surrounding content and replaces only detected email/phone values; deterministic regressions lock ordinary-text preservation and contact-PII redaction (`f60f9d9`; `cargo test -p qaptr-privacy` passes 46 tests).
 
 ### 6.2 Credentialed provider evidence
 - [ ] On a controlled validation machine, configure an OpenRouter key through Keychain without placing it in source, logs, fixtures, shell history, or reports.
