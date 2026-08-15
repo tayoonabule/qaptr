@@ -21,11 +21,16 @@
 //!   after each invocation.
 
 pub mod adapters;
+pub mod detection;
 mod discovery;
 mod probe;
 mod runtime;
 
-pub use discovery::{DiscoveryError, ExecutableDiscovery};
+pub use detection::{
+    CliDetectionStatus, CliPathProbe, CliProcessProbe, CliProvider, detect_cli,
+    detect_cli_installation, detect_cli_with_process_probe,
+};
+pub use discovery::{DiscoveryError, ExecutableDiscovery, ExecutableProbeStatus};
 pub use probe::{VersionProbe, VersionProbeError, parse_version};
 pub use runtime::{
     CliInvocation, CliOutput, CliRuntime, CliRuntimeError, OutputLimit, RuntimeLimits, Timeout,

@@ -5,6 +5,18 @@ use std::{path::PathBuf, sync::Arc};
 use qaptr_provider::{ExecutablePath, ProviderError, ProviderId};
 use thiserror::Error;
 
+/// The result of checking one executable name without starting it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ExecutableProbeStatus {
+    /// The search could not be completed because one or more candidates were
+    /// inaccessible.
+    Unavailable,
+    /// The search completed and no executable was found.
+    NotInstalled,
+    /// An executable was found and its absolute path was resolved.
+    Detected(ExecutablePath),
+}
+
 /// Errors produced while resolving a local CLI executable.
 #[derive(Debug, Error)]
 pub enum DiscoveryError {
@@ -91,6 +103,53 @@ impl ExecutableDiscovery {
         Err(DiscoveryError::NotFound {
             name: name.to_owned(),
         })
+    }
+
+    /// Checks for an executable without invoking it.
+    ///
+    /// Unlike [`Self::find`], this preserves an inaccessible candidate as
+    /// `Unavailable` instead of collapsing it into `NotInstalled`. This is
+    /// the truthful, scalar surface used by app-facing status displays.
+    pub fn probe(&self, name: &str) -> ExecutableProbeStatus {
+        if name.is_empty()
+            || name == "."
+            || name == ".."
+            || name.contains('/')
+            || name.contains(std::path::MAIN_SEPARATOR)
+        {
+            return ExecutableProbeStatus::Unavailable;
+        }
+
+        let mut inaccessible = false;
+        for directory in &*self.search_paths {
+            let candidate = directory.join(name);
+            let metadata = match candidate.metadata() {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                    inaccessible = true;
+                    continue;
+                }
+                Err(_) => continue,
+            };
+            if !metadata.is_file() || !is_executable(&metadata) {
+                continue;
+            }
+
+            let Ok(absolute) = candidate.canonicalize() else {
+                return ExecutableProbeStatus::Unavailable;
+            };
+            let value = absolute.to_string_lossy().into_owned();
+            return match ExecutablePath::new(value) {
+                Ok(path) => ExecutableProbeStatus::Detected(path),
+                Err(_) => ExecutableProbeStatus::Unavailable,
+            };
+        }
+
+        if inaccessible {
+            ExecutableProbeStatus::Unavailable
+        } else {
+            ExecutableProbeStatus::NotInstalled
+        }
     }
 
     /// Resolves an executable and maps absence into U13's provider taxonomy.
