@@ -29,8 +29,8 @@ use serde_json::Value;
 
 use super::response::parse_response;
 use super::{
-    add_support_path, default_discovery, home_directory, map_runtime_error, CliExecutor,
-    CliInvocation, CliRuntime, CliRuntimeError, ExecutableDiscovery,
+    CliExecutor, CliInvocation, CliRuntime, CliRuntimeError, ExecutableDiscovery, add_support_path,
+    default_discovery, home_directory, map_runtime_error,
 };
 use crate::VersionProbe;
 
