@@ -7,6 +7,7 @@
 
 use std::{
     sync::Arc,
+    sync::atomic::{AtomicUsize, Ordering},
     time::{Duration, Instant},
 };
 
@@ -36,6 +37,11 @@ struct ImagePartialRecognizer;
 struct ImageMissingGeometryRecognizer;
 struct ImageUnboundMaskedRecognizer;
 
+#[derive(Debug)]
+struct CountingImageRecognizer {
+    calls: Arc<AtomicUsize>,
+}
+
 impl ImageRecognizer for ImageCompleteRecognizer {
     fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
         if image.pixel(2, 4) == Some(MASK_COLOR) {
@@ -60,6 +66,13 @@ impl ImageRecognizer for ImageCompleteRecognizer {
             )]),
             image,
         ))
+    }
+}
+
+impl ImageRecognizer for CountingImageRecognizer {
+    fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        ImageCompleteRecognizer.recognize_image(image)
     }
 }
 
@@ -415,6 +428,48 @@ fn image_is_not_emitted_without_explicit_opt_in() {
 
     assert!(payload.masked_image().is_none());
     assert!(payload.proof().coverage().is_none());
+}
+
+#[test]
+fn local_image_preparation_runs_without_emitting_an_image_payload() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let input = PreparationInput::new(capture("local-only-image"), safe_context())
+        .with_image(
+            Image::solid(8, 8, [255, 255, 255]).expect("test image"),
+            ImageOrientation::Up,
+        )
+        .with_image_recognizer(Arc::new(CountingImageRecognizer {
+            calls: Arc::clone(&calls),
+        }));
+    let payload = PrivacyGate::new(recall())
+        .prepare(input, &CompleteOcr, &CompleteVision)
+        .expect("local image preparation should pass");
+
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+    assert!(payload.masked_image().is_none());
+    assert_eq!(payload.proof().masked_region_count(), 2);
+    let verification = payload
+        .proof()
+        .coverage()
+        .and_then(|proof| proof.recognition_verification())
+        .expect("local masking must retain rerun evidence");
+    assert!(verification.has_no_residual_detected_regions());
+}
+
+#[test]
+fn local_image_masking_failure_is_not_bypassed_when_image_transmission_is_disabled() {
+    let input = PreparationInput::new(capture("local-only-failure"), safe_context())
+        .with_image(
+            Image::solid(8, 8, [255, 255, 255]).expect("test image"),
+            ImageOrientation::Up,
+        )
+        .with_image_recognizer(Arc::new(ImageMissingGeometryRecognizer));
+    let result = PrivacyGate::new(recall()).prepare(input, &CompleteOcr, &CompleteVision);
+
+    assert!(matches!(
+        result,
+        Err(exclusion) if matches!(exclusion.reason(), ExclusionReason::Masking(_))
+    ));
 }
 
 #[test]

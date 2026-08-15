@@ -202,22 +202,22 @@ impl PrivacyGate {
     {
         let capture_id = input.capture_id.clone();
         let started = Instant::now();
-        let image_recognizer = if input.image_allowed {
-            Some(
-                input
-                    .image_recognizer
-                    .as_ref()
-                    .ok_or_else(|| {
-                        PrivacyExclusion::new(
-                            capture_id.clone(),
-                            ExclusionReason::Masking(MaskError::MissingVerificationRecognizer),
-                        )
-                    })?
-                    .clone(),
-            )
-        } else {
-            None
-        };
+        let image_recognizer = input.image_recognizer.clone();
+        if input.image_allowed && image_recognizer.is_none() {
+            return Err(PrivacyExclusion::new(
+                capture_id.clone(),
+                ExclusionReason::Masking(MaskError::MissingVerificationRecognizer),
+            ));
+        }
+        if input.image_allowed && input.image.is_none() {
+            return Err(PrivacyExclusion::new(
+                capture_id.clone(),
+                ExclusionReason::Masking(MaskError::InvalidImageDimensions {
+                    width: 0,
+                    height: 0,
+                }),
+            ));
+        }
         let recognition = if let Some(recognizer) = image_recognizer.as_ref() {
             let image = input.image.as_ref().ok_or_else(|| {
                 PrivacyExclusion::new(
@@ -243,22 +243,9 @@ impl PrivacyGate {
             ));
         }
 
-        let (masked_image, coverage) = if input.image_allowed {
-            let image = input.image.as_ref().ok_or_else(|| {
-                PrivacyExclusion::new(
-                    capture_id.clone(),
-                    ExclusionReason::Masking(MaskError::InvalidImageDimensions {
-                        width: 0,
-                        height: 0,
-                    }),
-                )
-            })?;
-            let image_recognizer = image_recognizer.as_ref().ok_or_else(|| {
-                PrivacyExclusion::new(
-                    capture_id.clone(),
-                    ExclusionReason::Masking(MaskError::MissingVerificationRecognizer),
-                )
-            })?;
+        let (masked_image, coverage) = if let (Some(image), Some(image_recognizer)) =
+            (input.image.as_ref(), image_recognizer.as_ref())
+        {
             let detections = map_recognized_detections(&recognition, image, input.orientation)
                 .map_err(|error| Self::mask_exclusion(&capture_id, error))?;
             let mut masked = mask_image(image, &detections)
@@ -284,7 +271,7 @@ impl PrivacyGate {
                     PrivacyExclusion::new(capture_id.clone(), ExclusionReason::Coverage(error))
                 })?;
             let proof = masked.proof().clone();
-            (Some(masked), Some(proof))
+            (input.image_allowed.then_some(masked), Some(proof))
         } else {
             (None, None)
         };

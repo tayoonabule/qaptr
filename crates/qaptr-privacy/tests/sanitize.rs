@@ -21,6 +21,27 @@ fn embedded_url_credentials_and_query_tokens_are_removed() {
 }
 
 #[test]
+fn ordinary_text_and_surnames_survive_text_sanitization() {
+    let sanitized = sanitize_text("Review the project with Alice Smith").expect("safe text");
+
+    assert_eq!(sanitized.value(), "Review the project with Alice Smith");
+    assert!(sanitized.classes().is_empty());
+}
+
+#[test]
+fn email_and_phone_are_redacted_without_hiding_surrounding_text() {
+    let sanitized = sanitize_text("Call 415-555-0123 or email alice@example.test.")
+        .expect("email and phone fixture are valid");
+
+    assert_eq!(
+        sanitized.value(),
+        "Call [REDACTED_PHONE] or email [REDACTED_EMAIL]."
+    );
+    assert!(sanitized.classes().contains(&SensitiveClass::EmailAddress));
+    assert!(sanitized.classes().contains(&SensitiveClass::PhoneNumber));
+}
+
+#[test]
 fn embedded_url_query_is_removed_from_a_window_title() {
     let sanitized =
         sanitize_text("Docs — https://example.test/search?q=work&access_token=fixture-token")

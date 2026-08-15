@@ -92,7 +92,10 @@ impl PreparationProof {
         &self.sanitized_classes
     }
 
-    /// Returns the image coverage proof, when an image was opted in.
+    /// Returns the image coverage proof, when local image preparation ran.
+    ///
+    /// This remains available when image transmission is disabled so callers
+    /// can distinguish a locally prepared image from a text-only payload.
     pub const fn coverage(&self) -> Option<&CoverageProof> {
         self.coverage.as_ref()
     }
