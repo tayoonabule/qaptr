@@ -12,10 +12,11 @@ use qaptr_privacy::{
 struct NoResidualImageRecognizer;
 
 impl ImageRecognizer for NoResidualImageRecognizer {
-    fn recognize_image(&self, _image: &Image) -> qaptr_domain::Result<RecognitionResult> {
-        Ok(RecognitionResult::new(
+    fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        Ok(RecognitionResult::for_image(
             OcrResult::default(),
             VisionResult::default(),
+            image,
         ))
     }
 }

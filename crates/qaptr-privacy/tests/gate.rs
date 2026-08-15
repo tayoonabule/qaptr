@@ -34,18 +34,20 @@ struct ImagePartialRecognizer;
 
 #[derive(Debug)]
 struct ImageMissingGeometryRecognizer;
+struct ImageUnboundMaskedRecognizer;
 
 impl ImageRecognizer for ImageCompleteRecognizer {
     fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
         if image.pixel(2, 4) == Some(MASK_COLOR) {
-            return Ok(RecognitionResult::new(
+            return Ok(RecognitionResult::for_image(
                 OcrResult::default(),
                 VisionResult::default(),
+                image,
             ));
         }
         let text_geometry = NormalizedRect::new(0.25, 0.25, 0.25, 0.25).expect("test geometry");
         let face_geometry = NormalizedRect::new(0.5, 0.5, 0.25, 0.25).expect("test geometry");
-        Ok(RecognitionResult::new(
+        Ok(RecognitionResult::for_image(
             OcrResult::new(vec![TextRegion::with_geometry(
                 "fixture.email@example.test".to_owned(),
                 confidence(),
@@ -56,24 +58,49 @@ impl ImageRecognizer for ImageCompleteRecognizer {
                 confidence(),
                 face_geometry,
             )]),
+            image,
         ))
     }
 }
 
 impl ImageRecognizer for ImagePartialRecognizer {
-    fn recognize_image(&self, _image: &Image) -> qaptr_domain::Result<RecognitionResult> {
-        Ok(RecognitionResult::partial(
+    fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        Ok(RecognitionResult::partial_for_image(
             OcrResult::default(),
             VisionResult::default(),
+            image,
         ))
     }
 }
 
 impl ImageRecognizer for ImageMissingGeometryRecognizer {
-    fn recognize_image(&self, _image: &Image) -> qaptr_domain::Result<RecognitionResult> {
-        Ok(RecognitionResult::new(
+    fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        Ok(RecognitionResult::for_image(
             OcrResult::new(vec![TextRegion::new("unmappable fixture", confidence())]),
             VisionResult::default(),
+            image,
+        ))
+    }
+}
+
+impl ImageRecognizer for ImageUnboundMaskedRecognizer {
+    fn recognize_image(&self, image: &Image) -> qaptr_domain::Result<RecognitionResult> {
+        if image.pixel(2, 4) == Some(MASK_COLOR) {
+            return Ok(RecognitionResult::new(
+                OcrResult::default(),
+                VisionResult::default(),
+                &capture("unbound-rerun"),
+            ));
+        }
+        let geometry = NormalizedRect::new(0.25, 0.25, 0.25, 0.25).expect("test geometry");
+        Ok(RecognitionResult::for_image(
+            OcrResult::new(vec![TextRegion::with_geometry(
+                "fixture.email@example.test".to_owned(),
+                confidence(),
+                geometry,
+            )]),
+            VisionResult::default(),
+            image,
         ))
     }
 }
@@ -237,6 +264,24 @@ fn masking_failure_refuses_to_emit() {
     assert!(matches!(
         result,
         Err(exclusion) if matches!(exclusion.reason(), ExclusionReason::Masking(_))
+    ));
+}
+
+#[test]
+fn masked_recognition_without_exact_image_provenance_refuses_to_emit() {
+    let result = PrivacyGate::new(recall()).prepare(
+        image_input_with(Arc::new(ImageUnboundMaskedRecognizer)),
+        &CompleteOcr,
+        &CompleteVision,
+    );
+
+    assert!(matches!(
+        result,
+        Err(exclusion)
+            if matches!(
+                exclusion.reason(),
+                ExclusionReason::Masking(qaptr_privacy::MaskError::MissingImageProvenance)
+            )
     ));
 }
 

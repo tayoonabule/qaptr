@@ -1,9 +1,11 @@
 //! Pixel-level acceptance tests for irreversible U10 masking.
 
 use qaptr_domain::NormalizedRect;
+use qaptr_domain::ports::{OcrResult, VisionResult};
 use qaptr_privacy::{
     CoverageError, DetectionKind, DetectionSet, Image, ImageOrientation, MASK_COLOR,
-    MappedDetection, MaskError, RecognitionResult, map_normalized_rect, mask_image,
+    MappedDetection, MaskError, RecognitionResult, map_normalized_rect, map_recognized_detections,
+    mask_image,
 };
 
 fn detection(kind: DetectionKind, x: f32, y: f32, width: f32, height: f32) -> MappedDetection {
@@ -138,6 +140,21 @@ fn image_bound_recognition_refuses_mapping_onto_different_image_bytes() {
     let result =
         qaptr_privacy::map_recognized_detections(&recognition, &different, ImageOrientation::Up);
     assert!(matches!(result, Err(MaskError::ImageHashMismatch { .. })));
+}
+
+#[test]
+fn capture_bound_recognition_cannot_enter_image_masking() {
+    let image = Image::solid(2, 2, [1, 2, 3]).expect("fixture image should be valid");
+    let recognition = RecognitionResult::new(
+        OcrResult::default(),
+        VisionResult::default(),
+        &qaptr_domain::CaptureId::new("capture-bound").expect("fixture capture id"),
+    );
+
+    assert!(matches!(
+        map_recognized_detections(&recognition, &image, ImageOrientation::Up),
+        Err(MaskError::MissingImageProvenance)
+    ));
 }
 
 #[test]

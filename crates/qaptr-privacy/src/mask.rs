@@ -13,7 +13,9 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::coverage::{CoverageError, CoverageProof};
-use crate::{ImageOrientation, PixelRect, RecognitionResult, map_normalized_rect};
+use crate::{
+    ImageOrientation, PixelRect, RecognitionProvenance, RecognitionResult, map_normalized_rect,
+};
 
 /// The opaque RGB value written over every masked pixel.
 ///
@@ -262,13 +264,15 @@ pub fn map_recognized_detections(
     image: &Image,
     orientation: ImageOrientation,
 ) -> Result<DetectionSet, MaskError> {
-    if let Some(expected) = recognition.source_image_hash()
-        && expected != ImageHash::of(image)
-    {
-        return Err(MaskError::ImageHashMismatch {
-            expected,
-            actual: ImageHash::of(image),
-        });
+    match recognition.provenance() {
+        RecognitionProvenance::Capture(_) => return Err(MaskError::MissingImageProvenance),
+        RecognitionProvenance::Image(expected) if *expected != ImageHash::of(image) => {
+            return Err(MaskError::ImageHashMismatch {
+                expected: *expected,
+                actual: ImageHash::of(image),
+            });
+        }
+        RecognitionProvenance::Image(_) => {}
     }
     if recognition.is_partial() {
         return Err(MaskError::PartialRecognition);
@@ -436,6 +440,9 @@ pub enum MaskError {
     /// An image-size calculation overflowed.
     #[error("image size arithmetic overflowed")]
     ArithmeticOverflow,
+    /// Recognition was not produced from exact image bytes.
+    #[error("image recognition result has no exact source-image provenance")]
+    MissingImageProvenance,
     /// The generated proof could not be built.
     #[error("coverage proof failed: {0}")]
     Coverage(#[source] CoverageError),

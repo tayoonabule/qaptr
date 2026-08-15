@@ -2,6 +2,7 @@
 
 use rusqlite::{Connection, Transaction, params};
 
+use crate::material::validate_text;
 use crate::{Result, StoreError, UnixMillis};
 
 impl NoticeRecord {
@@ -19,6 +20,7 @@ impl NoticeRecord {
         if count == 0 {
             return Err(StoreError::EmptyNoticeCount);
         }
+        validate_text("notices.notice_id", &id)?;
         Ok(Self {
             id,
             created_at,
@@ -91,6 +93,13 @@ pub enum NoticeReason {
 }
 
 pub(crate) fn insert(transaction: &Transaction<'_>, record: &NoticeRecord) -> Result<()> {
+    if record.id.is_empty() {
+        return Err(StoreError::EmptyNoticeId);
+    }
+    if record.count == 0 {
+        return Err(StoreError::EmptyNoticeCount);
+    }
+    validate_text("notices.notice_id", &record.id)?;
     let count = i64::try_from(record.count).map_err(|_| StoreError::TimestampOverflow)?;
     transaction.execute(
         "INSERT INTO notices (notice_id, created_at_ms, excluded_count, reason)
@@ -133,11 +142,12 @@ pub(crate) fn load(connection: &Connection) -> Result<Vec<NoticeRecord>> {
                 Box::new(StoreError::EmptyNoticeCount),
             )
         })?;
-        Ok(NoticeRecord {
-            id,
-            created_at,
-            count,
-            reason,
+        NoticeRecord::new(id, created_at, count, reason).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                0,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
         })
     })?;
     rows.collect::<std::result::Result<Vec<_>, _>>()

@@ -16,6 +16,19 @@ pub trait ImageRecognizer: Send + Sync {
     fn recognize_image(&self, image: &Image) -> Result<RecognitionResult>;
 }
 
+/// The source to which a recognition result is structurally bound.
+///
+/// A capture-id binding is sufficient for text-only preparation, but it is not
+/// accepted by the image masking boundary. Image preparation must use the
+/// [`RecognitionProvenance::Image`] variant so the exact RGB bytes can be checked.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RecognitionProvenance {
+    /// Recognition performed through the capture-id ports without image data.
+    Capture(CaptureId),
+    /// Recognition performed over the exact RGB image bytes.
+    Image(crate::ImageHash),
+}
+
 /// The four orientations supported by the U9 mapping contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ImageOrientation {
@@ -131,17 +144,17 @@ pub struct RecognitionResult {
     ocr: OcrResult,
     vision: VisionResult,
     partial: bool,
-    source_image_hash: Option<crate::ImageHash>,
+    provenance: RecognitionProvenance,
 }
 
 impl RecognitionResult {
-    /// Creates a complete combined result from OCR and Vision findings.
-    pub fn new(ocr: OcrResult, vision: VisionResult) -> Self {
+    /// Creates a complete result bound to a capture-id-only recognition call.
+    pub fn new(ocr: OcrResult, vision: VisionResult, capture: &CaptureId) -> Self {
         Self {
             ocr,
             vision,
             partial: false,
-            source_image_hash: None,
+            provenance: RecognitionProvenance::Capture(capture.clone()),
         }
     }
 
@@ -151,17 +164,27 @@ impl RecognitionResult {
             ocr,
             vision,
             partial: false,
-            source_image_hash: Some(crate::ImageHash::of(image)),
+            provenance: RecognitionProvenance::Image(crate::ImageHash::of(image)),
         }
     }
 
-    /// Creates a partial combined result for a recognizer that could not finish.
-    pub fn partial(ocr: OcrResult, vision: VisionResult) -> Self {
+    /// Creates a partial result bound to a capture-id-only recognition call.
+    pub fn partial(ocr: OcrResult, vision: VisionResult, capture: &CaptureId) -> Self {
         Self {
             ocr,
             vision,
             partial: true,
-            source_image_hash: None,
+            provenance: RecognitionProvenance::Capture(capture.clone()),
+        }
+    }
+
+    /// Creates a partial result bound to one exact image.
+    pub fn partial_for_image(ocr: OcrResult, vision: VisionResult, image: &Image) -> Self {
+        Self {
+            ocr,
+            vision,
+            partial: true,
+            provenance: RecognitionProvenance::Image(crate::ImageHash::of(image)),
         }
     }
 
@@ -180,9 +203,17 @@ impl RecognitionResult {
         self.partial
     }
 
-    /// Returns the image hash supplied by an image-bound recognition call.
+    /// Returns the mandatory provenance for this recognition result.
+    pub const fn provenance(&self) -> &RecognitionProvenance {
+        &self.provenance
+    }
+
+    /// Returns the image hash when this result was produced from exact image bytes.
     pub const fn source_image_hash(&self) -> Option<crate::ImageHash> {
-        self.source_image_hash
+        match self.provenance {
+            RecognitionProvenance::Capture(_) => None,
+            RecognitionProvenance::Image(hash) => Some(hash),
+        }
     }
 }
 
@@ -195,11 +226,10 @@ where
     let ocr_result = ocr.recognize(capture)?;
     let vision_result = vision.detect(capture)?;
     let partial = ocr_result.is_partial() || vision_result.is_partial();
-    Ok(RecognitionResult {
-        ocr: ocr_result.into_inner(),
-        vision: vision_result.into_inner(),
-        partial,
-        source_image_hash: None,
+    Ok(if partial {
+        RecognitionResult::partial(ocr_result.into_inner(), vision_result.into_inner(), capture)
+    } else {
+        RecognitionResult::new(ocr_result.into_inner(), vision_result.into_inner(), capture)
     })
 }
 
