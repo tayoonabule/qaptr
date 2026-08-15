@@ -76,11 +76,11 @@
 - [ ] Add distinct user-facing messages and recovery actions for unavailable provider, unavailable model, privacy exclusion, provider failure, malformed output, cancellation, and empty honest result.
 
 ### 2.3 Persist and expose results safely
-- [ ] Normalize only schema-valid provider responses into bounded observations and candidate workflows.
-- [ ] Persist observation summaries, workflow summaries, and exclusion notices through `qaptr-store` allowlisted writers only.
+- [x] Normalize only schema-valid provider responses into bounded observations and candidate workflows. `ProviderGate` normalizes every raw adapter response through `normalize_response` before it reaches `AnalysisRunner`; malformed fields become a quiet `MalformedOutput` failure, and the workflow acceptance tests persist only normalized scalar observation/workflow values (`1f17cc8`; `cargo test -p qaptr-workflow --test analyze` passes 12 tests).
+- [x] Persist observation summaries, workflow summaries, and exclusion notices through `qaptr-store` allowlisted writers only. `AnalysisRunner` writes its staged normalized results through `Store` observation/workflow/notice APIs, which enforce the shared scalar-material guard; store tests cover all writer types and workflow acceptance tests verify persisted scalar rows (`d7d3f4d`, `de99c29`; `cargo test -p qaptr-store` passes 21 tests).
 - [x] Confirm the store rejects encoded-image-looking scalar text at every new writer boundary. Capture, observation, workflow, and notice writer coverage rejects PNG-like encoded strings while accepting legitimate scalar text (`d7d3f4d`; `cargo test -p qaptr-store` passes 21 tests).
 - [ ] Extend the bridge with coarse operations only: start, progress, grant/decline consent, cancel, retry, observation detail, workflow generation, and export.
-- [ ] Do not mirror vault, privacy, provider, or raw domain models across the C/Swift bridge.
+- [x] Do not mirror vault, privacy, provider, or raw domain models across the C/Swift bridge. The current C ABI exposes opaque store handles and bounded JSON snapshots/status only, while Swift decodes local DTOs; its contract tests exercise JSON shape rather than sharing Rust domain objects (`6186047`; `swift test --package-path apps/review` passes 65 tests).
 - [ ] Add bridge contract tests for output shape, errors, no-image invariant, and restart persistence.
 
 ### 2.4 Vertical-slice acceptance tests
