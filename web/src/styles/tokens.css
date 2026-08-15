@@ -1,0 +1,72 @@
+/* Hallmark · macrostructure: bespoke (doc-specified: header/hero-form/arc/passages/form/footer)
+ * theme: bespoke custom · vibe: "near-monochrome editorial, one amber signal, serif voice + mono report"
+ * paper oklch(100% 0 0) / dark oklch(9% 0 0) · accent oklch(72% 0.16 65) warm-amber
+ * display: ui-serif ("New York") · body: same serif · meta: ui-monospace
+ * axes: paper=light(inverts dark) / display-style=roman-serif / accent-hue=warm
+ * studied: yes · DNA-source: study of shopify.design, see docs/design/website.md
+ */
+
+:root {
+  /* ---- color: light (default) ---- */
+  --color-paper: oklch(100% 0 0);
+  --color-paper-2: oklch(97% 0 0);
+  --color-ink: oklch(20% 0 0); /* #111 equivalent */
+  --color-ink-soft: oklch(45% 0 0);
+  --color-hairline: oklch(88% 0 0);
+  --color-accent: oklch(72% 0.16 65); /* warm signal amber */
+  --color-accent-ink: oklch(30% 0.1 65);
+  --color-focus: oklch(72% 0.16 65);
+  --color-error: oklch(52% 0.18 25);
+
+  /* ---- type ---- */
+  --font-serif: "New York", ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-display: clamp(3.2rem, 2.1rem + 5.6vw, 9.5rem);
+  --text-headline: clamp(2rem, 1.5rem + 2.2vw, 3.4rem);
+  --text-subhead: clamp(1.15rem, 1rem + 0.5vw, 1.5rem);
+  --text-body: 1.0625rem;
+  --text-meta: 0.8125rem;
+
+  --tracking-display: -0.035em;
+  --tracking-body: -0.008em;
+  --tracking-meta: 0.05em;
+
+  --leading-display: 0.92;
+  --leading-body: 1.55;
+
+  /* ---- space (4pt scale) ---- */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2.5rem;
+  --space-xl: 4rem;
+  --space-2xl: 6rem;
+  --space-3xl: 9rem;
+
+  /* ---- motion ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fade: 240ms;
+  --dur-sweep: 900ms;
+  --dur-sheen: 2400ms;
+
+  /* ---- misc ---- */
+  --rule-width: 1px;
+  --radius-sm: 3px;
+  --measure: 42rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: oklch(9% 0 0); /* #0a0a0a equivalent */
+    --color-paper-2: oklch(14% 0 0);
+    --color-ink: oklch(95% 0 0); /* #f2f2f2 equivalent */
+    --color-ink-soft: oklch(68% 0 0);
+    --color-hairline: oklch(26% 0 0);
+    --color-accent-ink: oklch(85% 0.1 65);
+  }
+}

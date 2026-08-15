@@ -1,0 +1,176 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import WaitlistForm from "../components/WaitlistForm.astro";
+import ArcDial from "../components/ArcDial.astro";
+---
+
+<BaseLayout title="Qaptr — private beta for macOS">
+  <section class="hero wrap">
+    <p class="meta hero__eyebrow reveal">Private beta &middot; macOS</p>
+    <h1 class="hero__headline reveal">Qaptr keeps the ten minutes you forget you spent.</h1>
+    <p class="hero__subhead reveal">
+      A quiet macOS companion that captures what you did, so the record exists before you need it.
+    </p>
+    <div class="hero__form reveal">
+      <WaitlistForm variant="hero" />
+    </div>
+  </section>
+
+  <section class="dial-section wrap reveal">
+    <ArcDial />
+    <p class="meta dial-section__caption">
+      Cadence adapts to what is happening. Quiet stretches log sparsely; dense work captures in detail.
+    </p>
+  </section>
+
+  <section class="passages wrap">
+    <article class="passage reveal">
+      <p class="meta passage__eyebrow">What it captures</p>
+      <p class="passage__statement">The shape of your working day, recorded as it happens.</p>
+      <p class="passage__body">
+        Qaptr watches the apps and windows you actually use and turns that activity into a plain-language
+        record. No manual timers, no forms to fill in after the fact. The record exists because the day
+        happened, not because you remembered to write it down.
+      </p>
+    </article>
+
+    <article class="passage reveal">
+      <p class="meta passage__eyebrow">What it never captures</p>
+      <p class="passage__statement">Anything you have not explicitly agreed to share.</p>
+      <p class="passage__body">
+        Qaptr does not connect to a provider, a calendar, or a repository until you complete setup and
+        give explicit consent. Nothing is recorded during onboarding, and nothing leaves your machine
+        without your say-so at every step along the way.
+      </p>
+    </article>
+
+    <article class="passage reveal">
+      <p class="meta passage__eyebrow">What it becomes</p>
+      <p class="passage__statement">A record you can hand to a standup, a review, or your future self.</p>
+      <p class="passage__body">
+        The minutes Qaptr keeps turn into a workflow document: a readable account of what happened,
+        when, and in what order. Skim it before a meeting, paste it into a review, or use it to remember
+        what you were doing before lunch.
+      </p>
+    </article>
+  </section>
+
+  <section id="join" class="join wrap reveal">
+    <p class="meta join__eyebrow">Join the waitlist</p>
+    <h2 class="join__headline">Be the first to try it.</h2>
+    <WaitlistForm variant="footer" />
+  </section>
+
+  <style>
+    .hero {
+      padding-block: clamp(3rem, 10vw, 6rem) clamp(2.5rem, 6vw, 4rem);
+    }
+
+    .hero__eyebrow {
+      margin-bottom: var(--space-sm);
+    }
+
+    .hero__headline {
+      font-size: var(--text-display);
+      letter-spacing: var(--tracking-display);
+      line-height: var(--leading-display);
+      max-width: 20ch;
+    }
+
+    .hero__subhead {
+      margin-top: var(--space-md);
+      font-size: var(--text-subhead);
+      color: var(--color-ink-soft);
+      max-width: 42ch;
+    }
+
+    .hero__form {
+      margin-top: var(--space-xl);
+      max-width: 34rem;
+    }
+
+    .dial-section {
+      padding-block: clamp(2rem, 6vw, 4rem);
+      text-align: center;
+    }
+
+    .dial-section__caption {
+      margin-top: var(--space-md);
+      max-width: 40ch;
+      margin-inline: auto;
+    }
+
+    .passages {
+      display: grid;
+      gap: clamp(2.5rem, 6vw, 4rem);
+      padding-block: clamp(2rem, 8vw, 5rem);
+    }
+
+    .passage {
+      max-width: var(--measure);
+    }
+
+    .passage:nth-child(2) {
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .passage:nth-child(2) .passage__body {
+      margin-left: auto;
+    }
+
+    .passage__eyebrow {
+      margin-bottom: var(--space-xs);
+    }
+
+    .passage__statement {
+      font-size: var(--text-headline);
+      line-height: var(--leading-headline);
+      letter-spacing: var(--tracking-display);
+      max-width: 18ch;
+    }
+
+    .passage:nth-child(2) .passage__statement {
+      margin-left: auto;
+    }
+
+    .passage__body {
+      margin-top: var(--space-md);
+      max-width: 46ch;
+      color: var(--color-ink-soft);
+    }
+
+    .join {
+      border-top: var(--rule-width) solid var(--color-hairline);
+      padding-block: clamp(3rem, 8vw, 5rem);
+      text-align: center;
+    }
+
+    .join__eyebrow {
+      margin-bottom: var(--space-xs);
+    }
+
+    .join__headline {
+      font-size: var(--text-headline);
+      letter-spacing: var(--tracking-display);
+      margin-bottom: var(--space-lg);
+    }
+
+    .join :global(.waitlist-form) {
+      max-width: 34rem;
+      margin-inline: auto;
+    }
+
+    @media (max-width: 640px) {
+      .passage:nth-child(2) {
+        margin-left: 0;
+        text-align: left;
+      }
+
+      .passage:nth-child(2) .passage__body,
+      .passage:nth-child(2) .passage__statement {
+        margin-left: 0;
+      }
+    }
+  </style>
+</BaseLayout>

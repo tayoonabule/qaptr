@@ -1,0 +1,143 @@
+---
+import "../styles/base.css";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Qaptr — private beta for macOS. Join the waitlist." } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap site-header__row">
+        <a class="site-header__mark" href="/">Qaptr</a>
+        <a class="pill-link" href="/#join">Join the waitlist</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap site-footer__row">
+        <span class="site-footer__mark">Qaptr</span>
+        <p class="meta site-footer__privacy">
+          We only ever store the email you submit. No tracking, no third parties.
+        </p>
+        <span class="meta">{new Date().getFullYear()}</span>
+      </div>
+    </footer>
+
+    <script>
+      // Progressive enhancement only. The page is fully functional and
+      // fully visible with this script absent (see .js-motion in base.css).
+      document.documentElement.classList.add("js-motion");
+
+      const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!prefersReduced && "IntersectionObserver" in window) {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+                io.unobserve(entry.target);
+              }
+            }
+          },
+          { threshold: 0.15 },
+        );
+        document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+      } else {
+        document.querySelectorAll(".reveal").forEach((el) => el.classList.add("is-visible"));
+      }
+    </script>
+
+    <style>
+      .site-header {
+        position: relative;
+        z-index: 10;
+      }
+
+      .site-header__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-block: var(--space-md);
+        gap: var(--space-md);
+      }
+
+      .site-header__mark {
+        font-family: var(--font-serif);
+        font-size: 1.25rem;
+        font-weight: 500;
+        text-decoration: none;
+        letter-spacing: var(--tracking-body);
+      }
+
+      .pill-link {
+        font-family: var(--font-mono);
+        font-size: var(--text-meta);
+        letter-spacing: var(--tracking-meta);
+        text-transform: uppercase;
+        text-decoration: none;
+        border: 1px solid var(--color-ink);
+        border-radius: 999px;
+        padding: var(--space-2xs) var(--space-md);
+        white-space: nowrap;
+        transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out);
+      }
+
+      .pill-link:hover {
+        background: var(--color-ink);
+        color: var(--color-paper);
+      }
+
+      .site-footer {
+        border-top: var(--rule-width) solid var(--color-hairline);
+        margin-top: var(--space-2xl);
+      }
+
+      .site-footer__row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-sm);
+        padding-block: var(--space-lg);
+      }
+
+      .site-footer__mark {
+        font-family: var(--font-serif);
+        font-size: 1rem;
+      }
+
+      .site-footer__privacy {
+        flex: 1 1 16rem;
+        min-width: 0;
+        text-align: center;
+      }
+
+      @media (max-width: 480px) {
+        .site-footer__row {
+          justify-content: center;
+          text-align: center;
+        }
+      }
+    </style>
+  </body>
+</html>

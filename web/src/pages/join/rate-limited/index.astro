@@ -1,0 +1,46 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Too many attempts — Qaptr">
+  <section class="confirm wrap reveal">
+    <p class="meta confirm__eyebrow">Private beta &middot; macOS</p>
+    <h1 class="confirm__headline">Too many attempts, too fast.</h1>
+    <p class="confirm__body">Wait a minute and try submitting the form again.</p>
+    <a class="confirm__link" href="/">Back to the homepage</a>
+  </section>
+
+  <style>
+    .confirm {
+      padding-block: clamp(4rem, 14vw, 8rem);
+      max-width: 36rem;
+    }
+
+    .confirm__eyebrow {
+      margin-bottom: var(--space-sm);
+    }
+
+    .confirm__headline {
+      font-size: var(--text-headline);
+      letter-spacing: var(--tracking-display);
+      line-height: var(--leading-headline);
+    }
+
+    .confirm__body {
+      margin-top: var(--space-md);
+      color: var(--color-ink-soft);
+      max-width: 36ch;
+    }
+
+    .confirm__link {
+      display: inline-block;
+      margin-top: var(--space-xl);
+      font-family: var(--font-mono);
+      font-size: var(--text-meta);
+      letter-spacing: var(--tracking-meta);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--color-ink);
+      text-decoration: none;
+    }
+  </style>
+</BaseLayout>

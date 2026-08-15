@@ -1,0 +1,77 @@
+---
+// Inline SVG arc dial: sweeps from "sparse" to "detailed" capture cadence.
+// Tier A construction (pure SVG + CSS transform), no canvas/WebGL, no
+// external asset. The needle rotates once on first scroll into view via
+// a CSS class toggled by the page's IntersectionObserver; with JS absent
+// or motion reduced, it renders directly in its end (detailed) position.
+---
+
+<div class="arc-dial reveal" data-arc-dial>
+  <svg viewBox="0 0 400 220" role="img" aria-labelledby="arc-dial-title">
+    <title id="arc-dial-title">Capture cadence dial, sweeping from sparse to detailed</title>
+
+    <path
+      d="M 40 200 A 160 160 0 0 1 360 200"
+      fill="none"
+      stroke="var(--color-hairline)"
+      stroke-width="1.5"
+    ></path>
+
+    <line x1="40" y1="200" x2="40" y2="212" stroke="var(--color-ink-soft)" stroke-width="1.5"></line>
+    <line x1="360" y1="200" x2="360" y2="212" stroke="var(--color-ink-soft)" stroke-width="1.5"></line>
+
+    <g class="arc-dial__needle">
+      <line x1="200" y1="200" x2="200" y2="52" stroke="var(--color-accent)" stroke-width="3" stroke-linecap="round"
+      ></line>
+      <circle cx="200" cy="200" r="6" fill="var(--color-accent)"></circle>
+    </g>
+  </svg>
+
+  <div class="arc-dial__labels meta">
+    <span>sparse</span>
+    <span>detailed</span>
+  </div>
+</div>
+
+<style>
+  .arc-dial {
+    max-width: 32rem;
+    margin-inline: auto;
+  }
+
+  .arc-dial__needle {
+    transform-origin: 200px 200px;
+    transform: rotate(-80deg);
+  }
+
+  .js-motion [data-arc-dial] .arc-dial__needle {
+    transition: transform var(--dur-sweep) var(--ease-out);
+  }
+
+  .js-motion [data-arc-dial]:not(.is-visible) .arc-dial__needle {
+    transform: rotate(-80deg);
+  }
+
+  .js-motion [data-arc-dial].is-visible .arc-dial__needle {
+    transform: rotate(80deg);
+  }
+
+  /* No JS / motion disabled: render directly in the "detailed" end state. */
+  html:not(.js-motion) .arc-dial__needle {
+    transform: rotate(80deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .arc-dial__needle {
+      transform: rotate(80deg) !important;
+      transition: none !important;
+    }
+  }
+
+  .arc-dial__labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--space-2xs);
+    padding-inline: var(--space-md);
+  }
+</style>
