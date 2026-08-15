@@ -16,8 +16,8 @@
 ## 0. Baseline and reality spike
 
 ### 0.1 Establish a reproducible local baseline
-- [ ] Refresh `graphify-out/` and capture the current affected paths before edits.
-- [ ] Record the exact app, helper, Rust workspace, and Swift package revisions under test.
+- [x] Refresh `graphify-out/` and capture the current affected paths before edits. Refreshed on 2026-08-15 before the provider-failure acceptance work; `graphify affected AnalysisRunner --depth 2` identifies the session coordinator plus analysis regression surface, and `graphify affected ProviderChoice --depth 2` identifies the persisted-preferences and review UI consumers.
+- [x] Record the exact app, helper, Rust workspace, and Swift package revisions under test. The validated source baseline includes review app/UI `caff528f6fa5eeff32b3e0ecd4b322bc449502fe`, helper fixture boundary `28503e650460d963f8801a72e901d29470a5bd6f`, workflow acceptance `de99c299ff18efc1de811acab3a0ae242b1cf7f2`, review FFI `6186047d383317b5a0b1770224b41ecbc9a23f6b`, policy catalog `2d78708006d5184528d959bba5c40c72adefeac5`, and macOS Vision correction `4d32ab27525a8872ee0ce50e0909aa0d44288a96`.
 - [x] Run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --workspace`, `cargo doc --workspace --no-deps`, and `swift test --package-path apps/helper`. All commands passed on 2026-08-15 after the Vision helper cold-start correction; the helper suite ran 20 tests.
 - [x] Run `swift test --package-path apps/review` and record any existing failures independently from new work. The full review package passed 65 tests on 2026-08-15 after restoring the missing view layer; no existing test failure remains.
 - [x] Confirm fixture inventory and document which fixture captures can exercise real local preparation. `fixtures/session/manifest.csv` enumerates 24 1600×1000 logical captures across the existing `text`, `rotated`, `no_text`, `single_color`, `low_contrast`, and `qr` Vision fixture sources; `fixtures/session/README.md` records that the repeated sources are intentional and are suitable for the real local Vision preparation measurement.
