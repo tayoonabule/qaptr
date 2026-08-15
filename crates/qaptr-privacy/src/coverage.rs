@@ -6,7 +6,7 @@
 use thiserror::Error;
 
 use crate::PixelRect;
-use crate::mask::{DetectionKind, Image, MASK_COLOR, MappedDetection};
+use crate::mask::{DetectionKind, DetectionSet, Image, ImageHash, MASK_COLOR, MappedDetection};
 
 /// Proof metadata for one recognizer-detected region.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -42,25 +42,58 @@ impl CoverageEntry {
 pub struct CoverageProof {
     image_width: u32,
     image_height: u32,
+    image_hash: ImageHash,
     entries: Vec<CoverageEntry>,
     covered_pixel_count: u64,
+    recognition_verification: Option<RecognitionVerification>,
+}
+
+/// Evidence from rerunning recognition over the masked output.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RecognitionVerification {
+    masked_image_hash: ImageHash,
+    rerun_detected_region_count: usize,
+    residual_detected_region_count: usize,
+}
+
+impl RecognitionVerification {
+    /// Returns the hash of the masked image that was checked.
+    pub const fn masked_image_hash(self) -> ImageHash {
+        self.masked_image_hash
+    }
+
+    /// Returns the number of regions reported by the rerun recognizer.
+    pub const fn rerun_detected_region_count(self) -> usize {
+        self.rerun_detected_region_count
+    }
+
+    /// Returns the number of originally detected regions still recognizable.
+    pub const fn residual_detected_region_count(self) -> usize {
+        self.residual_detected_region_count
+    }
+
+    /// Returns whether the rerun found no originally detected sensitive region.
+    pub const fn has_no_residual_detected_regions(self) -> bool {
+        self.residual_detected_region_count == 0
+    }
 }
 
 impl CoverageProof {
     pub(crate) fn new(
-        image_width: u32,
-        image_height: u32,
-        detections: &[MappedDetection],
+        image: &Image,
+        detections: &DetectionSet,
     ) -> Result<Self, CoverageError> {
+        let image_width = image.width();
+        let image_height = image.height();
         if image_width == 0 || image_height == 0 {
             return Err(CoverageError::InvalidImageDimensions {
                 width: image_width,
                 height: image_height,
             });
         }
-        let mut entries = Vec::with_capacity(detections.len());
+        let mut entries = Vec::with_capacity(detections.detections().len());
         let mut covered_pixel_count = 0_u64;
-        for detection in detections {
+        for detection in detections.detections() {
             let rect = detection.rect();
             validate_rect(rect, image_width, image_height)?;
             let pixel_count = u64::from(rect.width())
@@ -78,8 +111,10 @@ impl CoverageProof {
         Ok(Self {
             image_width,
             image_height,
+            image_hash: ImageHash::of(image),
             entries,
             covered_pixel_count,
+            recognition_verification: None,
         })
     }
 
@@ -131,7 +166,7 @@ impl CoverageProof {
     pub fn verify(
         &self,
         masked_image: &Image,
-        detections: &[MappedDetection],
+        detections: &DetectionSet,
     ) -> Result<(), CoverageError> {
         if self.image_width != masked_image.width() || self.image_height != masked_image.height() {
             return Err(CoverageError::ImageDimensionsMismatch {
@@ -141,7 +176,13 @@ impl CoverageProof {
                 image_height: masked_image.height(),
             });
         }
-        self.verify_detections(detections)?;
+        if self.image_hash != ImageHash::of(masked_image) {
+            return Err(CoverageError::ImageHashMismatch {
+                expected: self.image_hash,
+                actual: ImageHash::of(masked_image),
+            });
+        }
+        self.verify_detections(detections.detections())?;
         for (index, entry) in self.entries.iter().enumerate() {
             let rect = entry.rect;
             for y in rect.y()..rect.y() + rect.height() {
@@ -154,6 +195,56 @@ impl CoverageProof {
         }
         Ok(())
     }
+
+    /// Returns the masked-output recognition evidence, when a rerun was made.
+    pub const fn recognition_verification(&self) -> Option<RecognitionVerification> {
+        self.recognition_verification
+    }
+
+    pub(crate) fn verify_masked_recognition(
+        &mut self,
+        masked_image: &Image,
+        rerun: &DetectionSet,
+    ) -> Result<(), CoverageError> {
+        let masked_image_hash = ImageHash::of(masked_image);
+        if rerun.image_hash() != masked_image_hash {
+            return Err(CoverageError::ImageHashMismatch {
+                expected: masked_image_hash,
+                actual: rerun.image_hash(),
+            });
+        }
+        let mut residual_detected_region_count = 0;
+        for rerun_detection in rerun.detections() {
+            if self.entries.iter().any(|entry| {
+                entry.kind == rerun_detection.kind()
+                    && rectangles_overlap(entry.rect, rerun_detection.rect())
+            }) {
+                residual_detected_region_count += 1;
+            }
+        }
+        if residual_detected_region_count != 0 {
+            return Err(CoverageError::ResidualDetection {
+                count: residual_detected_region_count,
+            });
+        }
+        self.recognition_verification = Some(RecognitionVerification {
+            masked_image_hash,
+            rerun_detected_region_count: rerun.detections().len(),
+            residual_detected_region_count,
+        });
+        Ok(())
+    }
+}
+
+fn rectangles_overlap(first: PixelRect, second: PixelRect) -> bool {
+    let first_right = first.x().saturating_add(first.width());
+    let first_bottom = first.y().saturating_add(first.height());
+    let second_right = second.x().saturating_add(second.width());
+    let second_bottom = second.y().saturating_add(second.height());
+    first.x() < second_right
+        && second.x() < first_right
+        && first.y() < second_bottom
+        && second.y() < first_bottom
 }
 
 fn validate_rect(rect: PixelRect, width: u32, height: u32) -> Result<(), CoverageError> {
@@ -217,6 +308,14 @@ pub enum CoverageError {
         /// The height of the output image.
         image_height: u32,
     },
+    /// The proof or rerun was checked against different image bytes.
+    #[error("coverage proof is bound to image hash {expected}, but received {actual}")]
+    ImageHashMismatch {
+        /// Hash recorded by the proof.
+        expected: ImageHash,
+        /// Hash supplied to verification.
+        actual: ImageHash,
+    },
     /// An output pixel inside a detected region was not replaced by the mask.
     #[error("detected region {index} leaves pixel ({x}, {y}) unmasked")]
     UnmaskedPixel {
@@ -227,6 +326,12 @@ pub enum CoverageError {
         /// The unmasked pixel's y coordinate.
         y: u32,
     },
+    /// The masked image still produced a detection overlapping an original region.
+    #[error("masked image still has {count} recognizable previously detected region(s)")]
+    ResidualDetection {
+        /// Number of residual regions found by the rerun.
+        count: usize,
+    },
     /// Proof area arithmetic overflowed.
     #[error("coverage area arithmetic overflowed")]
     ArithmeticOverflow,
@@ -236,17 +341,18 @@ pub enum CoverageError {
 mod tests {
     use crate::ImageOrientation;
     use crate::map_normalized_rect;
-    use crate::mask::{DetectionKind, Image, MASK_COLOR, MappedDetection, mask_image};
+    use crate::mask::{DetectionKind, DetectionSet, Image, MASK_COLOR, MappedDetection, mask_image};
     use qaptr_domain::NormalizedRect;
 
     #[test]
     fn empty_detection_set_is_a_valid_honest_proof() {
         let image = Image::solid(2, 2, [9, 8, 7]).expect("fixture image should be valid");
-        let masked = mask_image(&image, &[]).expect("empty masking should succeed");
+        let detections = DetectionSet::for_image(&image, Vec::new());
+        let masked = mask_image(&image, &detections).expect("empty masking should succeed");
         assert_eq!(masked.proof().detected_region_count(), 0);
         assert_eq!(masked.proof().covered_pixel_count(), 0);
         assert_eq!(masked.image().pixel(0, 0), Some([9, 8, 7]));
-        assert!(masked.verify(&[]).is_ok());
+        assert!(masked.verify(&detections).is_ok());
     }
 
     #[test]
@@ -257,10 +363,11 @@ mod tests {
         let rect = map_normalized_rect(normalized, 8, 8, ImageOrientation::Up)
             .expect("mapping should succeed");
         let detections = [MappedDetection::new(DetectionKind::Text, rect)];
-        let masked = mask_image(&image, &detections).expect("masking should succeed");
+        let detection_set = DetectionSet::for_image(&image, detections.to_vec());
+        let masked = mask_image(&image, &detection_set).expect("masking should succeed");
         assert_eq!(masked.proof().entries()[0].rect(), rect);
         assert_eq!(masked.image().pixel(2, 4), Some(MASK_COLOR));
         assert!(masked.proof().verify_detections(&detections).is_ok());
-        assert!(masked.verify(&detections).is_ok());
+        assert!(masked.verify(&detection_set).is_ok());
     }
 }

@@ -26,25 +26,32 @@ The sandboxed Jcode auth probe returned tabular status containing `claude`
 
 ## U15 Claude detection evidence
 
-Recorded on 2026-08-15 UTC on the Apple-silicon development machine. Direct
-invocation outside U14's sandbox reported `2.1.228 (Claude Code)` and an auth
-status with `loggedIn: true`. This is useful installation evidence, but it is
-not evidence that sandboxed Qaptr detection succeeded, and Qaptr did not read
-or store any Claude login token.
+Recorded on 2026-08-15 UTC on the Apple-silicon development machine. With the
+cmux session shim removed from `PATH`, discovery resolves the genuine Claude
+Code installation to `/Users/light/.local/share/claude/versions/2.1.228`, a
+real arm64 Mach-O. Direct invocation outside U14's sandbox reports
+`2.1.228 (Claude Code)` and `loggedIn: true` with exit 0. Qaptr did not read,
+store, or forward any Claude login token.
 
-The `claude` command on `PATH` resolves to a per-session cmux shell shim under
-`/var/folders`, not to a genuine Claude Code installation. U14 correctly
-refuses that ephemeral shim under its default-deny execution profile. Release
-verification must use a genuine installed Claude CLI, not a session wrapper;
-the ignored test is:
+The Claude adapter now allowlists the canonical executable's parent and, for
+the versioned `<install>/versions/<version>` layout, the derived installation
+root. This fixes the resource-mapping failure without weakening U14's
+deny-by-default profile. The sandboxed CLI then reaches the version and auth
+probes, but reports `loggedIn: false` because Claude's existing session is
+macOS-Keychain-backed and U14 intentionally grants no Keychain access. The
+shared gate preserves this as typed `NotAuthenticated`, not a runtime failure.
+The ignored test is:
 
 ```sh
-cargo test -p qaptr-provider-cli --test claude -- --ignored installed_claude_passes_real_detection
+cargo test -p qaptr-provider-cli --test claude -- --ignored installed_claude_reports_sandbox_auth_honestly
 ```
 
-The test runs detection through `ProviderGate` and U14's `CliRuntime`. The
-sandbox must not be widened to execute arbitrary `/var/folders` shims merely to
-accommodate this development-machine artifact.
+The test runs detection through `ProviderGate` and U14's `CliRuntime`. It
+passes only when Claude reaches a correctly-versioned authenticated result or
+the honest typed `NotAuthenticated` limitation above. It must not be made
+green by granting broad Keychain access or by reading Claude credentials.
+OpenCode is also installed at `~/.opencode/bin/opencode`, but it is outside the
+four release-gating providers and has no Qaptr adapter.
 
 U16 also verifies missing installation, unauthenticated state, old versions,
 malformed output, image-capability refusal, and identical normalized response

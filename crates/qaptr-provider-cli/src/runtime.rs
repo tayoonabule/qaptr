@@ -538,16 +538,18 @@ fn sandbox_profile(
 (allow file-map-executable)\n\
 (allow network-outbound)\n",
     );
-    append_allow_subpath(&mut profile, "file-read*", working_directory)?;
-    append_allow_subpath(&mut profile, "file-write*", working_directory)?;
-    append_allow_literal(&mut profile, "file-read*", executable)?;
-    append_allow_literal(&mut profile, "file-map-executable", executable)?;
     if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
         append_deny_subpath(&mut profile, "file-read*", &home)?;
         append_deny_subpath(&mut profile, "file-write*", &home)?;
     }
     append_deny_subpath(&mut profile, "file-read*", Path::new("/Volumes"))?;
     append_deny_subpath(&mut profile, "file-write*", Path::new("/Volumes"))?;
+    // These are explicit exceptions to the home deny rule above. Keeping the
+    // allows after the deny is important when TMPDIR itself lives under HOME.
+    append_allow_subpath(&mut profile, "file-read*", working_directory)?;
+    append_allow_subpath(&mut profile, "file-write*", working_directory)?;
+    append_allow_literal(&mut profile, "file-read*", executable)?;
+    append_allow_literal(&mut profile, "file-map-executable", executable)?;
     for path in support_paths {
         if !path.is_absolute() {
             return Err(CliRuntimeError::InvalidSandboxPath { path: path.clone() });
@@ -633,10 +635,41 @@ fn terminate_process_tree(child: &mut Child) {
 
 #[cfg(test)]
 mod tests {
-    use super::escape_profile_string;
+    use std::path::PathBuf;
+
+    use super::{escape_profile_string, sandbox_profile};
 
     #[test]
     fn profile_string_escapes_seatbelt_delimiters() {
         assert_eq!(escape_profile_string("a\\b\"c\nd"), "a\\\\b\\\"c\\nd");
+    }
+
+    #[test]
+    fn working_directory_allow_follows_home_deny() {
+        let home = std::env::var_os("HOME").expect("test has a home directory");
+        let home = PathBuf::from(home);
+        let working_directory = home.join("qaptr-test-working-directory");
+        let profile = sandbox_profile(
+            std::path::Path::new("/bin/echo"),
+            &working_directory,
+            &[],
+        )
+        .expect("test paths are valid sandbox paths");
+        let home_deny = format!(
+            "(deny file-write* (subpath \"{}\"))",
+            home.to_str().expect("test home is UTF-8")
+        );
+        let working_allow = format!(
+            "(allow file-write* (subpath \"{}\"))",
+            working_directory
+                .to_str()
+                .expect("test working directory is UTF-8")
+        );
+        assert!(
+            profile.find(&home_deny).expect("home deny is present")
+                < profile
+                    .find(&working_allow)
+                    .expect("working-directory exception is present")
+        );
     }
 }

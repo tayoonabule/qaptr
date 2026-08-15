@@ -2,12 +2,40 @@
 
 use std::cell::Cell;
 
+use qaptr_domain::ports::{ContextSnapshot, OcrResult, VisionResult};
+use qaptr_domain::testing::{InMemoryOcr, InMemoryVision};
+use qaptr_domain::CaptureId;
+use qaptr_privacy::{Image, ImageOrientation, PreparationInput, PreparedPayload, PrivacyGate, measure_recall};
 use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, Capability, CapabilityDescriptor,
     CapabilityRequirements, ExecutablePath, ProviderAdapter, ProviderDescriptor, ProviderDetection,
-    ProviderEndpoint, ProviderError, ProviderGate, ProviderId, ProviderLocation, ProviderRequest,
+    ProviderEndpoint, ProviderError, ProviderGate, ProviderId, ProviderLocation,
     ProviderVersion, RawObservation, RawProviderResponse, RuntimeFailureKind,
 };
+
+fn prepared_payload(with_image: bool) -> PreparedPayload {
+    let input = PreparationInput::new(
+        CaptureId::new("provider-contract").expect("test capture id is valid"),
+        ContextSnapshot::new(Some("sanitized context".to_owned()), None, None, None),
+    );
+    let input = if with_image {
+        input
+            .with_image(
+                Image::solid(8, 8, [255, 255, 255]).expect("test image is valid"),
+                ImageOrientation::Up,
+            )
+            .allow_image()
+    } else {
+        input
+    };
+    PrivacyGate::new(measure_recall(&[], &[]).expect("empty recall fixture is valid"))
+        .prepare(
+            input,
+            &InMemoryOcr::ready(OcrResult::default()),
+            &InMemoryVision::ready(VisionResult::default()),
+        )
+        .expect("privacy gate should prepare the test payload")
+}
 
 struct FakeProvider {
     descriptor: ProviderDescriptor,
@@ -190,11 +218,10 @@ fn image_work_is_refused_before_adapter_invocation() {
     let verified = gate
         .detect_and_verify()
         .expect("text-only fake should pass text gate");
-    let request =
-        ProviderRequest::with_images("sanitized context", 1).expect("one prepared image is valid");
+    let payload = prepared_payload(true);
 
     assert!(matches!(
-        gate.invoke(&verified, request),
+        gate.invoke(&verified, &payload),
         Err(ProviderError::CapabilityMissing {
             capability: Capability::Images,
             ..
@@ -214,8 +241,7 @@ fn image_capability_is_checked_during_handshake_when_requested() {
     let response = gate
         .invoke(
             &verified,
-            ProviderRequest::with_images("sanitized context", 2)
-                .expect("two prepared images are valid"),
+            &prepared_payload(true),
         )
         .expect("fake response should normalize");
 
@@ -235,7 +261,7 @@ fn malformed_output_is_a_typed_runtime_failure() {
     assert!(matches!(
         gate.invoke(
             &verified,
-            ProviderRequest::text("sanitized context").expect("context is valid")
+            &prepared_payload(false)
         ),
         Err(ProviderError::RuntimeFailure {
             kind: RuntimeFailureKind::MalformedOutput { .. },
@@ -250,13 +276,13 @@ fn two_adapters_produce_the_same_normalized_shape() {
     let second = ProviderGate::new(FakeProvider::endpoint_variant());
     let first_verified = first.detect_and_verify().expect("first fake should pass");
     let second_verified = second.detect_and_verify().expect("second fake should pass");
-    let request = ProviderRequest::text("sanitized context").expect("context is valid");
+    let payload = prepared_payload(false);
 
     let first_response = first
-        .invoke(&first_verified, request.clone())
+        .invoke(&first_verified, &payload)
         .expect("first response should normalize");
     let second_response = second
-        .invoke(&second_verified, request)
+        .invoke(&second_verified, &payload)
         .expect("second response should normalize");
 
     assert_eq!(first_response, second_response);

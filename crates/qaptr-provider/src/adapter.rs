@@ -4,6 +4,8 @@ use std::{fmt, num::NonZeroU32};
 
 use thiserror::Error;
 
+use qaptr_privacy::PreparedPayload;
+
 use crate::{
     Capability, CapabilityDescriptor, CapabilityRequirements, RawProviderResponse, SchemaError,
     normalize_response,
@@ -289,6 +291,20 @@ pub enum ProviderPayloadKind {
 }
 
 /// A provider request containing no credentials and no raw capture bytes.
+///
+/// The fields and constructor are private. A request is assembled only inside
+/// [`ProviderGate::invoke`] from a [`PreparedPayload`], so an external crate
+/// cannot turn arbitrary caller-supplied text into provider input.
+///
+/// ```compile_fail
+/// use qaptr_provider::{ProviderPayloadKind, ProviderRequest};
+///
+/// let _ = ProviderRequest {
+///     context: "RAW SECRET password=hunter2".to_owned(),
+///     payload_kind: ProviderPayloadKind::Text,
+///     image_count: None,
+/// };
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProviderRequest {
     context: String,
@@ -297,30 +313,32 @@ pub struct ProviderRequest {
 }
 
 impl ProviderRequest {
-    /// Creates a text-context request.
-    pub fn text(context: impl Into<String>) -> Result<Self, ProviderRequestError> {
-        let context = non_empty_context(context.into())?;
-        Ok(Self {
+    fn from_prepared(payload: &PreparedPayload) -> Self {
+        let context = payload
+            .context()
+            .values()
+            .iter()
+            .map(|value| format!("{:?}: {}", value.field(), value.value()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let context = if context.is_empty() {
+            "No structured context was available.".to_owned()
+        } else {
+            context
+        };
+        let payload_kind = if payload.masked_image().is_some() {
+            ProviderPayloadKind::Images
+        } else {
+            ProviderPayloadKind::Text
+        };
+        let image_count = (payload.masked_image().is_some()).then(|| {
+            NonZeroU32::new(1).expect("the fixed prepared-image count is non-zero")
+        });
+        Self {
             context,
-            payload_kind: ProviderPayloadKind::Text,
-            image_count: None,
-        })
-    }
-
-    /// Creates an image request using already-prepared image handles counted by
-    /// the privacy gate. Raw image bytes never cross this contract.
-    pub fn with_images(
-        context: impl Into<String>,
-        image_count: u32,
-    ) -> Result<Self, ProviderRequestError> {
-        let context = non_empty_context(context.into())?;
-        let image_count = NonZeroU32::new(image_count)
-            .ok_or(ProviderRequestError::ImagesRequiredForImageRequest)?;
-        Ok(Self {
-            context,
-            payload_kind: ProviderPayloadKind::Images,
-            image_count: Some(image_count),
-        })
+            payload_kind,
+            image_count,
+        }
     }
 
     /// Returns the sanitized context.
@@ -337,15 +355,6 @@ impl ProviderRequest {
     pub const fn image_count(&self) -> Option<NonZeroU32> {
         self.image_count
     }
-}
-
-fn non_empty_context(context: String) -> Result<String, ProviderRequestError> {
-    if context.trim().is_empty() {
-        return Err(ProviderRequestError::EmptyField {
-            field: "provider context",
-        });
-    }
-    Ok(context)
 }
 
 /// The invocation proof passed from [`ProviderGate`] to an adapter.
@@ -454,12 +463,14 @@ where
         })
     }
 
-    /// Invokes a verified provider and returns only normalized output.
+    /// Invokes a verified provider using only a payload that passed the privacy
+    /// gate, then returns normalized output.
     pub fn invoke(
         &self,
         verified: &VerifiedProvider,
-        request: ProviderRequest,
+        payload: &PreparedPayload,
     ) -> Result<crate::NormalizedResponse, ProviderError> {
+        let request = ProviderRequest::from_prepared(payload);
         let descriptor = self.adapter.descriptor();
         if verified.descriptor.id() != descriptor.id() {
             return Err(ProviderError::RuntimeFailure {
@@ -487,7 +498,7 @@ where
     }
 }
 
-/// Errors returned by provider configuration and request constructors.
+/// Errors returned by provider configuration constructors.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum ProviderRequestError {
     /// A required textual field was empty.
@@ -502,9 +513,6 @@ pub enum ProviderRequestError {
         /// The invalid path.
         value: String,
     },
-    /// An image request must contain at least one prepared image.
-    #[error("image request must contain at least one image")]
-    ImagesRequiredForImageRequest,
 }
 
 /// Typed reasons for a provider invocation or probe failure.

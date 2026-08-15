@@ -1135,6 +1135,7 @@ name = "qaptr-privacy"
 version = "0.1.0"
 dependencies = [
  "qaptr-domain",
+ "sha2 0.11.0",
  "thiserror 2.0.20",
 ]
 
@@ -1143,6 +1144,7 @@ name = "qaptr-provider"
 version = "0.1.0"
 dependencies = [
  "qaptr-domain",
+ "qaptr-privacy",
  "thiserror 2.0.20",
 ]
 
@@ -1150,6 +1152,8 @@ dependencies = [
 name = "qaptr-provider-cli"
 version = "0.1.0"
 dependencies = [
+ "qaptr-domain",
+ "qaptr-privacy",
  "qaptr-provider",
  "serde_json",
  "thiserror 2.0.20",
@@ -1160,6 +1164,7 @@ name = "qaptr-provider-openrouter"
 version = "0.1.0"
 dependencies = [
  "qaptr-domain",
+ "qaptr-privacy",
  "qaptr-provider",
  "serde_json",
  "thiserror 2.0.20",

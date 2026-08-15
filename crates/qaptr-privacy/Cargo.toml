@@ -12,6 +12,7 @@ corpus = []
 
 [dependencies]
 qaptr-domain.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 
 [lints]

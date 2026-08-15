@@ -15,21 +15,24 @@ pub mod recognize;
 pub mod sanitize;
 
 pub use classes::{SensitiveClass, SensitiveFinding, detect_findings};
-pub use coverage::{CoverageEntry, CoverageError, CoverageProof};
+pub use coverage::{
+    CoverageEntry, CoverageError, CoverageProof, RecognitionVerification,
+};
 pub use gate::{
     ExclusionReason, FULL_PREPARATION_BUDGET, PreparationInput, PreparationStage, PrivacyExclusion,
     PrivacyGate,
 };
 pub use mask::{
-    DILATION_PIXELS, DetectionKind, Image, MASK_COLOR, MappedDetection, MaskError, MaskedImage,
-    map_recognized_detections, mask_image,
+    DILATION_PIXELS, DetectionKind, DetectionSet, Image, ImageHash, MASK_COLOR, MappedDetection,
+    MaskError, MaskedImage, map_recognized_detections, mask_image,
 };
 pub use payload::{PreparationProof, PreparedPayload};
 pub use recall::{
     DEFAULT_IOU_THRESHOLD, RecallError, RecallReport, measure_recall, measure_recall_with_threshold,
 };
 pub use recognize::{
-    ImageOrientation, PixelRect, RecognitionResult, map_normalized_rect, recognize,
+    ImageOrientation, ImageRecognizer, PixelRect, RecognitionResult, map_normalized_rect,
+    recognize,
 };
 pub use sanitize::{
     ContextField, SanitizationError, SanitizedContext, SanitizedValue, sanitize_context,

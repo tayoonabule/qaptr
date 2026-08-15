@@ -11,7 +11,11 @@ contract = []
 
 [dependencies]
 qaptr-domain.workspace = true
+qaptr-privacy = { path = "../qaptr-privacy" }
 thiserror.workspace = true
+
+[dev-dependencies]
+qaptr-domain = { workspace = true, features = ["testing"] }
 
 [lints]
 workspace = true

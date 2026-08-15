@@ -18,5 +18,9 @@ qaptr-provider = { path = "../qaptr-provider" }
 serde_json.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+qaptr-domain = { workspace = true, features = ["testing"] }
+qaptr-privacy = { path = "../qaptr-privacy" }
+
 [lints]
 workspace = true

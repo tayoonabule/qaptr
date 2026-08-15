@@ -260,17 +260,25 @@ run_provider_detection() {
     local provider=$1
     local test=$2
     local log="$log_dir/provider_${provider}.log"
-    if cargo test -p qaptr-provider-cli --test "$test" -- --ignored "installed_${provider}_passes_real_detection" >"$log" 2>&1; then
+    local real_detection_test="installed_${provider}_passes_real_detection"
+    if [[ "$provider" == "claude" ]]; then
+        real_detection_test="installed_claude_reports_sandbox_auth_honestly"
+    fi
+    if cargo test -p qaptr-provider-cli --test "$test" -- --ignored --nocapture "$real_detection_test" >"$log" 2>&1; then
         local version
         version=$(grep -Eo '(codex-cli|jcode v|Claude Code)[^[:cntrl:]]*' "$log" | head -n1 || true)
         case "$provider" in
             codex) version="Codex CLI 0.147.0" ;;
             jcode) version="Jcode CLI 0.75.23" ;;
         esac
-        record "provider_${provider}_real_detection" PASS "${version:-real detection passed} installed and sandboxed detection passed log=$log"
+        if [[ "$provider" == "claude" ]] && grep -q 'CLAUDE_SANDBOX_AUTH_UNVERIFIED' "$log"; then
+            record "provider_${provider}_real_detection" UNVERIFIED "genuine Claude CLI and version reached; sandbox cannot verify Keychain-backed auth without granting Keychain access log=$log"
+        else
+            record "provider_${provider}_real_detection" PASS "${version:-real detection passed} installed and sandboxed detection passed log=$log"
+        fi
     else
         if [[ "$provider" == "claude" ]]; then
-            record "provider_${provider}_real_detection" UNVERIFIED "PATH resolves to a cmux temp shim rejected by the sandbox; log=$log"
+            record "provider_${provider}_real_detection" FAIL "genuine Claude CLI did not reach a typed version/auth result; log=$log"
         else
             record "provider_${provider}_real_detection" FAIL "log=$log"
         fi
@@ -304,12 +312,12 @@ write_report() {
         printf '%s\n' "- **Real Vision preparation:** the temporary harness uses the committed 24-capture manifest, real \`MacOcr\` and \`MacVision\`, masking, sanitization, coverage verification, and \`PreparedPayload\` proof assembly. Its measured median and peak are in \`real_vision_preparation.log\`; the budget is 900 ms. U12's **0.019 ms** figure is composition overhead only and is not used as pipeline latency."
         printf '%s\n' '- **Recall:** preserve the U9 disclosure of **5/6 = 0.833**. The known miss is the low-contrast text region in `low_contrast.png`; this is not a claim of perfect detection.'
         printf '%s\n' '- **Privacy:** the passing payload proof test checks sanitized classes, masked-region coverage, and the carried recall report on the artifact. The workflow test checks that a privacy refusal performs zero provider invocations and zero consent requests.'
-        printf '%s\n' '- **Provider proof:** Codex **0.147.0** and Jcode **0.75.23** are real installed detections when their tests pass. Claude is deliberately **unverified-on-this-machine** because PATH resolves to a cmux session shim under a temp directory and the sandbox correctly refuses it. OpenRouter has no real endpoint/key proof in this run. Full four-provider proof requires a machine with a genuine Claude installation and configured OpenRouter access.'
+        printf '%s\n' '- **Provider proof:** Codex **0.147.0**, Jcode **0.75.23**, and Claude Code **2.1.228** are genuine installed local CLIs. Codex and Jcode pass sandboxed authenticated detection. Claude reaches its canonical executable, version probe, and auth probe, but its session is macOS-Keychain-backed and U14 intentionally does not grant Keychain access, so sandboxed authentication remains **UNVERIFIED** rather than being represented as a runtime failure. OpenRouter has no real endpoint/key proof in this run. All four release-gating provider implementations are present, but full four-provider proof is not achieved. OpenCode at `~/.opencode/bin/opencode` is outside the four-provider release scope and has no adapter.'
         printf '%s\n' '- **Reference-machine gap:** this machine is an Apple M5 MacBook Air with 24 GB RAM and one built-in Retina display. The release protocol requires 16 GB and a real attached 5K display. U4 and U20 both flagged this gap; these results are informative for this machine and do not silently become reference-machine proof.'
         printf '\n## Full review-session limitation\n\n'
         printf 'The requested scripted review flow is **not proven**. The built `QaptrReview.app` currently exposes a read-only observation sheet and settings/onboarding surfaces. It does not expose the required analyze-session, observation-detail, workflow-generation, or four-export controls, and no committed production-shaped UI driver exists. The validator records this as a failure instead of claiming that three idle smoke launches exercised the 10-minute flow.\n\n'
         printf '## Required follow-up\n\n'
-        printf '1. Land the production-shaped review driver and wire it to the 24-capture fixture so the 10-minute budget can be measured on three consecutive runs.\n2. Repeat helper and opened-app measurements on the 16 GB reference machine with a real 5K display.\n3. Repeat provider proof on a machine with a genuine installed Claude CLI and configured OpenRouter credentials, without widening the sandbox.\n4. Run the packaging gate after the concurrent U22 packaging pass is complete.\n'
+        printf '1. Land the production-shaped review driver and wire it to the 24-capture fixture so the 10-minute budget can be measured on three consecutive runs.\n2. Repeat helper and opened-app measurements on the 16 GB reference machine with a real 5K display.\n3. Configure OpenRouter credentials and decide whether a future narrowly scoped macOS auth integration can verify Claude Keychain-backed sessions; do not widen the sandbox or read Claude credentials.\n4. Run the packaging gate after the concurrent U22 packaging pass is complete.\n'
     } > "$report_path"
 }
 

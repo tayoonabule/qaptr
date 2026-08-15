@@ -9,6 +9,7 @@
 use std::fmt;
 
 use qaptr_domain::ports::vision::VisionKind;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::coverage::{CoverageError, CoverageProof};
@@ -29,6 +30,38 @@ pub struct Image {
     width: u32,
     height: u32,
     pixels: Vec<u8>,
+}
+
+/// A cryptographic identity for the exact RGB image bytes used by recognition.
+///
+/// The hash covers the dimensions and row-major RGB bytes. It is provenance,
+/// not a claim that recognition detects every sensitive value.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ImageHash([u8; 32]);
+
+impl ImageHash {
+    /// Computes the identity of an image from its exact dimensions and bytes.
+    pub fn of(image: &Image) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(image.width.to_be_bytes());
+        hasher.update(image.height.to_be_bytes());
+        hasher.update(&image.pixels);
+        Self(hasher.finalize().into())
+    }
+
+    /// Returns the raw SHA-256 digest.
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl fmt::Display for ImageHash {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in self.0 {
+            write!(formatter, "{byte:02x}")?;
+        }
+        Ok(())
+    }
 }
 
 impl Image {
@@ -118,6 +151,38 @@ pub struct MappedDetection {
     rect: PixelRect,
 }
 
+/// The ordered detection set produced for one exact image.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DetectionSet {
+    image_hash: ImageHash,
+    detections: Vec<MappedDetection>,
+}
+
+impl DetectionSet {
+    /// Creates a detection set bound to an image hash.
+    pub fn new(image_hash: ImageHash, detections: Vec<MappedDetection>) -> Self {
+        Self {
+            image_hash,
+            detections,
+        }
+    }
+
+    /// Binds an existing mapped detection list to the exact image bytes.
+    pub fn for_image(image: &Image, detections: impl Into<Vec<MappedDetection>>) -> Self {
+        Self::new(ImageHash::of(image), detections.into())
+    }
+
+    /// Returns the hash of the image recognized for this set.
+    pub const fn image_hash(&self) -> ImageHash {
+        self.image_hash
+    }
+
+    /// Returns the ordered mapped detections.
+    pub fn detections(&self) -> &[MappedDetection] {
+        &self.detections
+    }
+}
+
 impl MappedDetection {
     /// Creates a mapped detection from U9's [`PixelRect`].
     pub const fn new(kind: DetectionKind, rect: PixelRect) -> Self {
@@ -175,9 +240,18 @@ impl MaskedImage {
         &self.proof
     }
 
-    /// Verifies the proof against the exact detection set and output pixels.
-    pub fn verify(&self, detections: &[MappedDetection]) -> Result<(), CoverageError> {
+    /// Verifies the proof against the exact image-bound detection set and pixels.
+    pub fn verify(&self, detections: &DetectionSet) -> Result<(), CoverageError> {
         self.proof.verify(&self.image, detections)
+    }
+
+    /// Records a recognizer rerun over this masked image.
+    pub fn verify_masked_recognition(
+        &mut self,
+        rerun: &DetectionSet,
+    ) -> Result<(), CoverageError> {
+        self.proof
+            .verify_masked_recognition(&self.image, rerun)
     }
 }
 
@@ -188,10 +262,9 @@ impl MaskedImage {
 /// stores the resulting [`PixelRect`] unchanged for the masker.
 pub fn map_recognized_detections(
     recognition: &RecognitionResult,
-    image_width: u32,
-    image_height: u32,
+    image: &Image,
     orientation: ImageOrientation,
-) -> Result<Vec<MappedDetection>, MaskError> {
+) -> Result<DetectionSet, MaskError> {
     if recognition.is_partial() {
         return Err(MaskError::PartialRecognition);
     }
@@ -201,7 +274,7 @@ pub fn map_recognized_detections(
             kind: DetectionKind::Text,
             index,
         })?;
-        let rect = map_normalized_rect(geometry, image_width, image_height, orientation)
+        let rect = map_normalized_rect(geometry, image.width(), image.height(), orientation)
             .map_err(MaskError::Mapping)?;
         detections.push(MappedDetection::new(DetectionKind::Text, rect));
     }
@@ -210,20 +283,26 @@ pub fn map_recognized_detections(
             kind: detection_kind(finding.kind()),
             index,
         })?;
-        let rect = map_normalized_rect(geometry, image_width, image_height, orientation)
+        let rect = map_normalized_rect(geometry, image.width(), image.height(), orientation)
             .map_err(MaskError::Mapping)?;
         detections.push(MappedDetection::new(detection_kind(finding.kind()), rect));
     }
-    Ok(detections)
+    Ok(DetectionSet::new(ImageHash::of(image), detections))
 }
 
 /// Masks every supplied mapped detection with an opaque, one-pixel-dilated fill.
 ///
 /// The proof records the recognizer-detected regions only. It makes no claim
 /// about sensitive material that no recognizer reported, matching R-P5 and R-P6.
-pub fn mask_image(image: &Image, detections: &[MappedDetection]) -> Result<MaskedImage, MaskError> {
+pub fn mask_image(image: &Image, detections: &DetectionSet) -> Result<MaskedImage, MaskError> {
+    if detections.image_hash() != ImageHash::of(image) {
+        return Err(MaskError::ImageHashMismatch {
+            expected: detections.image_hash(),
+            actual: ImageHash::of(image),
+        });
+    }
     let mut masked = image.clone();
-    for detection in detections {
+    for detection in detections.detections() {
         validate_rect(detection.rect(), image.width(), image.height())?;
         let rect = dilated_rect(detection.rect(), image.width(), image.height());
         for y in rect.y..rect.bottom {
@@ -232,7 +311,7 @@ pub fn mask_image(image: &Image, detections: &[MappedDetection]) -> Result<Maske
             }
         }
     }
-    let proof = CoverageProof::new(image.width(), image.height(), detections)?;
+    let proof = CoverageProof::new(image, detections)?;
     Ok(MaskedImage {
         image: masked,
         proof,
@@ -354,6 +433,17 @@ pub enum MaskError {
     /// The generated proof could not be built.
     #[error("coverage proof failed: {0}")]
     Coverage(#[source] CoverageError),
+    /// The detection set was computed for different image bytes.
+    #[error("detection set is bound to image hash {expected}, but masking received {actual}")]
+    ImageHashMismatch {
+        /// Hash recorded when recognition produced the detections.
+        expected: ImageHash,
+        /// Hash of the image supplied to masking.
+        actual: ImageHash,
+    },
+    /// An image recognizer was not supplied for the required verification rerun.
+    #[error("masked image recognition verification was not configured")]
+    MissingVerificationRecognizer,
 }
 
 impl From<CoverageError> for MaskError {

@@ -3,6 +3,18 @@
 use qaptr_domain::ports::{OcrPort, OcrResult, VisionPort, VisionResult};
 use qaptr_domain::{CaptureId, DomainError, NormalizedRect, Result};
 
+use crate::Image;
+
+/// A local recognizer that can inspect the exact RGB image supplied to it.
+///
+/// U12 requires this interface for the post-mask rerun. A capture-id-only
+/// recognizer is intentionally insufficient because it could inspect a
+/// different image than the one being verified.
+pub trait ImageRecognizer: Send + Sync {
+    /// Recognizes one exact in-memory image without network access.
+    fn recognize_image(&self, image: &Image) -> Result<RecognitionResult>;
+}
+
 /// The four orientations supported by the U9 mapping contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ImageOrientation {
@@ -121,6 +133,15 @@ pub struct RecognitionResult {
 }
 
 impl RecognitionResult {
+    /// Creates a complete combined result from OCR and Vision findings.
+    pub fn new(ocr: OcrResult, vision: VisionResult) -> Self {
+        Self {
+            ocr,
+            vision,
+            partial: false,
+        }
+    }
+
     /// Returns OCR findings.
     pub const fn ocr(&self) -> &OcrResult {
         &self.ocr

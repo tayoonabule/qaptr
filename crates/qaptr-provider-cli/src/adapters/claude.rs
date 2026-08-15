@@ -13,7 +13,11 @@
 //! * Claude sessions are non-persistent and all output is schema-checked before
 //!   it reaches the shared normalization gate.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use qaptr_provider::{
     AuthenticationMode, AuthenticationStatus, CapabilityDescriptor, ProviderAdapter,
@@ -78,12 +82,20 @@ impl ClaudeAdapter {
     }
 
     fn invocation(&self, executable: qaptr_provider::ExecutablePath) -> CliInvocation {
-        let executable_directory = PathBuf::from(executable.as_str())
-            .parent()
-            .map(PathBuf::from);
+        let executable_path = PathBuf::from(executable.as_str());
+        let executable_directory = executable_path.parent().map(Path::to_path_buf);
         let mut invocation = CliInvocation::new(executable);
         if let Some(directory) = executable_directory {
             invocation = add_support_path(invocation, Some(&directory));
+            // Claude's versioned standalone install resolves its executable to
+            // `<install>/versions/<version>`. The executable's parent is
+            // required to map the binary, while the install root is required
+            // for Claude's adjacent runtime resources. Derive that root from
+            // the resolved path rather than assuming a particular home path.
+            if directory.file_name() == Some(OsStr::new("versions")) {
+                let installation_directory = directory.parent().map(Path::to_path_buf);
+                invocation = add_support_path(invocation, installation_directory.as_ref());
+            }
         }
         if let Some(home) = &self.home {
             invocation = invocation.environment("HOME", home.as_os_str().to_owned());

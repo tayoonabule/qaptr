@@ -1,5 +1,7 @@
 //! U16 Jcode adapter contract and detection tests.
 
+mod support;
+
 use std::{
     fs,
     path::PathBuf,
@@ -10,9 +12,7 @@ use std::{
     time::Duration,
 };
 
-use qaptr_provider::{
-    Capability, ProviderError, ProviderGate, ProviderRequest, ProviderVersion, RuntimeFailureKind,
-};
+use qaptr_provider::{Capability, ProviderError, ProviderGate, ProviderVersion, RuntimeFailureKind};
 use qaptr_provider_cli::{
     CliInvocation, CliOutput, CliRuntimeError, ExecutableDiscovery, OutputLimit, RuntimeLimits,
     Timeout,
@@ -136,7 +136,7 @@ fn malformed_jcode_output_is_a_typed_runtime_failure() {
         .expect("fake Jcode should pass the handshake");
     let result = gate.invoke(
         &verified,
-        ProviderRequest::text("sanitized context").expect("context is valid"),
+        &support::prepared_payload(false),
     );
     let _ = fs::remove_dir_all(directory);
 
@@ -164,7 +164,7 @@ fn image_request_is_refused_before_jcode_executor_runs() {
         .expect("fake Jcode should pass the handshake");
     let result = gate.invoke(
         &verified,
-        ProviderRequest::with_images("sanitized context", 1).expect("image request is valid"),
+        &support::prepared_payload(true),
     );
     let _ = fs::remove_dir_all(directory);
 

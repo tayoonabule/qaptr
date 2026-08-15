@@ -1,5 +1,7 @@
 //! Shared U15/U16 normalized response-shape test using in-process fakes.
 
+mod support;
+
 use std::{
     fs,
     path::PathBuf,
@@ -9,7 +11,7 @@ use std::{
     },
 };
 
-use qaptr_provider::{ProviderGate, ProviderRequest};
+use qaptr_provider::ProviderGate;
 use qaptr_provider_cli::{
     CliInvocation, CliOutput, CliRuntimeError, ExecutableDiscovery,
     adapters::{CliExecutor, CodexAdapter, JcodeAdapter},
@@ -92,12 +94,12 @@ fn codex_and_jcode_normalize_to_the_same_response_shape() {
     let jcode_verified = jcode_gate
         .detect_and_verify()
         .expect("Jcode fake passes the handshake");
-    let request = ProviderRequest::text("sanitized context").expect("context is valid");
+    let payload = support::prepared_payload(false);
     let codex_response = codex_gate
-        .invoke(&codex_verified, request.clone())
+        .invoke(&codex_verified, &payload)
         .expect("Codex response normalizes");
     let jcode_response = jcode_gate
-        .invoke(&jcode_verified, request)
+        .invoke(&jcode_verified, &payload)
         .expect("Jcode response normalizes");
 
     let _ = fs::remove_dir_all(codex_directory);

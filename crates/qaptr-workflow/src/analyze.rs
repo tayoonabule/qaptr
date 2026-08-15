@@ -20,7 +20,7 @@ use qaptr_domain::clock::Clock;
 use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
 use qaptr_domain::{CaptureId, SessionId};
 use qaptr_privacy::{PreparationInput, PreparedPayload, PrivacyGate};
-use qaptr_provider::{ProviderAdapter, ProviderError, ProviderGate, ProviderId, ProviderRequest};
+use qaptr_provider::{ProviderAdapter, ProviderError, ProviderGate, ProviderId};
 use qaptr_store::{CaptureRecord, Store, StoreError, UnixMillis};
 use qaptr_vault::{OpenedBundle, Vault, VaultError};
 use thiserror::Error;
@@ -189,9 +189,6 @@ pub enum AnalysisError {
         /// The id from the sealed bundle.
         expected: CaptureId,
     },
-    /// A provider-safe request could not be built from a gated payload.
-    #[error("provider request failed: {0}")]
-    ProviderRequest(#[source] qaptr_provider::ProviderRequestError),
     /// A normalized response could not become durable observations.
     #[error("observation conversion failed: {0}")]
     Observation(#[source] ObservationError),
@@ -408,8 +405,7 @@ where
                     exclusions.len(),
                 ));
             }
-            let request = request_from_payload(payload)?;
-            let response = match provider.invoke(&verified, request) {
+            let response = match provider.invoke(&verified, payload) {
                 Ok(response) => response,
                 Err(error) => {
                     return Ok(AnalysisReport {
@@ -479,27 +475,6 @@ fn cancelled_report(
             .then(|| ExclusionNotice::new(excluded_captures)),
         provider: ProviderOutcome::Cancelled,
     }
-}
-
-fn request_from_payload(payload: &PreparedPayload) -> Result<ProviderRequest, AnalysisError> {
-    let context = payload
-        .context()
-        .values()
-        .iter()
-        .map(|value| format!("{:?}: {}", value.field(), value.value()))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let context = if context.is_empty() {
-        "No structured context was available.".to_owned()
-    } else {
-        context
-    };
-    let request = if payload.masked_image().is_some() {
-        ProviderRequest::with_images(context, 1)
-    } else {
-        ProviderRequest::text(context)
-    };
-    request.map_err(AnalysisError::ProviderRequest)
 }
 
 impl fmt::Debug for AnalysisReport {
