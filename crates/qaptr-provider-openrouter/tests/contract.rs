@@ -11,7 +11,8 @@ use qaptr_domain::{
 use qaptr_policy::ModelId;
 use qaptr_provider::{ProviderError, ProviderGate, RuntimeFailureKind};
 use qaptr_provider_openrouter::{
-    CatalogTransport, HttpResponse, HttpTransport, OpenRouterAdapter, TransportError,
+    CatalogParseError, CatalogTransport, HttpResponse, HttpTransport, MAX_RESPONSE_BYTES,
+    OpenRouterAdapter, OpenRouterCatalogError, TransportError,
 };
 
 #[derive(Debug)]
@@ -148,6 +149,84 @@ fn catalog_fetch_rejects_malformed_and_unstructured_entries() {
             qaptr_provider_openrouter::CatalogParseError::NoCompatibleModels
         )
     ));
+}
+
+#[test]
+fn catalog_fetch_enforces_the_response_bound_at_the_public_adapter_boundary() {
+    let oversized = "x".repeat(MAX_RESPONSE_BYTES as usize + 1);
+    let adapter = adapter(&oversized);
+
+    let error = adapter
+        .fetch_catalog(std::time::UNIX_EPOCH, Duration::from_secs(900))
+        .expect_err("oversized catalog must fail closed");
+    assert!(matches!(
+        error,
+        OpenRouterCatalogError::Parse(CatalogParseError::ResponseTooLarge)
+    ));
+}
+
+#[test]
+fn catalog_fetch_uses_credentials_transiently_without_writes_or_debug_leaks() {
+    let writes = Rc::new(std::cell::Cell::new(0));
+    let credentials = FakeCredentials {
+        value: Some(CredentialValue::new("test-key")),
+        partial: false,
+        writes: Rc::clone(&writes),
+    };
+    let adapter =
+        OpenRouterAdapter::new(credentials, FakeHttp::response(CATALOG_RESPONSE), "model")
+            .expect("fixed OpenRouter test configuration is valid");
+
+    let debug = format!("{adapter:?}");
+    assert!(!debug.contains("test-key"));
+    adapter
+        .fetch_catalog(std::time::UNIX_EPOCH, Duration::from_secs(900))
+        .expect("compatible catalog fixture should validate");
+    assert_eq!(writes.get(), 0);
+}
+
+#[test]
+fn catalog_fetch_maps_network_failure_and_missing_credentials_without_requesting() {
+    let network_error = OpenRouterAdapter::new(
+        FakeCredentials::configured("test-key"),
+        FakeHttp {
+            response: Err(TransportError::Network),
+            calls: Rc::new(std::cell::Cell::new(0)),
+        },
+        "model",
+    )
+    .expect("fixed OpenRouter test configuration is valid")
+    .fetch_catalog(std::time::UNIX_EPOCH, Duration::from_secs(900))
+    .expect_err("network failure must be typed");
+    assert!(matches!(
+        network_error,
+        OpenRouterCatalogError::Transport(TransportError::Network)
+    ));
+
+    let calls = Rc::new(std::cell::Cell::new(0));
+    let missing_credentials = OpenRouterAdapter::new(
+        FakeCredentials {
+            value: None,
+            partial: false,
+            writes: Rc::new(std::cell::Cell::new(0)),
+        },
+        FakeHttp {
+            response: Ok(HttpResponse {
+                status: 200,
+                body: CATALOG_RESPONSE.to_owned(),
+            }),
+            calls: Rc::clone(&calls),
+        },
+        "model",
+    )
+    .expect("fixed OpenRouter test configuration is valid")
+    .fetch_catalog(std::time::UNIX_EPOCH, Duration::from_secs(900))
+    .expect_err("missing credentials must block the request");
+    assert!(matches!(
+        missing_credentials,
+        OpenRouterCatalogError::Provider(ProviderError::NotAuthenticated { .. })
+    ));
+    assert_eq!(calls.get(), 0);
 }
 
 #[test]
