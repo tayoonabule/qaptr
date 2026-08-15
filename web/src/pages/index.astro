@@ -7,24 +7,23 @@ import ArcDial from "../components/ArcDial.astro";
 <BaseLayout title="Qaptr — private beta for macOS">
   <section class="hero wrap">
     <div class="hero__content">
-      <p class="meta hero__eyebrow reveal"><ion-icon name="sparkles-outline" aria-hidden="true"></ion-icon>Private beta &middot; macOS</p>
-      <h1 class="hero__headline reveal">Qaptr keeps the ten minutes you forget you spent.</h1>
+      <h1 class="hero__headline reveal">Remember what you did without stopping to document it.</h1>
       <p class="hero__subhead reveal">
-        A quiet macOS companion that captures what you did, so the record exists before you need it.
+        Qaptr quietly records the shape of your work on your Mac, then gives you a clear draft to review when you are ready.
       </p>
 
       <ul class="feature-pills reveal" aria-label="Qaptr product principles">
         <li class="feature-pill feature-pill--orange">
           <ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon>
-          Private by default
+          Stays on your Mac
         </li>
         <li class="feature-pill feature-pill--green">
           <ion-icon name="camera-outline" aria-hidden="true"></ion-icon>
-          Capture on your terms
+          Captures in the background
         </li>
         <li class="feature-pill feature-pill--violet">
           <ion-icon name="eye-outline" aria-hidden="true"></ion-icon>
-          Review before sharing
+          You approve what leaves
         </li>
       </ul>
 
@@ -36,20 +35,18 @@ import ArcDial from "../components/ArcDial.astro";
     <figure class="workspace-preview reveal" aria-labelledby="workspace-preview-caption">
       <div class="workspace-preview__appbar">
         <div class="workspace-preview__brand">
-          <span class="workspace-preview__brand-dot" aria-hidden="true"></span>
           <span>Qaptr</span>
         </div>
-          <span class="workspace-preview__mode"><ion-icon name="laptop-outline" aria-hidden="true"></ion-icon>Capture-only mode</span>
+          <span class="workspace-preview__mode"><ion-icon name="laptop-outline" aria-hidden="true"></ion-icon>Local capture</span>
       </div>
 
       <div class="workspace-preview__body">
         <aside class="workspace-preview__sidebar" aria-label="Illustrative workspace navigation">
           <p class="meta workspace-preview__sidebar-label">Workspace</p>
           <span class="workspace-preview__nav workspace-preview__nav--active"><ion-icon name="albums-outline" aria-hidden="true"></ion-icon>Sessions</span>
-          <span class="workspace-preview__nav"><ion-icon name="list-outline" aria-hidden="true"></ion-icon>Review queue</span>
+          <span class="workspace-preview__nav"><ion-icon name="list-outline" aria-hidden="true"></ion-icon>Review</span>
           <span class="workspace-preview__nav"><ion-icon name="settings-outline" aria-hidden="true"></ion-icon>Settings</span>
           <div class="workspace-preview__sidebar-foot">
-            <span class="workspace-preview__privacy-dot" aria-hidden="true"></span>
             <ion-icon name="shield-outline" aria-hidden="true"></ion-icon>Private on this Mac
           </div>
         </aside>
@@ -58,41 +55,40 @@ import ArcDial from "../components/ArcDial.astro";
           <div class="workspace-preview__toolbar">
             <div>
               <p class="meta">Recent session</p>
-              <h2>Working notes</h2>
+              <h2>Project brief</h2>
             </div>
             <span class="workspace-preview__status"><ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon>Ready to review</span>
           </div>
 
           <div class="workspace-preview__summary">
-            <span class="workspace-preview__summary-mark" aria-hidden="true"><ion-icon name="list-circle-outline"></ion-icon></span>
             <div>
-              <strong>Your activity, in order.</strong>
-              <p>A plain-language record to skim before you share anything.</p>
+              <strong>A clear record of your work.</strong>
+              <p>See the sequence, keep the context, decide what to share.</p>
             </div>
           </div>
 
           <div class="workspace-preview__rows animate-ui-list" aria-label="Illustrative session activity">
             <div class="workspace-preview__row">
               <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
-              <span>Drafted a project brief</span>
-              <span class="meta">Captured</span>
+              <span>Outlined the project brief</span>
+              <span class="meta">Recorded</span>
             </div>
             <div class="workspace-preview__row">
               <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
-              <span>Reviewed reference notes</span>
-              <span class="meta">Captured</span>
+              <span>Checked source notes</span>
+              <span class="meta">Recorded</span>
             </div>
             <div class="workspace-preview__row">
               <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
-              <span>Prepared the next step</span>
-              <span class="meta">Captured</span>
+              <span>Mapped the next step</span>
+              <span class="meta">Recorded</span>
             </div>
           </div>
-          <p class="workspace-preview__sample meta"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>Illustrative workspace preview</p>
+          <p class="workspace-preview__sample meta"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>Illustrative preview</p>
         </div>
       </div>
       <figcaption id="workspace-preview-caption" class="workspace-preview__caption">
-        A product-first look at the review workspace, before any approved text is shared.
+        Qaptr does not share anything without your approval.
       </figcaption>
     </figure>
   </section>
@@ -100,14 +96,14 @@ import ArcDial from "../components/ArcDial.astro";
   <section class="dial-section blueprint-surface radiant-fluid reveal">
     <div class="wrap dial-section__inner">
       <div class="dial-section__intro">
-        <p class="meta"><ion-icon name="timer-outline" aria-hidden="true"></ion-icon>Capture interval</p>
-        <h2>Set the rhythm once.</h2>
-        <p>Qaptr stays quiet in the background and keeps the interval you choose.</p>
+        <p class="meta"><ion-icon name="timer-outline" aria-hidden="true"></ion-icon>Set it once</p>
+        <h2>Capture at your pace.</h2>
+        <p>Choose how often Qaptr checks in. Keep working. It will build the record quietly.</p>
       </div>
       <div class="dial-section__visual">
         <ArcDial />
         <p class="meta dial-section__caption">
-          Choose one interval from 5 to 300 seconds. Change it whenever your work changes.
+          Choose an interval from 5 seconds to 5 minutes. Change it when your work changes.
         </p>
       </div>
     </div>
@@ -116,39 +112,33 @@ import ArcDial from "../components/ArcDial.astro";
   <section class="product-bento wrap reveal" aria-labelledby="product-bento-title">
     <div class="product-bento__intro">
       <div class="product-bento__intro-copy">
-        <p class="meta">A quieter kind of history</p>
-        <h2 id="product-bento-title">The useful parts of your day, already in view.</h2>
-        <p>Qaptr turns background activity into small, legible moments you can trust before sharing.</p>
+        <p class="meta">From activity to clarity</p>
+        <h2 id="product-bento-title">A useful record, not a replay.</h2>
+        <p>Qaptr turns the shape of your work into a short, readable timeline you can check before you report, hand off, or share.</p>
       </div>
-      <div class="product-bento__intro-signal" aria-hidden="true">
-        <span class="signal-dot signal-dot--blue"></span>
-        <span class="signal-dot signal-dot--green"></span>
-        <span class="signal-dot signal-dot--violet"></span>
-        <span class="signal-line"></span>
-        <span class="signal-caption">quietly becoming useful</span>
-      </div>
+      <p class="product-bento__intro-note">A simple timeline for the moments you usually have to reconstruct.</p>
     </div>
 
     <div class="product-bento__grid">
       <article class="product-card passage product-card--capture">
         <div class="product-card__copy">
-          <p class="meta"><ion-icon name="time-outline" aria-hidden="true"></ion-icon>01 · Capture</p>
-          <h3>The shape of your working day.</h3>
-          <p>Apps and windows become a plain-language trail, without timers or after-the-fact forms.</p>
+          <p class="meta"><ion-icon name="time-outline" aria-hidden="true"></ion-icon>Capture</p>
+          <h3>Your work, captured as it happens.</h3>
+          <p>Qaptr records the apps and windows that make up your session, so you do not have to reconstruct the day later.</p>
         </div>
         <div class="mini-timeline" aria-hidden="true">
           <span class="mini-timeline__line"></span>
-          <span class="mini-timeline__event mini-timeline__event--one"><b>09:42</b> Drafted a brief</span>
-          <span class="mini-timeline__event mini-timeline__event--two"><b>10:18</b> Reviewed notes</span>
-          <span class="mini-timeline__event mini-timeline__event--three"><b>11:06</b> Prepared next step</span>
+          <span class="mini-timeline__event mini-timeline__event--one"><b>09:42</b> Outlined the brief</span>
+          <span class="mini-timeline__event mini-timeline__event--two"><b>10:18</b> Checked source notes</span>
+          <span class="mini-timeline__event mini-timeline__event--three"><b>11:06</b> Mapped next step</span>
         </div>
       </article>
 
       <article class="product-card passage product-card--privacy">
         <div class="product-card__copy">
-          <p class="meta"><ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>02 · Consent</p>
-          <h3>Nothing leaves without a yes.</h3>
-          <p>Local-first capture stays quiet until you decide what belongs in the record.</p>
+          <p class="meta"><ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>Privacy</p>
+          <h3>Private until you say otherwise.</h3>
+          <p>Your capture stays on this Mac. Nothing is shared automatically.</p>
         </div>
           <div class="privacy-orbit" aria-hidden="true">
           <span class="privacy-orbit__ring"></span>
@@ -157,39 +147,39 @@ import ArcDial from "../components/ArcDial.astro";
           </div>
           <details class="animate-ui-accordion">
             <summary>What stays local?</summary>
-            <p>Capture remains on this Mac until you choose what to include in a record.</p>
+            <p>Capture remains on this Mac until you choose what belongs in a record.</p>
           </details>
       </article>
 
       <article class="product-card passage product-card--document">
         <div class="product-card__copy">
-          <p class="meta"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>03 · Review</p>
-          <h3>A record you can hand to tomorrow.</h3>
-          <p>Skim the sequence before a standup, a review, or the next time you wonder where the morning went.</p>
+          <p class="meta"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>Review</p>
+          <h3>Know what happened before you explain it.</h3>
+          <p>Open a clear timeline when you need the context, not a pile of screenshots.</p>
         </div>
         <div class="mini-document" aria-hidden="true">
           <span class="mini-document__bar mini-document__bar--wide"></span>
           <span class="mini-document__bar"></span>
           <span class="mini-document__bar mini-document__bar--short"></span>
           <span class="mini-document__rule"></span>
-          <span class="mini-document__tag">ready to share</span>
+          <span class="mini-document__tag">ready to review</span>
         </div>
       </article>
 
       <article class="product-card product-card--handoff">
         <div class="product-card__copy">
-          <p class="meta"><ion-icon name="share-social-outline" aria-hidden="true"></ion-icon>04 · Handoff</p>
-          <h3>Keep the useful part. Leave the rest behind.</h3>
-          <p>Review a clear sequence, then choose what belongs in a standup, a review, or your future notes.</p>
+          <p class="meta"><ion-icon name="share-social-outline" aria-hidden="true"></ion-icon>Share</p>
+          <h3>Share the result, not the whole day.</h3>
+          <p>Choose the useful parts and turn them into notes for a teammate, a review, or tomorrow.</p>
         </div>
         <div class="mini-handoff" aria-hidden="true">
           <div class="mini-handoff__header">
-            <span class="mini-handoff__title">Working notes</span>
+            <span class="mini-handoff__title">Project brief</span>
             <span class="mini-handoff__status">ready</span>
           </div>
-          <div class="mini-handoff__row"><span></span><span></span><b>Approved</b></div>
-          <div class="mini-handoff__row"><span></span><span></span><b>Needs review</b></div>
-          <div class="mini-handoff__footer">Share only what you choose</div>
+          <div class="mini-handoff__row"><span></span><span></span><b>Keep</b></div>
+          <div class="mini-handoff__row"><span></span><span></span><b>Review</b></div>
+          <div class="mini-handoff__footer">Share only what matters</div>
         </div>
       </article>
     </div>
@@ -198,9 +188,8 @@ import ArcDial from "../components/ArcDial.astro";
   <section id="join" class="join join--paper reveal">
     <div class="wrap join__inner">
       <div>
-        <p class="meta join__eyebrow"><ion-icon name="mail-unread-outline" aria-hidden="true"></ion-icon>Private beta for macOS</p>
-        <h2 class="join__headline">Be the first to try it.</h2>
-        <p class="join__body">A short note when your invite is ready. Nothing else.</p>
+        <h2 class="join__headline">Get the first invite.</h2>
+        <p class="join__body">Join the private beta. We will email you when your invite is ready.</p>
       </div>
       <div class="join__form">
         <WaitlistForm variant="footer" />
@@ -220,18 +209,8 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .hero__eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--spacing-4);
+      display: block;
       margin-bottom: var(--spacing-16);
-    }
-
-    .hero__eyebrow::before {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-electric-blue);
-      content: "";
     }
 
     .hero__headline {
@@ -251,55 +230,43 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .feature-pills {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--spacing-8);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: clamp(var(--spacing-8), 2vw, var(--spacing-24));
       margin: var(--spacing-28) 0 0;
       padding: 0;
-      padding-bottom: var(--spacing-4);
       list-style: none;
     }
 
     .feature-pill {
       display: inline-flex;
+      flex: 0 1 auto;
       align-items: center;
       gap: var(--spacing-4);
-      min-height: 2rem;
-      border: 1px solid transparent;
-      border-radius: var(--radius-tag);
-      background: var(--color-canvas-white);
-      padding: var(--spacing-4) var(--spacing-8);
+      min-width: 0;
+      padding: 0;
       color: var(--color-charcoal);
-      font-size: 0.75rem;
+      font-size: clamp(0.65rem, 1.05vw, 0.75rem);
       font-weight: 500;
+      letter-spacing: -0.015em;
       white-space: nowrap;
-      transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+      line-height: 1.3;
     }
 
     @media (max-width: 640px) {
-      .feature-pills { grid-template-columns: 1fr; }
+      .feature-pills {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: var(--spacing-8);
+      }
+
+      .feature-pill {
+        flex: 0 0 auto;
+        font-size: 0.75rem;
+      }
     }
 
-    .feature-pill:hover {
-      border-color: var(--color-smoke);
-      background: var(--color-paper-mist);
-      transform: translateY(-1px);
-    }
-
-    .feature-pill__dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-tangerine);
-    }
-
-    .feature-pill--green .feature-pill__dot {
-      background: var(--color-vivid-green);
-    }
-
-    .feature-pill--violet .feature-pill__dot {
-      background: var(--color-lavender);
-    }
 
     .hero__form {
       max-width: 40rem;
@@ -332,19 +299,8 @@ import ArcDial from "../components/ArcDial.astro";
       font-weight: 600;
     }
 
-    .workspace-preview__brand-dot,
-    .workspace-preview__privacy-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-electric-blue);
-    }
-
     .workspace-preview__mode,
     .workspace-preview__status {
-      border-radius: var(--radius-tag);
-      background: var(--color-blue-wash);
-      padding: var(--spacing-4) var(--spacing-8);
       color: var(--color-deep-sapphire);
       font-size: var(--text-caption);
       font-weight: 600;
@@ -393,10 +349,6 @@ import ArcDial from "../components/ArcDial.astro";
       font-size: var(--text-caption);
     }
 
-    .workspace-preview__privacy-dot {
-      background: var(--color-vivid-green);
-    }
-
     .workspace-preview__main {
       min-width: 0;
       padding: clamp(var(--spacing-16), 4vw, var(--spacing-32));
@@ -423,16 +375,6 @@ import ArcDial from "../components/ArcDial.astro";
       border-radius: var(--radius-card);
       background: var(--color-paper-mist);
       padding: var(--spacing-16);
-    }
-
-    .workspace-preview__summary-mark {
-      flex: 0 0 auto;
-      width: 12px;
-      height: 12px;
-      margin-top: 4px;
-      border-radius: 50%;
-      background: var(--color-electric-blue);
-      box-shadow: 0 0 0 4px var(--color-blue-wash);
     }
 
     .workspace-preview__summary strong {
@@ -463,10 +405,8 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .workspace-preview__row-marker {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-electric-blue);
+      color: var(--color-electric-blue);
+      font-size: 0.9rem;
     }
 
     .workspace-preview__sample {
@@ -527,9 +467,9 @@ import ArcDial from "../components/ArcDial.astro";
 
     .product-bento__intro {
       display: grid;
-      grid-template-columns: minmax(12rem, 0.65fr) minmax(0, 1.35fr);
+      grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
       gap: var(--spacing-24);
-      align-items: end;
+      align-items: center;
       max-width: 70rem;
       border: 1px solid transparent;
       border-radius: var(--radius-large-card);
@@ -563,43 +503,13 @@ import ArcDial from "../components/ArcDial.astro";
       font-size: var(--text-body-xl);
     }
 
-    .product-bento__intro-signal {
-      display: grid;
-      grid-template-columns: repeat(3, 10px) minmax(3rem, 1fr);
-      gap: var(--spacing-8);
-      align-items: center;
-      min-height: 8rem;
-      border: 1px solid var(--color-ash);
-      border-radius: var(--radius-card);
-      background: var(--color-canvas-white);
-      padding: var(--spacing-16);
-      transform: rotate(2deg);
-    }
-
-    .signal-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      box-shadow: 0 0 0 4px var(--color-paper-mist);
-    }
-
-    .signal-dot--blue { background: var(--color-electric-blue); }
-    .signal-dot--green { background: var(--color-vivid-green); }
-    .signal-dot--violet { background: var(--color-lavender); }
-
-    .signal-line {
-      display: block;
-      height: 1px;
-      background: linear-gradient(90deg, var(--color-electric-blue), var(--color-vivid-green), var(--color-lavender));
-    }
-
-    .signal-caption {
-      grid-column: 1 / -1;
+    .product-bento__intro-note {
+      max-width: 24ch;
       color: var(--color-steel);
-      font-family: var(--font-geist-mono);
-      font-size: var(--text-caption);
-      letter-spacing: var(--tracking-meta);
-      text-transform: uppercase;
+      font-size: var(--text-body-xl);
+      line-height: 1.35;
+      padding-top: var(--spacing-16);
+      border-top: 1px solid var(--color-ash);
     }
 
     .product-bento__grid {
@@ -610,6 +520,36 @@ import ArcDial from "../components/ArcDial.astro";
         "document document document document document handoff handoff handoff handoff handoff handoff handoff";
       grid-template-rows: minmax(28rem, auto) minmax(24rem, auto);
       gap: var(--spacing-16);
+    }
+
+    .product-bento__grid {
+      display: block;
+    }
+
+    .product-card {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
+      align-items: center;
+      min-height: 0;
+      gap: clamp(var(--spacing-24), 6vw, var(--spacing-80));
+      border: 0;
+      border-top: 1px solid var(--color-ash);
+      border-radius: 0;
+      background: transparent;
+      padding: var(--spacing-32) 0;
+      box-shadow: none;
+    }
+
+    .product-card:last-child {
+      border-bottom: 1px solid var(--color-ash);
+    }
+
+    .product-card--capture,
+    .product-card--privacy,
+    .product-card--document,
+    .product-card--handoff {
+      grid-area: auto;
+      background: transparent;
     }
 
     .product-card {
@@ -649,11 +589,6 @@ import ArcDial from "../components/ArcDial.astro";
 
     .product-card__copy {
       max-width: 32rem;
-      transition: transform 280ms var(--ease-out);
-    }
-
-    .product-card:hover .product-card__copy {
-      transform: translateY(-2px);
     }
 
     .product-card__copy h3 {
@@ -676,16 +611,10 @@ import ArcDial from "../components/ArcDial.astro";
     .mini-timeline,
     .mini-document {
       position: relative;
-      border: 1px solid transparent;
-      border-radius: var(--radius-card);
-      background: var(--color-canvas-white);
-      box-shadow: var(--shadow-subtle);
-      transition: transform 360ms var(--ease-out), box-shadow 360ms var(--ease-out);
-    }
-
-    .product-card:hover .mini-timeline {
-      transform: translateY(-3px) rotate(-0.4deg);
-      box-shadow: 0 0.75rem 1.5rem var(--color-paper-mist);
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
     }
 
     .mini-timeline {
@@ -800,10 +729,6 @@ import ArcDial from "../components/ArcDial.astro";
       transform: rotate(-1deg);
     }
 
-    .product-card:hover .mini-document {
-      transform: translateY(-3px) rotate(0deg);
-    }
-
     .mini-document__bar {
       display: block;
       width: 72%;
@@ -832,9 +757,6 @@ import ArcDial from "../components/ArcDial.astro";
 
     .mini-document__tag {
       justify-self: start;
-      border-radius: var(--radius-tag);
-      background: var(--color-violet-wash);
-      padding: var(--spacing-4) var(--spacing-8);
       color: var(--color-lavender);
       font-family: var(--font-geist-mono);
       font-size: var(--text-caption);
@@ -845,16 +767,10 @@ import ArcDial from "../components/ArcDial.astro";
       display: grid;
       gap: var(--spacing-12);
       min-height: 10rem;
-      border-radius: var(--radius-card);
       background: var(--color-canvas-white);
       padding: var(--spacing-20);
-      box-shadow: var(--shadow-subtle);
-      transition: transform 360ms var(--ease-out), box-shadow 360ms var(--ease-out);
-    }
-
-    .product-card:hover .mini-handoff {
-      transform: translateY(-3px) rotate(0.4deg);
-      box-shadow: 0 0.75rem 1.5rem var(--color-paper-mist);
+      border-top: 1px solid var(--color-ash);
+      border-bottom: 1px solid var(--color-ash);
     }
 
     .mini-handoff__header,
@@ -871,9 +787,6 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .mini-handoff__status {
-      border-radius: var(--radius-tag);
-      background: var(--color-green-wash);
-      padding: var(--spacing-4) var(--spacing-8);
       color: var(--color-vivid-green);
       font-family: var(--font-geist-mono);
       font-size: var(--text-caption);
@@ -889,16 +802,12 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .mini-handoff__row span:first-child {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-vivid-green);
+      display: none;
     }
 
     .mini-handoff__row span:nth-child(2) {
       flex: 1;
       height: 7px;
-      border-radius: var(--radius-tag);
       background: var(--color-ash);
     }
 
@@ -991,11 +900,11 @@ import ArcDial from "../components/ArcDial.astro";
       }
 
       .product-bento__intro {
-        display: block;
+        grid-template-columns: 1fr;
       }
 
-      .product-bento__intro-signal {
-        margin-top: var(--spacing-24);
+      .product-bento__intro-note {
+        max-width: 34ch;
       }
 
       .product-bento__intro h2 {
@@ -1024,6 +933,7 @@ import ArcDial from "../components/ArcDial.astro";
       }
 
       .product-card {
+        grid-template-columns: 1fr;
         min-height: 24rem;
       }
     }
@@ -1042,6 +952,62 @@ import ArcDial from "../components/ArcDial.astro";
 
       .workspace-preview__row .meta {
         grid-column: 2;
+      }
+    }
+
+    /* Final distillation: the product story is a sequence, not a card wall. */
+    .product-bento__intro {
+      border: 0;
+      border-top: 1px solid var(--color-ash);
+      border-bottom: 1px solid var(--color-ash);
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .product-bento__grid {
+      display: block;
+      grid-template-columns: none;
+      grid-template-areas: none;
+      grid-template-rows: none;
+    }
+
+    .product-card,
+    .product-card--capture,
+    .product-card--privacy,
+    .product-card--document,
+    .product-card--handoff {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
+      min-height: 0;
+      border: 0;
+      border-top: 1px solid var(--color-ash);
+      border-radius: 0;
+      background: transparent;
+      padding: var(--spacing-32) 0;
+      box-shadow: none;
+      height: auto;
+    }
+
+    .product-card:last-child {
+      border-bottom: 1px solid var(--color-ash);
+    }
+
+    .mini-timeline,
+    .mini-document {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    @media (max-width: 639px) {
+      .product-card,
+      .product-card--capture,
+      .product-card--privacy,
+      .product-card--document,
+      .product-card--handoff {
+        grid-template-columns: 1fr;
       }
     }
   </style>

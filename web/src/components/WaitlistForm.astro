@@ -30,7 +30,7 @@ const emailId = `${formId}-email`;
         <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon>
       </button>
     </div>
-    <p id={`${formId}-note`} class="waitlist-form__note">One email when your invite is ready. No tracking.</p>
+    <p id={`${formId}-note`} class="waitlist-form__note">One email when access opens. No tracking.</p>
   </div>
 </form>
 
@@ -80,10 +80,8 @@ const emailId = `${formId}-email`;
   }
 
   .waitlist-form__submit {
-    position: relative;
     flex: 0 0 auto;
     min-height: 2.75rem;
-    overflow: hidden;
     border: 1px solid var(--color-primary-action-fill);
     border-radius: var(--radius-button);
     background: var(--color-primary-action-fill);
@@ -111,14 +109,7 @@ const emailId = `${formId}-email`;
     opacity: 0.64;
   }
 
-  .waitlist-form__submit span {
-    position: relative;
-    z-index: 1;
-  }
-
   .waitlist-form__submit ion-icon {
-    position: relative;
-    z-index: 1;
     margin-left: var(--spacing-8);
     font-size: 1rem;
     vertical-align: -0.12em;
@@ -130,35 +121,8 @@ const emailId = `${formId}-email`;
     font-size: var(--text-caption);
   }
 
-  .js-motion .waitlist-form__submit::after {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(100deg, transparent 30%, rgba(37, 99, 235, 0.55) 50%, transparent 70%);
-    background-size: 220% 100%;
-    background-position: 140% 0;
-    content: "";
-    animation: sheen var(--dur-sheen) var(--ease-in-out) infinite;
-  }
-
-  .waitlist-form[data-submitting] .waitlist-form__submit::after {
-    display: none;
-  }
-
   .waitlist-form[data-submitting] .waitlist-form__submit {
     background: var(--color-deep-sapphire);
-  }
-
-  @keyframes sheen {
-    to {
-      background-position: -40% 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .js-motion .waitlist-form__submit::after {
-      display: none;
-      animation: none;
-    }
   }
 
   @media (max-width: 480px) {

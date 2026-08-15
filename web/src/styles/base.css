@@ -160,18 +160,7 @@ ion-icon {
     radial-gradient(ellipse at 70% 60%, rgb(245 158 11 / 0.14), transparent 38%);
   content: "";
   filter: blur(24px);
-  animation: radiant-fluid 14s var(--ease-in-out) infinite alternate;
   pointer-events: none;
-}
-
-@keyframes radiant-fluid {
-  to { transform: translate3d(4%, -3%, 0) rotate(4deg) scale(1.08); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .radiant-fluid::before {
-    animation: none;
-  }
 }
 
 .wrap {
@@ -254,9 +243,6 @@ ion-icon {
 
 .blueprint-surface {
   background-color: var(--color-paper-mist);
-  background-image: radial-gradient(circle, rgba(37, 99, 235, 0.18) 1px, transparent 1px);
-  background-position: 0 0;
-  background-size: 16px 16px;
 }
 
 .status {
@@ -269,23 +255,6 @@ ion-icon {
   align-items: center;
   gap: var(--spacing-8);
   margin-bottom: var(--spacing-16);
-}
-
-.status__eyebrow::before {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-electric-blue);
-  content: "";
-}
-
-.status--success .status__eyebrow::before {
-  background: var(--color-vivid-green);
-}
-
-.status--error .status__eyebrow::before,
-.status--warning .status__eyebrow::before {
-  background: var(--color-tangerine);
 }
 
 .status__headline {

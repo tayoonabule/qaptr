@@ -6,7 +6,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = "Qaptr — private beta for macOS. Join the waitlist." } = Astro.props;
+  const { title, description = "Qaptr quietly records your work on Mac, then gives you a clear timeline to review and share." } = Astro.props;
 ---
 
 <!doctype html>
@@ -48,7 +48,7 @@ const { title, description = "Qaptr — private beta for macOS. Join the waitlis
         </span>
         <p class="meta site-footer__privacy">
           <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>
-          We only ever store the email you submit. No tracking, no third parties.
+          Your email is used only for the waitlist. No tracking.
         </p>
         <span class="meta">{new Date().getFullYear()}</span>
       </div>

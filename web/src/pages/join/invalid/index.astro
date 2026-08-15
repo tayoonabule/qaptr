@@ -4,9 +4,9 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
 
 <BaseLayout title="That email does not look right — Qaptr">
   <section class="status status--warning wrap reveal">
-    <p class="meta status__eyebrow">Private beta &middot; macOS</p>
-    <h1 class="status__headline">That email does not look right.</h1>
-    <p class="status__body">Check for a typo and try again. It takes one field.</p>
+    <p class="meta status__eyebrow">Check your email</p>
+    <h1 class="status__headline">That address does not look right.</h1>
+    <p class="status__body">Check the address and try again.</p>
 
     <form class="retry-form" method="post" action="/api/waitlist">
       <input type="hidden" name="source" value="unknown" />
