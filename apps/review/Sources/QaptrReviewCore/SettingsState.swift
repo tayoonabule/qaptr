@@ -21,22 +21,6 @@ public enum ProviderChoice: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-/// The capture cadence profile shown in settings.
-///
-/// Settings only ever displays the current mode; starting or stopping
-/// detailed capture is the Observation Sheet's "Qaptr in more detail" action
-/// (U18), not a settings toggle, so a person cannot silently leave detailed
-/// capture running from a control they forgot about.
-public enum CaptureCadence: Equatable, Sendable {
-    case sparse
-    case detailed(endsAtMillis: Int64)
-
-    public var isDetailed: Bool {
-        if case .detailed = self { return true }
-        return false
-    }
-}
-
 /// The person's chosen cache lifetime for ephemeral capture bundles (R-P2).
 public enum CacheLifetime: String, CaseIterable, Equatable, Sendable {
     case sixHours
@@ -92,10 +76,10 @@ public enum PermissionStatus: Equatable, Sendable {
     }
 }
 
-/// The full, small settings surface (R-D6): cadence, displays, cache
+/// The full, small settings surface (R-D6): capture interval, displays, cache
 /// duration, provider, and privacy/permission status, and nothing else.
 public struct SettingsState: Equatable, Sendable {
-    public var cadence: CaptureCadence
+    public var intervalSeconds: Int
     public var selectedDisplayIDs: Set<String>
     public var availableDisplayIDs: [String]
     public var cacheLifetime: CacheLifetime
@@ -107,7 +91,7 @@ public struct SettingsState: Equatable, Sendable {
     public var excludedWindowTitles: [String]
 
     public init(
-        cadence: CaptureCadence,
+        intervalSeconds: Int,
         selectedDisplayIDs: Set<String>,
         availableDisplayIDs: [String],
         cacheLifetime: CacheLifetime,
@@ -118,7 +102,7 @@ public struct SettingsState: Equatable, Sendable {
         excludedApplications: [String],
         excludedWindowTitles: [String]
     ) {
-        self.cadence = cadence
+        self.intervalSeconds = CaptureIntervalPolicy.normalized(intervalSeconds)
         self.selectedDisplayIDs = selectedDisplayIDs
         self.availableDisplayIDs = availableDisplayIDs
         self.cacheLifetime = cacheLifetime
@@ -132,7 +116,7 @@ public struct SettingsState: Equatable, Sendable {
 
     /// A conservative default state used before any preference is loaded.
     public static let placeholder = SettingsState(
-        cadence: .sparse,
+        intervalSeconds: CaptureIntervalPolicy.defaultSeconds,
         selectedDisplayIDs: [],
         availableDisplayIDs: [],
         cacheLifetime: .oneDay,

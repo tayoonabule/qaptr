@@ -1,11 +1,7 @@
 import SwiftUI
 
-/// A single dynamic NSColor factory shared by both the SwiftUI `Color`
-/// token below and the AppKit window setup in `QaptrReviewApp.swift`
-/// (which configures `NSWindow.backgroundColor` before any SwiftUI view
-/// renders, so it cannot reach for a `Color` value). Keeping one function
-/// as the source of truth avoids the light/dark RGB pair drifting out of
-/// sync between the two call sites.
+/// A single dynamic NSColor factory shared by both the SwiftUI `Color` token
+/// below and the AppKit window setup in `QaptrReviewApp.swift`.
 func qaptrSurfaceNSColor(appearance: NSAppearance) -> NSColor {
     let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
     return isDark
@@ -14,13 +10,16 @@ func qaptrSurfaceNSColor(appearance: NSAppearance) -> NSColor {
 }
 
 extension Color {
-    /// The app's single background surface: a quiet off-white in light
-    /// appearance, an off-black in dark appearance. Matches the website's
-    /// own token choice (`--color-bg: #ffffff` was rejected there too in
-    /// favor of a warm near-white/near-black pair) and the general
-    /// principle that pure `#ffffff`/`#000000` reads as flat and synthetic
-    /// next to real ink and paper. Defined once here rather than inline at
-    /// each call site so every surface (Onboarding, Observation Sheet,
-    /// Settings) and the window chrome itself share exactly one value.
+    /// The app's shared off-white / off-black base surface.
     static let qaptrSurface = Color(nsColor: NSColor(name: nil, dynamicProvider: qaptrSurfaceNSColor))
+
+    /// One warm accent shared across selection, progress, and deliberate action.
+    static let qaptrAccent = Color(nsColor: .systemOrange)
+
+    /// A subtle interaction wash. It is used only for an actual hover or a
+    /// selected control, never as decorative card chrome.
+    static let qaptrControlFill = Color.primary.opacity(0.055)
+
+    /// The one rule used by all compositional dividers.
+    static let qaptrRule = Color.primary.opacity(0.12)
 }

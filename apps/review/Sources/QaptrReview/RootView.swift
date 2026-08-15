@@ -12,22 +12,19 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if showsSettings {
-                SettingsView(model: model)
+                SettingsView(model: model, showObservations: toggleSurface)
             } else {
-                ObservationSheetView(model: model)
+                ObservationSheetView(model: model, showSettings: toggleSurface)
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button(showsSettings ? "Observations" : "Settings") {
-                    if reduceMotion {
-                        showsSettings.toggle()
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            showsSettings.toggle()
-                        }
-                    }
-                }
+    }
+
+    private func toggleSurface() {
+        if reduceMotion {
+            showsSettings.toggle()
+        } else {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+                showsSettings.toggle()
             }
         }
     }

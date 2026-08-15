@@ -62,21 +62,14 @@ struct OnboardingView: View {
 
             HStack {
                 if let previous = stage.previous {
-                    Button("Back") {
+                    QuietButton(title: "Back") {
                         go(to: previous, direction: .backward)
                     }
-                    .buttonStyle(.tactile)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button(stage == .privacyConsent ? "Finish" : "Continue") {
+                PrimaryActionButton(title: stage == .privacyConsent ? "Finish" : "Continue") {
                     advance()
                 }
-                .buttonStyle(.tactile)
-                .font(.system(size: 15, weight: .medium))
-                .padding(.horizontal, 4)
-                .underline()
             }
         }
         .padding(40)
@@ -173,7 +166,7 @@ struct OnboardingView: View {
     private var permissionsStage: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(PermissionRationale.screenRecording)
+                Text("Let Qaptr take small screenshots now and then. It does not record all the time.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                 HStack {
@@ -181,15 +174,13 @@ struct OnboardingView: View {
                         .font(.system(size: 13, design: .monospaced))
                         .foregroundStyle(.tertiary)
                     if model.settings.screenRecordingStatus != .granted {
-                        Button("Grant Screen Recording") { model.requestScreenRecording() }
-                            .buttonStyle(.tactile)
-                            .underline()
+                        ActionButton(title: "Allow screenshots", action: model.requestScreenRecording)
                     }
                 }
             }
             Divider()
             VStack(alignment: .leading, spacing: 8) {
-                Text(PermissionRationale.accessibilityContext)
+                Text("Optional: let Qaptr read the app and window name. You can skip this.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                 HStack {
@@ -197,9 +188,7 @@ struct OnboardingView: View {
                         .font(.system(size: 13, design: .monospaced))
                         .foregroundStyle(.tertiary)
                     if model.settings.accessibilityContextStatus != .granted {
-                        Button("Grant (optional)") { model.requestAccessibilityContext() }
-                            .buttonStyle(.tactile)
-                            .underline()
+                        ActionButton(title: "Allow app names", action: model.requestAccessibilityContext)
                     }
                 }
             }
@@ -208,10 +197,10 @@ struct OnboardingView: View {
 
     private var displaysStage: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Qaptr will capture from all currently attached displays by default. You can narrow this to specific displays later in Settings.")
+            Text("Qaptr uses every screen you have. You can pick fewer screens later.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
-            Text("\(model.settings.availableDisplayIDs.count) display(s) detected")
+            Text("\(model.settings.availableDisplayIDs.count) screens found")
                 .font(.system(size: 13, design: .monospaced))
                 .foregroundStyle(.tertiary)
         }
@@ -219,10 +208,10 @@ struct OnboardingView: View {
 
     private var captureExplanationStage: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("By default, Qaptr takes one downscaled screenshot every ten minutes and a point-in-time snapshot of the active app, window title, and reduced browser host.")
+            Text("Qaptr takes one small screenshot every \(CaptureIntervalPolicy.humanized(model.settings.intervalSeconds)). It notes the app and window name you use.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
-            Text("It never records continuously, and it never reads your clipboard or keystrokes.")
+            Text("It does not record all the time. It does not read your clipboard or keys.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
         }
@@ -230,7 +219,7 @@ struct OnboardingView: View {
 
     private var providerSelectionStage: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Choose which AI provider prepares your observations. You can change this later in Settings.")
+            Text("Pick the AI tool that writes your notes. You can change this later.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
             ProviderChoiceList(selection: providerBinding)
@@ -239,10 +228,10 @@ struct OnboardingView: View {
 
     private var privacyConsentStage: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Qaptr redacts recognized text, faces, and barcodes locally before anything reaches your chosen provider. It only sends data after you explicitly approve each analysis session.")
+            Text("Qaptr hides text, faces, and barcodes on your Mac before a review is shared.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
-            Text("No provider request happens until you say so.")
+            Text("Nothing is sent until you say yes.")
                 .font(.system(size: 14, weight: .medium))
         }
     }
@@ -253,6 +242,8 @@ struct OnboardingView: View {
             set: { newValue in
                 if let newValue {
                     model.setProvider(newValue)
+                } else {
+                    model.clearProvider()
                 }
             }
         )
@@ -331,12 +322,12 @@ private struct ProviderRow: View {
                         .scaleEffect(isSelected ? 1 : 0.001)
                         .opacity(isSelected ? 1 : 0)
                 }
-                .animation(reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.32, dampingFraction: 0.6), value: isSelected)
+                .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.6), value: isSelected)
 
                 Text(provider.displayName)
                     .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? .primary : .secondary)
-                    .animation(.easeOut(duration: 0.16), value: isSelected)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isSelected)
 
                 Spacer()
             }

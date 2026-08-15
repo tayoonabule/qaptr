@@ -14,6 +14,26 @@ func defaultStorePath() -> URL {
     return base.appendingPathComponent("Qaptr", isDirectory: true).appendingPathComponent("history.sqlite3")
 }
 
+/// The helper's scalar progress file. It is intentionally separate from the
+/// durable history database and contains no screenshot material.
+func defaultCaptureProgressPath() -> URL {
+    if let override = ProcessInfo.processInfo.environment["QAPTR_CAPTURE_PROGRESS_PATH"], !override.isEmpty {
+        return URL(fileURLWithPath: override)
+    }
+    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+    return base.appendingPathComponent("Qaptr", isDirectory: true).appendingPathComponent("capture-progress.json")
+}
+
+func defaultCaptureControlPath() -> URL {
+    if let override = ProcessInfo.processInfo.environment["QAPTR_CAPTURE_CONTROL_PATH"], !override.isEmpty {
+        return URL(fileURLWithPath: override)
+    }
+    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+    return base.appendingPathComponent("Qaptr", isDirectory: true).appendingPathComponent("capture-control.json")
+}
+
 /// The single observable source of truth driving every SwiftUI view.
 ///
 /// This model never launches a tool, executes an automation, or invokes a
@@ -23,17 +43,23 @@ func defaultStorePath() -> URL {
 @Observable
 final class ReviewAppModel {
     private(set) var snapshot: ReviewSnapshot = .empty
+    private(set) var captureProgress: CaptureProgressSnapshot = .unavailable
+    private(set) var captureIntervalSeconds = CaptureIntervalPolicy.defaultSeconds
     private(set) var loadError: String?
     private(set) var settings: SettingsState = .placeholder
     var onboardingCompleted: Bool
 
     let preferences: SettingsPreferences
     private let bridge: ReviewBridge?
+    private let progressReader: CaptureProgressReader
+    private let controlStore: CaptureControlStore
 
     init(preferences: SettingsPreferences = SettingsPreferences(store: UserDefaults.standard)) {
         self.preferences = preferences
         self.onboardingCompleted = preferences.onboardingCompleted
         let storePath = defaultStorePath()
+        self.progressReader = CaptureProgressReader(url: defaultCaptureProgressPath())
+        self.controlStore = CaptureControlStore(url: defaultCaptureControlPath())
         do {
             try FileManager.default.createDirectory(
                 at: storePath.deletingLastPathComponent(),
@@ -44,11 +70,13 @@ final class ReviewAppModel {
             self.bridge = nil
             self.loadError = String(describing: error)
         }
+        refreshCaptureProgress()
         refreshSettings()
     }
 
     /// Reloads the durable-history snapshot from `qaptr-store`.
     func refresh() {
+        refreshCaptureProgress()
         guard let bridge else { return }
         do {
             snapshot = try bridge.snapshot()
@@ -58,9 +86,37 @@ final class ReviewAppModel {
         }
     }
 
+    /// Reloads scalar helper progress independently from durable observations.
+    /// Missing or corrupt status is shown as unavailable and never blocks the
+    /// observation history from loading.
+    func refreshCaptureProgress() {
+        captureProgress = (try? progressReader.read()) ?? .unavailable
+        let control = (try? controlStore.read()) ?? .default
+        captureIntervalSeconds = control.intervalSeconds
+        settings.intervalSeconds = control.intervalSeconds
+        // Missing or corrupt control files fall back to the safe default and
+        // are rewritten canonically. This writes no image data.
+        try? controlStore.write(control)
+    }
+
+    /// Persists the only mutable capture setting. The helper polls this scalar
+    /// control file and applies it without opening or exposing image material.
+    func setCaptureIntervalSeconds(_ seconds: Int) {
+        let normalized = CaptureIntervalPolicy.normalized(seconds)
+        do {
+            let control = try CaptureControl(intervalSeconds: normalized)
+            try controlStore.write(control)
+            captureIntervalSeconds = normalized
+            settings.intervalSeconds = normalized
+        } catch {
+            // Keep the previous value when the control could not be persisted.
+        }
+    }
+
     /// Reloads permission and login-item status without prompting.
     func refreshSettings() {
         var next = settings
+        next.intervalSeconds = captureIntervalSeconds
         next.availableDisplayIDs = DisplayEnumerator.currentDisplays().map(\.id)
         next.cacheLifetime = preferences.cacheLifetime
         next.provider = preferences.provider
@@ -100,6 +156,12 @@ final class ReviewAppModel {
     func setProvider(_ provider: ProviderChoice) {
         preferences.provider = provider
         settings.provider = provider
+    }
+
+    /// Removes the provider preference without triggering a provider request.
+    func clearProvider() {
+        preferences.provider = nil
+        settings.provider = nil
     }
 
     func addExcludedApplication(_ raw: String) {

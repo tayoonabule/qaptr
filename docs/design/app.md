@@ -32,13 +32,13 @@ Observation Sheet's own restraint.
 
 ### Settings
 
-Exactly the six things R-D6 allows: cadence/profile status (read-only, since
-starting/stopping detailed capture is U18's Observation Sheet action, not a
-settings toggle), displays (count, informational; the full multi-display
-picker is U7's captured-selection surface), cache duration, provider,
+Exactly the six things R-D6 allows: the bounded capture interval (5 seconds
+through 5 minutes, adjustable in 5-second steps and applied by the helper on
+its next poll), displays (count, informational; the full multi-display picker
+is U7's captured-selection surface), cache duration, provider,
 privacy/permission status, and the two exclusion lists (applications, window
 titles) that make the privacy posture legible and adjustable, per this unit's
-explicit requirement. No other control exists. Sections are separated by
+explicit requirement. No other capture control exists. Sections are separated by
 uppercase monospaced labels (mirroring the "voice vs. report" typographic
 contrast documented in U21's design rationale) rather than boxed cards.
 
@@ -92,8 +92,6 @@ nags.
   Observations/Settings toggle) by checking
   `accessibilityReduceMotion` and skipping `withAnimation` entirely when it is
   set. There is no other motion in this unit to gate.
-- **"Qaptr in more detail" is intentionally read-only in this unit.** U18
-  already owns starting and stopping detailed capture; U20's Observation Sheet
-  displays observations but does not yet wire a "more detail" action, since
-  that wiring crosses into analysis orchestration this unit was explicitly
-  told not to rebuild. This is a known scope boundary, not an oversight.
+- **The capture interval is intentionally scalar.** The review app writes only
+  the bounded interval control file. The helper polls it and applies a valid
+  change on its next poll; it never receives image contents through this UI.

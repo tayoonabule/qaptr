@@ -5,19 +5,16 @@ import SwiftUI
 /// with existing modifiers such as `.underline()` and `.foregroundStyle()`
 /// without changing a button's look beyond the press feedback itself.
 ///
-/// Reduced motion is respected the same way `RootView`'s existing transition
-/// is: when `accessibilityReduceMotion` is set, the scale change still
-/// applies (so pressed state remains visible for feedback) but with a
-/// near-instant animation instead of an eased one, avoiding perceptible
-/// motion.
+/// Reduced motion removes the scale movement altogether. The system still
+/// provides its native pressed-state feedback without adding custom motion.
 struct TactileButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .scaleEffect(reduceMotion || !configuration.isPressed ? 1.0 : 0.97)
             .animation(
-                reduceMotion ? .linear(duration: 0.01) : .easeOut(duration: 0.12),
+                .easeOut(duration: 0.12),
                 value: configuration.isPressed
             )
     }

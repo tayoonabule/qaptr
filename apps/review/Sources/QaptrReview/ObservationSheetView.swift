@@ -8,6 +8,7 @@ import SwiftUI
 /// honest confidence line, closer to a note than a control panel (R-D3).
 struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
+    let showSettings: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -15,12 +16,15 @@ struct ObservationSheetView: View {
             VStack(alignment: .leading, spacing: 28) {
                 header
 
-                if let loadError = model.loadError {
-                    ErrorStateView(message: loadError)
-                } else if model.snapshot.observations.isEmpty {
-                    EmptyStateView()
+                if model.loadError != nil {
+                    ErrorStateView(retry: model.refresh)
                 } else {
-                    observationList
+                    captureProgress
+                    if model.snapshot.observations.isEmpty {
+                        EmptyStateView(progress: model.captureProgress)
+                    } else {
+                        observationList
+                    }
                 }
 
                 if !model.snapshot.notices.isEmpty {
@@ -33,15 +37,63 @@ struct ObservationSheetView: View {
         }
         .background(Color.qaptrSurface)
         .onAppear { model.refresh() }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { return }
+                model.refresh()
+            }
+        }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Qaptr")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.secondary)
-            Text(model.snapshot.observations.isEmpty ? "No observations yet" : "What Qaptr noticed")
-                .font(.system(size: 28, weight: .semibold, design: .default))
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Qaptr")
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Text(headerTitle)
+                    .font(.system(size: 30, weight: .semibold, design: .serif))
+            }
+            Spacer(minLength: 18)
+            ActionButton(title: "Settings", action: showSettings)
+        }
+    }
+
+    private var headerTitle: String {
+        if model.loadError != nil {
+            return "Review setup"
+        }
+        return model.snapshot.observations.isEmpty ? "Nothing here yet" : "What Qaptr found"
+    }
+
+    private var captureProgress: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 28) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Screenshots captured")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(model.captureProgress.captureCount.map(String.init) ?? "Not available")
+                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Capture state")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(model.captureProgress.statusLabel)
+                        .font(.system(size: 13))
+                }
+            }
+            if let lastCaptureDate = model.captureProgress.lastCaptureDate {
+                Text("Last capture \(lastCaptureDate, format: .dateTime.hour().minute().second())")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            } else {
+            Text("No screenshot yet")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
@@ -117,29 +169,59 @@ private struct ObservationRow: View {
 /// The Granola-level empty state: quiet, no illustration, no call to action
 /// that would suggest launching anything.
 private struct EmptyStateView: View {
+    let progress: CaptureProgressSnapshot
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Qaptr hasn't analyzed a session yet.")
+            Text(title)
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
-            Text("Observations appear here after Qaptr reviews your recent captures.")
+            Text(detail)
                 .font(.system(size: 13))
                 .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var title: String {
+        switch progress.captureCount {
+        case .some(0):
+            "No screenshots have been captured yet."
+        case .some(let count) where count > 0:
+            "\(count) screenshot\(count == 1 ? " is" : "s are") ready. Nothing new was found."
+        default:
+            "No observations yet."
+        }
+    }
+
+    private var detail: String {
+        switch progress.captureCount {
+        case .some(0):
+            "\(progress.statusLabel). Notes show up here after Qaptr checks a screenshot."
+        case .some where progress.captureCount ?? 0 > 0:
+            "Qaptr did not find a note to show."
+        default:
+            "Qaptr is still getting ready."
         }
     }
 }
 
 /// A plain, deliberate failure state with no icon and no styling flourish.
 private struct ErrorStateView: View {
-    let message: String
+    let retry: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Qaptr couldn't load recent observations.")
-                .font(.system(size: 15, weight: .medium))
-            Text(message)
-                .font(.system(size: 13, design: .monospaced))
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Qaptr is not ready yet.")
+                .font(.system(size: 16, weight: .medium))
+            Text("Check that Qaptr is open, then try again.")
+                .font(.system(size: 14))
                 .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                ActionButton(title: "Try again", action: retry)
+                Text("If this keeps happening, open Settings to check your setup.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 }

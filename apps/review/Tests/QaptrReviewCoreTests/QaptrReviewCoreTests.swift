@@ -125,6 +125,13 @@ final class SettingsPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.provider, .claudeCLI)
     }
 
+    func testClearsAChosenProvider() {
+        let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        preferences.provider = .claudeCLI
+        preferences.provider = nil
+        XCTAssertNil(preferences.provider)
+    }
+
     func testAddsNormalizedExcludedApplicationAndRejectsBlankEntries() {
         let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
         preferences.addExcludedApplication("  1Password  ")
