@@ -28,7 +28,7 @@ platform: Apple-silicon macOS
 
 ## Product Contract
 
-Qaptr is an exceptionally lightweight, privacy-first macOS menu-bar app that periodically captures sparse visual and contextual snapshots of a person's work. When the person opens Qaptr, the full app processes recent captures through their chosen AI provider and presents a few concise observations about the workflows they performed, how those workflows unfolded, and which ones are worth capturing more deliberately.
+Qaptr is an exceptionally lightweight, privacy-first macOS menu-bar app that captures periodic visual and contextual snapshots of a person's work at one configured interval. When the person opens Qaptr, the full app processes recent captures through their chosen AI provider and presents a few concise observations about the workflows they performed, how those workflows unfolded, and which ones are worth capturing more deliberately.
 
 The product should normally feel invisible. Its opened experience should be beautifully simple, fast, monochrome, and native-feeling, with Granola-level product simplicity, the interaction quality of Apple or Linear, and the visual ambition of Shopify Design (<https://shopify.design/>).
 
@@ -39,7 +39,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 ### Core interaction
 
 1. Qaptr runs as a lightweight menu-bar capture helper.
-2. In sparse mode, it captures selected displays once every 10 minutes.
+2. It captures selected displays on a single configurable interval, from 5 to 300 seconds.
 3. At capture time, it samples lightweight context such as active app, window title, browser URL, document name, display, idle state, and temporary visible Accessibility text/structure.
 4. It never records clipboard contents, raw keystrokes, or continuous Accessibility activity.
 5. Opening Qaptr starts local preparation and provider-backed analysis of recent captures. No OCR or AI analysis runs in the background helper.
@@ -54,7 +54,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 **Capture**
 
-- R-C1. Sparse default is one capture every 10 minutes.
+- R-C1. Capture cadence is one configurable interval from 5 to 300 seconds, exposed as a single slider with a documented default.
 - R-C2. Multi-display changes are handled silently.
 - R-C3. Settings provide a minimal display selector for one or multiple displays.
 - R-C4. High-resolution captures are downscaled before caching to reduce memory, disk, and provider costs.
@@ -93,7 +93,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 - R-D3. The core review surface is an intentionally spare Observation Sheet, closer to Granola's focused note experience than a productivity dashboard.
 - R-D4. The interface follows system light and dark appearance, using predominantly whites, blacks, and disciplined neutral tones.
 - R-D5. Typography, spacing, motion, icons, loading, empty, permission, and failure states receive production-level design attention.
-- R-D6. Settings remain intentionally small: capture cadence/profile, displays, cache duration, provider, and privacy/permission status.
+- R-D6. Settings remain intentionally small: capture interval, displays, cache duration, provider/model, and privacy/permission status.
 - R-D7. Onboarding stages macOS permissions, display selection, capture explanation, provider selection, and privacy consent without overwhelming the person.
 
 **Website**
@@ -125,7 +125,7 @@ Help a person recognize and preserve how work actually gets done, inspect a prom
 
 ### Acceptance examples
 
-- AE1. Given sparse mode on a 5K display, when the helper runs for 12 hours, then every scheduled capture is written and helper resident memory stays below 50 MB.
+- AE1. Given the configured capture interval on a 5K display, when the helper runs for 12 hours, then every scheduled capture is written and helper resident memory stays below 50 MB.
 - AE2. Given a cache of recent captures, when the person opens Qaptr, then analysis begins without the helper having performed OCR or provider work.
 - AE3. Given a capture containing an email address, an API key, and a face, when the capture is prepared for a provider, then every detected value of an enumerated sensitive class is replaced by its placeholder, any image payload has every recognizer-detected region masked, the coverage proof passes, and the measured recall floor for undetected material is disclosed.
 - AE4. Given one capture whose redaction confidence gate fails, when analysis runs, then that capture is excluded, the remaining captures are analyzed, and the person sees a quiet one-line exclusion notice.
@@ -273,7 +273,7 @@ qaptr/
   Cargo.toml                        # workspace
   crates/
     qaptr-domain/                   # ids, workflow, observation, errors, clock port
-    qaptr-policy/                   # cadence, display selection, retention decisions
+    qaptr-policy/                   # capture interval, display selection, retention decisions
     qaptr-store/                    # SQLite WAL, migrations, allowlisted history
     qaptr-vault/                    # encrypted capture bundles, key generations
     qaptr-privacy/                  # OCR orchestration, masking, sanitizing, gates
@@ -320,7 +320,7 @@ The only two channels between the processes are the vault directory plus a small
 Every budget in this plan is a number produced by a stated procedure, so a regression is detectable rather than arguable.
 
 - **Metric.** Resident memory is the sum of `phys_footprint` across the process tree under test, sampled once per second, reported as median and peak over the window. Not RSS, which double-counts shared pages.
-- **Helper budget (R-C6).** Median and peak both under 50 MB over a 12-hour soak with sparse cadence on the reference machine.
+- **Helper budget (R-C6).** Median and peak both under 50 MB over a 12-hour soak at the configured capture interval on the reference machine.
 - **Opened-app budget (R-C7).** Median under 150 MB and peak under 180 MB over a 10-minute scripted review session: open, analyze a 24-capture fixture session, open three observations, generate one workflow, export all four formats.
 - **Reference machine.** Apple silicon, 16 GB, one 5K display attached, recorded by model and macOS build in `docs/release.md`. Budgets are asserted only on the reference configuration; other hardware is informational.
 - **Fixture session.** A committed synthetic session of 24 captures at the production downscaled size, used by every budget and latency test so runs are comparable.
@@ -426,9 +426,9 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Goal:** The production helper that captures on schedule, samples point-in-time context, and seals bundles, within budget.
 - **Requirements:** R-C1 through R-C6, R-D1, R-P1; KTD1, KTD2, KTD5a, KTD11.
 - **Dependencies:** U2, U4, U5, U6a.
-- **Files:** `apps/helper/Sources/QaptrHelper/`, `crates/qaptr-macos/src/capture.rs`, `crates/qaptr-macos/src/context.rs`, `crates/qaptr-policy/src/cadence.rs`, `crates/qaptr-policy/src/displays.rs`, `crates/qaptr-ffi/src/lib.rs`, `apps/helper/Tests/`, `crates/qaptr-policy/tests/cadence.rs`.
+- **Files:** `apps/helper/Sources/QaptrHelper/`, `crates/qaptr-macos/src/capture.rs`, `crates/qaptr-macos/src/context.rs`, `crates/qaptr-policy/src/displays.rs`, `crates/qaptr-ffi/src/lib.rs`, `apps/helper/Tests/`. The single-interval control lives in `CaptureIntervalPolicy` (Swift) and its control-file store, not in a separate Rust cadence module.
 - **Approach:** Swift owns only the timer, the ScreenCaptureKit call, the context sample, and the menu-bar item; every decision comes from the core through the C ABI. Context sampling is a single instantaneous read with URLs reduced to hostname by default. Sealing uses only the generation public key, so the helper holds no decryption material and never touches the Keychain (KTD6). Capture metadata is written into the sealed bundle, never to the database (KTD5a). No OCR, no provider, no analysis, and no storage code is linked into this target.
-- **Test scenarios:** Cadence policy schedules on the sparse interval (R-C1) and does not fire while locked, asleep, or after sustained idle. Capture and context sampling occur only at the tick, asserted by counting port calls between ticks (R-C5). Captured images are downscaled to the configured size before sealing, asserted on the written bundle (R-C4). Attaching or detaching a display is handled without user interruption and without adding the new display to the selection (R-C2). Display-selection policy accepts one or several displays and rejects an empty selection; its UI lives in U20 (R-C3). No catch-up burst after wake. Menu-bar state legibly distinguishes idle, sparse, and detailed capture. Helper never links OCR, provider, or SQLite symbols, asserted by a link-audit test. Disk quota exhaustion pauses capture with a quiet notice rather than failing silently. Capture tick median stays within the latency budget.
+- **Test scenarios:** Interval policy schedules on the configured interval (R-C1) and does not fire while locked, asleep, or after sustained idle. Capture and context sampling occur only at the tick, asserted by counting port calls between ticks (R-C5). Captured images are downscaled to the configured size before sealing, asserted on the written bundle (R-C4). Attaching or detaching a display is handled without user interruption and without adding the new display to the selection (R-C2). Display-selection policy accepts one or several displays and rejects an empty selection; its UI lives in U20 (R-C3). No catch-up burst after wake. Menu-bar state legibly distinguishes idle, interval-based, and detailed capture. Helper never links OCR, provider, or SQLite symbols, asserted by a link-audit test. Disk quota exhaustion halts capture with a quiet notice rather than failing silently. Capture tick median stays within the latency budget.
 - **Verification:** Soak run meets AE1 and the link audit passes.
 
 ### U8. Retention enforcement and quiet exclusion notices
@@ -538,7 +538,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U7, U17.
 - **Files:** `crates/qaptr-policy/src/profile.rs`, `crates/qaptr-workflow/src/recommend.rs`, `apps/helper/Sources/QaptrHelper/StatusItem.swift`, `crates/qaptr-policy/tests/profile.rs`.
 - **Approach:** A recommended interval derived from observed activity density with a plain-language explanation, an explicit accept step, a persistent visible menu-bar state, and no automatic time-based stop.
-- **Test scenarios:** Recommendation is deterministic for a fixed session fixture and includes its rationale. Accepting activates the profile and changes menu-bar state. Detailed capture never auto-stops on a timer. Manual stop returns to sparse cadence immediately. A restart while detailed capture is active preserves the active state and its visibility.
+- **Test scenarios:** Recommendation is deterministic for a fixed session fixture and includes its rationale. Accepting activates the profile and changes menu-bar state. Detailed capture never auto-stops on a timer. Manual stop returns to the configured interval immediately. A restart while detailed capture is active preserves the active state and its visibility.
 - **Verification:** AE5 passes.
 
 ### U19. Canonical Workflow document and four Markdown exports
@@ -558,7 +558,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Dependencies:** U3, U16, U17, U18, U19.
 - **Files:** `apps/review/src/`, `apps/review/src-tauri/src/`, `apps/review/src-tauri/capabilities/`, `apps/review/tests/`, `docs/design/app.md`.
 - **Approach:** A spare Observation Sheet as the core surface, small settings, and staged onboarding for permissions, displays, capture explanation, provider selection, and privacy consent. Production-level attention to typography, spacing, motion, icons, and every loading, empty, permission, and failure state (R-D5), specified in `docs/design/app.md` before implementation. Tauri capabilities are minimal and explicit; the webview gets no filesystem or shell breadth.
-- **Test scenarios:** Opened app meets the R-C7 budget under the measurement protocol. Light and dark appearance follow the system. Full keyboard traversal with visible focus. Reduced-motion preference disables non-essential motion. Loading, empty, permission-denied, provider-failure, and exclusion states all render deliberately. Typography, spacing, and iconography match the recorded design specification, reviewed against <https://shopify.design/> craft level. Settings expose exactly cadence/profile, displays, cache duration, provider, and privacy/permission status and nothing else. Onboarding requests Screen Recording with rationale and keeps optional context permissions separate. Capability audit shows no broad filesystem or shell permission.
+- **Test scenarios:** Opened app meets the R-C7 budget under the measurement protocol. Light and dark appearance follow the system. Full keyboard traversal with visible focus. Reduced-motion preference disables non-essential motion. Loading, empty, permission-denied, provider-failure, and exclusion states all render deliberately. Typography, spacing, and iconography match the recorded design specification, reviewed against <https://shopify.design/> craft level. Settings expose exactly capture interval, displays, cache duration, provider/model, and privacy/permission status and nothing else. Onboarding requests Screen Recording with rationale and keeps optional context permissions separate. Capability audit shows no broad filesystem or shell permission.
 - **Verification:** AE9 passes and the capability audit is clean.
 
 ### U21. Waitlist website

@@ -161,23 +161,25 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var captureExplanationStage: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Qaptr takes one screenshot every \(CaptureIntervalPolicy.humanized(model.settings.intervalSeconds)).")
+            Text(OnboardingCopy.periodicCaptureStatement(intervalSeconds: model.settings.intervalSeconds))
                 .font(.system(size: 14, weight: .medium))
-            Text("It does not record all the time. It does not read your clipboard or keys.")
+            Text(OnboardingCopy.captureBoundaryStatement)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var providerSelectionStage: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Choose an analysis tool, or leave this empty for capture-only mode.")
                 .font(.system(size: 14, weight: .medium))
-            Text("This saves your choice. Qaptr will not send anything just because you choose it.")
+            Text(OnboardingCopy.providerTransmissionStatement(provider: model.settings.provider))
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
             ProviderChoiceList(selection: model.settings.provider) { provider in
@@ -194,7 +196,10 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Your screenshots stay on this Mac until you approve a review.")
                 .font(.system(size: 14, weight: .medium))
-            Text("Qaptr hides text, faces, and barcodes before approved content is shared with a provider.")
+            Text(OnboardingCopy.localPreparationStatement)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+            Text(OnboardingCopy.justInTimeConsentStatement)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
             if model.loadError != nil {
@@ -202,8 +207,10 @@ struct OnboardingView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.red)
                     .padding(.top, 4)
+                    .accessibilityLabel("Setup error: setup could not finish. Try again after reopening Qaptr.")
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func advance() {

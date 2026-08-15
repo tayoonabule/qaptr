@@ -113,21 +113,38 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         configureStatusItem()
         progressTracker.start(
             at: Self.currentTimestamp(),
-            processID: Int64(ProcessInfo.processInfo.processIdentifier)
+            processID: Int64(ProcessInfo.processInfo.processIdentifier),
+            activeIntervalSeconds: activeInterval.seconds
         )
         persistProgress()
         do {
             selectedDisplayIDs = Set(try capture.availableDisplayIDs())
             guard !selectedDisplayIDs.isEmpty else {
-                progressTracker.markNoDisplays(at: Self.currentTimestamp())
+                progressTracker.markNoDisplays(
+                    at: Self.currentTimestamp(),
+                    selectedDisplayIDs: [],
+                    activeIntervalSeconds: activeInterval.seconds,
+                    failureReason: "no displays available"
+                )
                 persistProgress()
                 print("event=skip reason=no_displays")
                 scheduleTimer()
                 return
             }
+            progressTracker.start(
+                at: Self.currentTimestamp(),
+                processID: Int64(ProcessInfo.processInfo.processIdentifier),
+                selectedDisplayIDs: Array(selectedDisplayIDs),
+                activeIntervalSeconds: activeInterval.seconds
+            )
+            persistProgress()
             print("event=start pid=\(ProcessInfo.processInfo.processIdentifier) displays=\(selectedDisplayIDs.sorted().joined(separator: ",")) interval_seconds=\(options.interval.seconds)")
         } catch {
-            progressTracker.markError(at: Self.currentTimestamp())
+            progressTracker.markError(
+                at: Self.currentTimestamp(),
+                activeIntervalSeconds: activeInterval.seconds,
+                failureReason: "display enumeration failed: \(error)"
+            )
             persistProgress()
             print("event=skip reason=display_enumeration error=\(error)")
         }
@@ -138,7 +155,11 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         _ = notification
         timer?.cancel()
         timer = nil
-        progressTracker.stop(at: Self.currentTimestamp())
+        progressTracker.stop(
+            at: Self.currentTimestamp(),
+            selectedDisplayIDs: Array(selectedDisplayIDs),
+            activeIntervalSeconds: activeInterval.seconds
+        )
         persistProgress()
     }
 
@@ -260,7 +281,12 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     private func runTick() {
         cycle += 1
         guard CGPreflightScreenCaptureAccess() else {
-            progressTracker.markPermissionRequired(at: Self.currentTimestamp())
+            progressTracker.markPermissionRequired(
+                at: Self.currentTimestamp(),
+                selectedDisplayIDs: Array(selectedDisplayIDs),
+                activeIntervalSeconds: activeInterval.seconds,
+                failureReason: "Screen Recording permission not granted"
+            )
             persistProgress()
             updateStatus("Q")
             print("event=skip cycle=\(cycle) reason=screen_recording_permission")
@@ -269,7 +295,11 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         }
 
         do {
-            progressTracker.beginCapture(at: Self.currentTimestamp())
+            progressTracker.beginCapture(
+                at: Self.currentTimestamp(),
+                selectedDisplayIDs: Array(selectedDisplayIDs),
+                activeIntervalSeconds: activeInterval.seconds
+            )
             persistProgress()
             let current = Set(try capture.availableDisplayIDs())
             let displays = selectedDisplayIDs.intersection(current).sorted()
@@ -289,18 +319,41 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
                     count += 1
                 }
             }
+            let firstFailureReason = events.compactMap { event -> String? in
+                switch event {
+                case let .skippedCapture(displayID, reason):
+                    return "capture failed on \(displayID): \(reason)"
+                case let .skippedSealing(displayID, reason):
+                    return "sealing failed on \(displayID): \(reason)"
+                default:
+                    return nil
+                }
+            }.first
             if displays.isEmpty {
-                progressTracker.markNoDisplays(at: Self.currentTimestamp())
+                progressTracker.markNoDisplays(
+                    at: Self.currentTimestamp(),
+                    selectedDisplayIDs: displays,
+                    activeIntervalSeconds: activeInterval.seconds,
+                    failureReason: "no selected displays are currently attached"
+                )
             } else {
                 progressTracker.finishCapture(
                     at: Self.currentTimestamp(),
-                    successfulCaptures: successfulCaptures
+                    successfulCaptures: successfulCaptures,
+                    selectedDisplayIDs: displays,
+                    activeIntervalSeconds: activeInterval.seconds,
+                    failureReason: firstFailureReason
                 )
             }
             persistProgress()
             updateStatus(events.contains { if case .sealed = $0 { return true }; return false } ? "●" : "Q")
         } catch {
-            progressTracker.markError(at: Self.currentTimestamp())
+            progressTracker.markError(
+                at: Self.currentTimestamp(),
+                selectedDisplayIDs: Array(selectedDisplayIDs),
+                activeIntervalSeconds: activeInterval.seconds,
+                failureReason: "display enumeration failed: \(error)"
+            )
             persistProgress()
             print("event=skip cycle=\(cycle) reason=display_enumeration error=\(error)")
         }

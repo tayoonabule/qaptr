@@ -427,27 +427,27 @@ where
                     });
                 }
             };
-            if workflow.is_none() {
-                if let Some(candidate) = response.workflow() {
-                    let evidence = response
-                        .observations()
-                        .first()
-                        .map(|observation| {
-                            ConfidenceAssessment::scored(observation.confidence())
-                                .with_basis("Inherited from the first observed response item")
-                        })
-                        .unwrap_or_else(ConfidenceAssessment::unknown);
-                    workflow = Some(
-                        WorkflowDocument::from_candidate(
-                            &session_id,
-                            candidate,
-                            0,
-                            evidence,
-                            Some(payload.capture_id().clone()),
-                        )
-                        .map_err(AnalysisError::Workflow)?,
-                    );
-                }
+            if workflow.is_none()
+                && let Some(candidate) = response.workflow()
+            {
+                let evidence = response
+                    .observations()
+                    .first()
+                    .map(|observation| {
+                        ConfidenceAssessment::scored(observation.confidence())
+                            .with_basis("Inherited from the first observed response item")
+                    })
+                    .unwrap_or_else(ConfidenceAssessment::unknown);
+                workflow = Some(
+                    WorkflowDocument::from_candidate(
+                        &session_id,
+                        candidate,
+                        0,
+                        evidence,
+                        Some(payload.capture_id().clone()),
+                    )
+                    .map_err(AnalysisError::Workflow)?,
+                );
             }
             let remaining = self.observation_limit.saturating_sub(observations.len());
             observations.extend(

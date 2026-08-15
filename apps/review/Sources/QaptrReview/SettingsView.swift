@@ -100,6 +100,12 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(model.settings.provider == provider ? .isSelected : [])
+                .accessibilityLabel(provider.displayName)
+                .accessibilityValue(
+                    model.settings.provider == provider
+                        ? model.providerConnection.title
+                        : "Not selected"
+                )
             }
         }
     }
@@ -281,6 +287,8 @@ private struct ChoiceRail<Value: Hashable>: View {
                 }
                 .buttonStyle(.tactile)
                 .accessibilityAddTraits(selection == value ? .isSelected : [])
+                .accessibilityLabel(label(value))
+                .accessibilityValue(selection == value ? "Selected" : "Not selected")
             }
         }
         .fixedSize(horizontal: false, vertical: true)

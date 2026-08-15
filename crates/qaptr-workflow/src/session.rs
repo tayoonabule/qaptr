@@ -361,11 +361,11 @@ mod tests {
     use std::time::{Duration, UNIX_EPOCH};
 
     use qaptr_domain::clock::FixedClock;
+    use qaptr_domain::ports::PortOutcome;
     use qaptr_domain::ports::credentials::{CredentialKey, CredentialValue};
     use qaptr_domain::ports::ocr::OcrResult;
     use qaptr_domain::ports::vision::VisionResult;
     use qaptr_domain::ports::{CredentialPort, OcrPort, VisionPort};
-    use qaptr_domain::ports::PortOutcome;
     use qaptr_privacy::{PrivacyGate, measure_recall};
     use qaptr_provider::{
         ProviderDescriptor, ProviderDetection, ProviderError, ProviderGate, ProviderInvocation,

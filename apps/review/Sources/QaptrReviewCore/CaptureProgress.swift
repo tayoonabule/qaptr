@@ -113,14 +113,27 @@ public struct CaptureControlStore: Sendable {
 ///
 /// This file contains no image bytes, paths, or provider data. A missing or
 /// malformed file remains unknown rather than being turned into a made-up
-/// count.
+/// count. `version`/`revision` let the review app recognize a fresh write
+/// from the helper (including across schema upgrades) without inspecting
+/// image material. Decoding a status written by a newer schema version keeps
+/// forward-compatibility: unknown fields are ignored, and any field this
+/// build does not yet know about degrades to its safe default rather than
+/// failing the read.
 public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
+    public static let schemaVersion = 1
+
+    public let version: Int
+    public let revision: Int64
     public let state: CaptureProgressState
     public let captureCount: Int?
     public let lastCaptureAtMillis: Int64?
+    public let lastAttemptedAtMillis: Int64?
     public let startedAtMillis: Int64?
     public let updatedAtMillis: Int64?
     public let processID: Int64?
+    public let selectedDisplayIDs: [String]
+    public let activeIntervalSeconds: Int?
+    public let failureReason: String?
 
     public init(
         state: CaptureProgressState,
@@ -128,23 +141,75 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
         lastCaptureAtMillis: Int64? = nil,
         startedAtMillis: Int64? = nil,
         updatedAtMillis: Int64? = nil,
-        processID: Int64? = nil
+        processID: Int64? = nil,
+        version: Int = CaptureProgressSnapshot.schemaVersion,
+        revision: Int64 = 0,
+        lastAttemptedAtMillis: Int64? = nil,
+        selectedDisplayIDs: [String] = [],
+        activeIntervalSeconds: Int? = nil,
+        failureReason: String? = nil
     ) {
+        self.version = max(Self.schemaVersion, version)
+        self.revision = max(0, revision)
         self.state = state
         self.captureCount = captureCount
         self.lastCaptureAtMillis = lastCaptureAtMillis
+        self.lastAttemptedAtMillis = lastAttemptedAtMillis
         self.startedAtMillis = startedAtMillis
         self.updatedAtMillis = updatedAtMillis
         self.processID = processID
+        self.selectedDisplayIDs = selectedDisplayIDs
+        self.activeIntervalSeconds = activeIntervalSeconds
+        self.failureReason = failureReason
     }
 
     private enum CodingKeys: String, CodingKey {
+        case version
+        case revision
         case state
         case captureCount = "capture_count"
         case lastCaptureAtMillis = "last_capture_at_ms"
+        case lastAttemptedAtMillis = "last_attempted_at_ms"
         case startedAtMillis = "started_at_ms"
         case updatedAtMillis = "updated_at_ms"
         case processID = "process_id"
+        case selectedDisplayIDs = "selected_display_ids"
+        case activeIntervalSeconds = "active_interval_seconds"
+        case failureReason = "failure_reason"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            state: try container.decode(CaptureProgressState.self, forKey: .state),
+            captureCount: try container.decodeIfPresent(Int.self, forKey: .captureCount),
+            lastCaptureAtMillis: try container.decodeIfPresent(Int64.self, forKey: .lastCaptureAtMillis),
+            startedAtMillis: try container.decodeIfPresent(Int64.self, forKey: .startedAtMillis),
+            updatedAtMillis: try container.decodeIfPresent(Int64.self, forKey: .updatedAtMillis),
+            processID: try container.decodeIfPresent(Int64.self, forKey: .processID),
+            version: try container.decodeIfPresent(Int.self, forKey: .version) ?? Self.schemaVersion,
+            revision: try container.decodeIfPresent(Int64.self, forKey: .revision) ?? 0,
+            lastAttemptedAtMillis: try container.decodeIfPresent(Int64.self, forKey: .lastAttemptedAtMillis),
+            selectedDisplayIDs: try container.decodeIfPresent([String].self, forKey: .selectedDisplayIDs) ?? [],
+            activeIntervalSeconds: try container.decodeIfPresent(Int.self, forKey: .activeIntervalSeconds),
+            failureReason: try container.decodeIfPresent(String.self, forKey: .failureReason)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(revision, forKey: .revision)
+        try container.encode(state, forKey: .state)
+        try container.encodeIfPresent(captureCount, forKey: .captureCount)
+        try container.encodeIfPresent(lastCaptureAtMillis, forKey: .lastCaptureAtMillis)
+        try container.encodeIfPresent(lastAttemptedAtMillis, forKey: .lastAttemptedAtMillis)
+        try container.encodeIfPresent(startedAtMillis, forKey: .startedAtMillis)
+        try container.encodeIfPresent(updatedAtMillis, forKey: .updatedAtMillis)
+        try container.encodeIfPresent(processID, forKey: .processID)
+        try container.encode(selectedDisplayIDs, forKey: .selectedDisplayIDs)
+        try container.encodeIfPresent(activeIntervalSeconds, forKey: .activeIntervalSeconds)
+        try container.encodeIfPresent(failureReason, forKey: .failureReason)
     }
 
     public static let unavailable = CaptureProgressSnapshot(state: .stopped, captureCount: nil)
@@ -182,6 +247,60 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
         guard let lastCaptureAtMillis else { return nil }
         return Date(timeIntervalSince1970: Double(lastCaptureAtMillis) / 1_000)
     }
+
+    /// The six truthful capture states the review app is allowed to show.
+    /// Every combination of the raw helper `state` and derived evidence
+    /// (missing file, stale process, capture history) maps to exactly one of
+    /// these. There is no seventh "unknown but probably fine" bucket.
+    public var readiness: CaptureReadiness {
+        guard captureCount != nil else {
+            return .neverConfigured
+        }
+        switch state {
+        case .permissionRequired:
+            return .permissionDenied
+        case .error, .noDisplays:
+            return .captureFailed
+        case .capturing:
+            return helperIsRunning ? .capturing : .captureFailed
+        case .starting:
+            return .waitingForFirstTick
+        case .waiting, .stopped:
+            return (captureCount ?? 0) > 0 ? .captureReady : .waitingForFirstTick
+        }
+    }
+
+    /// A concise, actionable reason shown only for unavailable/failed states.
+    /// Returns nil when the state does not warrant a reason (e.g. capturing
+    /// normally, or already showing ready captures).
+    public var actionableReason: String? {
+        if let failureReason, !failureReason.isEmpty {
+            return failureReason
+        }
+        switch readiness {
+        case .neverConfigured:
+            return "The capture helper has not reported any status yet."
+        case .permissionDenied:
+            return "Grant Screen Recording permission in System Settings, then reopen Qaptr."
+        case .captureFailed:
+            return "The last capture attempt did not succeed."
+        case .waitingForFirstTick, .capturing, .captureReady:
+            return nil
+        }
+    }
+}
+
+/// The six truthful, mutually exclusive capture states the review app shows.
+/// This is intentionally closed: every `CaptureProgressSnapshot` maps to
+/// exactly one case through `readiness`, so the UI never needs a fallback
+/// "unknown" branch.
+public enum CaptureReadiness: Equatable, Sendable {
+    case neverConfigured
+    case permissionDenied
+    case waitingForFirstTick
+    case capturing
+    case captureFailed
+    case captureReady
 }
 
 /// Reads the helper's atomic scalar progress file.

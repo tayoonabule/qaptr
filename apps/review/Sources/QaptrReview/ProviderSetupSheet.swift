@@ -30,11 +30,13 @@ struct ProviderSetupSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .focused($keyFocused)
                 .disabled(model.providerConnection == .checking)
+                .accessibilityLabel("OpenRouter key")
 
             if case .failed(let failure) = model.providerConnection.kind {
                 Text(failure.message)
                     .font(.system(size: 12))
                     .foregroundStyle(.red)
+                    .accessibilityLabel("Connection failed: \(failure.message)")
             }
 
             HStack {
@@ -62,6 +64,5 @@ struct ProviderSetupSheet: View {
         }
         .padding(24)
         .frame(width: 420)
-        .onAppear { keyFocused = true }
     }
 }

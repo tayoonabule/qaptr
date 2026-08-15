@@ -220,3 +220,51 @@ final class CacheLifetimeTests: XCTestCase {
         XCTAssertEqual(seconds, seconds.sorted())
     }
 }
+
+/// Onboarding copy is pure and driven only by already-known local state
+/// (R-D7, KTD10). These tests assert the truthful statements checklist 5.1
+/// requires: periodic capture from the live interval, local privacy
+/// preparation, and just-in-time consent that is never granted once and
+/// forgotten.
+final class OnboardingCopyTests: XCTestCase {
+    func testPeriodicCaptureStatementReflectsTheLiveConfiguredInterval() {
+        XCTAssertEqual(
+            OnboardingCopy.periodicCaptureStatement(intervalSeconds: 60),
+            "Qaptr takes one screenshot every 1 minute."
+        )
+        XCTAssertEqual(
+            OnboardingCopy.periodicCaptureStatement(intervalSeconds: 5),
+            "Qaptr takes one screenshot every 5 seconds."
+        )
+    }
+
+    func testCaptureBoundaryStatementNamesNoProhibitedVocabulary() {
+        let statement = OnboardingCopy.captureBoundaryStatement.lowercased()
+        for banned in ["pause", "sparse", "frequency"] {
+            XCTAssertFalse(statement.contains(banned), "capture boundary copy must not use '\(banned)'")
+        }
+    }
+
+    func testLocalPreparationStatementNamesThisDeviceBeforeAnyProvider() {
+        XCTAssertTrue(OnboardingCopy.localPreparationStatement.contains("this Mac"))
+        XCTAssertTrue(OnboardingCopy.localPreparationStatement.contains("before"))
+    }
+
+    func testJustInTimeConsentStatementDisclaimsThatChoosingAProviderSendsNothing() {
+        XCTAssertTrue(OnboardingCopy.justInTimeConsentStatement.contains("does not send anything yet"))
+    }
+
+    func testProviderTransmissionStatementIsProviderAgnosticWhenNoneChosen() {
+        let statement = OnboardingCopy.providerTransmissionStatement(provider: nil)
+        for provider in ProviderChoice.allCases {
+            XCTAssertFalse(statement.contains(provider.displayName))
+        }
+        XCTAssertTrue(statement.contains("will not send anything"))
+    }
+
+    func testProviderTransmissionStatementNamesTheChosenProviderOnlyOnceSelected() {
+        let statement = OnboardingCopy.providerTransmissionStatement(provider: .openRouter)
+        XCTAssertTrue(statement.contains("OpenRouter"))
+        XCTAssertTrue(statement.contains("after you separately consent"))
+    }
+}
