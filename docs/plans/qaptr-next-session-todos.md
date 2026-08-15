@@ -18,8 +18,8 @@
 ### 0.1 Establish a reproducible local baseline
 - [ ] Refresh `graphify-out/` and capture the current affected paths before edits.
 - [ ] Record the exact app, helper, Rust workspace, and Swift package revisions under test.
-- [ ] Run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --workspace`, `cargo doc --workspace --no-deps`, and `swift test --package-path apps/helper`.
-- [ ] Run `swift test --package-path apps/review` and record any existing failures independently from new work.
+- [x] Run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --workspace`, `cargo doc --workspace --no-deps`, and `swift test --package-path apps/helper`. All commands passed on 2026-08-15 after the Vision helper cold-start correction; the helper suite ran 20 tests.
+- [x] Run `swift test --package-path apps/review` and record any existing failures independently from new work. The full review package passed 65 tests on 2026-08-15 after restoring the missing view layer; no existing test failure remains.
 - [ ] Confirm fixture inventory and document which fixture captures can exercise real local preparation.
 
 ### 0.2 Prove packaged capture behavior
