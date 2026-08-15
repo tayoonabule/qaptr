@@ -95,6 +95,30 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         XCTAssertEqual(progress.failureReason, "intermittent permission")
     }
 
+    func testUnrecognizedStateDecodesToUnknownInsteadOfFailingTheWholeSnapshot() throws {
+        let json = """
+        {
+          "state": "some_future_state_this_build_has_never_heard_of",
+          "capture_count": 4,
+          "last_capture_at_ms": 900,
+          "started_at_ms": 100,
+          "updated_at_ms": 900,
+          "process_id": 42
+        }
+        """
+        let progress = try JSONDecoder().decode(CaptureProgressSnapshot.self, from: Data(json.utf8))
+        XCTAssertEqual(progress.state, .unknown)
+        XCTAssertEqual(progress.captureCount, 4)
+        XCTAssertEqual(progress.lastCaptureAtMillis, 900)
+        // Truthful degradation: an unrecognized state is reported as
+        // unavailable, never guessed as ready or actively capturing.
+        XCTAssertEqual(progress.readiness, .captureFailed)
+        XCTAssertEqual(progress.statusLabel, "Capture status unavailable")
+        // The unknown state may in fact represent success, so it must not
+        // get the generic "capture attempt did not succeed" reason.
+        XCTAssertEqual(progress.actionableReason, "Update Qaptr to interpret the capture helper status.")
+    }
+
     func testLegacyStatusWithoutV1FieldsDecodesToSafeDefaults() throws {
         let json = """
         {"state":"waiting","capture_count":2,"last_capture_at_ms":300,"started_at_ms":100,"updated_at_ms":300,"process_id":42}

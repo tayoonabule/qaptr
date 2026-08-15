@@ -2,7 +2,12 @@ import Darwin
 import Foundation
 
 /// States written by the background capture helper.
-public enum CaptureProgressState: String, Codable, Equatable, Sendable {
+///
+/// `.unknown` exists purely for forward compatibility: if a newer helper
+/// schema writes a state string this build has never heard of, decoding
+/// degrades to `.unknown` instead of throwing and losing every other field
+/// in the snapshot. It is never written by this build.
+public enum CaptureProgressState: String, Equatable, Sendable {
     case starting
     case waiting
     case capturing
@@ -10,6 +15,19 @@ public enum CaptureProgressState: String, Codable, Equatable, Sendable {
     case noDisplays
     case error
     case stopped
+    case unknown
+}
+
+extension CaptureProgressState: Codable {
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = CaptureProgressState(rawValue: raw) ?? .unknown
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 /// The canonical interval bounds shared by the review slider and control file.
@@ -240,6 +258,8 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
             "Capture unavailable"
         case .stopped:
             "Not running"
+        case .unknown:
+            "Capture status unavailable"
         }
     }
 
@@ -267,6 +287,11 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
             return .waitingForFirstTick
         case .waiting, .stopped:
             return (captureCount ?? 0) > 0 ? .captureReady : .waitingForFirstTick
+        case .unknown:
+            // A state string this build does not recognize (e.g. written by
+            // a newer helper schema) is truthfully unavailable rather than
+            // guessed as ready or actively capturing.
+            return .captureFailed
         }
     }
 
@@ -276,6 +301,13 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
     public var actionableReason: String? {
         if let failureReason, !failureReason.isEmpty {
             return failureReason
+        }
+        if state == .unknown {
+            // An unrecognized state maps to `.captureFailed` for safety, but
+            // it may in fact represent a successful new state this build
+            // simply cannot interpret yet. Say that truthfully instead of
+            // claiming a capture attempt failed.
+            return "Update Qaptr to interpret the capture helper status."
         }
         switch readiness {
         case .neverConfigured:
