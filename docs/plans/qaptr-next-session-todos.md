@@ -2,6 +2,7 @@
 
 > Generated from [`qaptr-next-session.md`](qaptr-next-session.md) on 2026-08-15.
 > **Rule:** Close an item only with its linked test, measured evidence, or explicitly recorded external blocker. Do not represent unavailable credentials, hardware, signing identity, or permission grants as complete.
+> **HEAD audit:** Items closed on 2026-08-15 are supported by [`qaptr-next-session-head-audit-2026-08-15.md`](../reports/qaptr-next-session-head-audit-2026-08-15.md).
 
 ## Milestone guardrails
 
@@ -34,25 +35,25 @@
 ## 1. Capture status boundary
 
 ### 1.1 Define and persist production-safe status
-- [ ] Specify a shared, versioned scalar capture-status schema that contains: last attempted capture, last successful capture, successful capture count, selected display IDs, active interval, state, and concise failure reason.
-- [ ] Ensure the schema has no image bytes, image-derived thumbnails, raw window text, secrets, or provider content.
+- [x] Specify a shared, versioned scalar capture-status schema that contains: last attempted capture, last successful capture, successful capture count, selected display IDs, active interval, state, and concise failure reason.
+- [x] Ensure the schema has no image bytes, image-derived thumbnails, raw window text, secrets, or provider content.
 - [ ] Make the helper update state before an attempt, after a sealed bundle, and for every fail-closed terminal/temporary outcome.
-- [ ] Atomically write status and tolerate absent/corrupt previous status by surfacing unavailable rather than inventing success.
-- [ ] Add a monotonic status revision/timestamp so the review app can recognize a fresh helper update after relaunch.
+- [x] Atomically write status and tolerate absent/corrupt previous status by surfacing unavailable rather than inventing success.
+- [x] Add a monotonic status revision/timestamp so the review app can recognize a fresh helper update after relaunch.
 
 ### 1.2 Show truthful capture status in review
 - [ ] Decode the shared schema in `QaptrReviewCore` with forward-compatible unknown-state handling.
-- [ ] Map real state to exactly: never configured, permission denied, waiting for first tick, capturing, capture failed, and capture ready.
-- [ ] Show last successful capture and count only when a sealed bundle has actually succeeded.
+- [x] Map real state to exactly: never configured, permission denied, waiting for first tick, capturing, capture failed, and capture ready.
+- [x] Show last successful capture and count only when a sealed bundle has actually succeeded.
 - [ ] Show selected displays and configured interval from the same state/control boundary.
-- [ ] Surface one concise actionable reason for unavailable/failed states.
-- [ ] Add unit tests for absent, corrupt, stale, denied, no-display, disk-failure, waiting, and successful progress files.
+- [x] Surface one concise actionable reason for unavailable/failed states.
+- [x] Add unit tests for absent, corrupt, stale, denied, no-display, disk-failure, waiting, and successful progress files.
 
 ### 1.3 Test and package the boundary
 - [ ] Add deterministic helper tests covering every `CaptureEvent` → persisted status mapping.
-- [ ] Add review-core decoding/UI-model tests covering every visible capture state.
+- [x] Add review-core decoding/UI-model tests covering every visible capture state.
 - [ ] Add a fixture ingestion mode that creates scalar status plus sealed bundles without exposing image material to the test UI.
-- [ ] Verify the helper remains free of OCR and provider imports/calls after the change.
+- [x] Verify the helper remains free of OCR and provider imports/calls after the change.
 
 ## 2. Production review-session driver
 
@@ -67,7 +68,7 @@
 
 ### 2.2 Consent, retry, cancellation, and error semantics
 - [ ] Make consent explicit and scoped to one session immediately before the first request.
-- [ ] Verify declined consent results in zero provider invocations and leaves prepared local state non-durable except permitted scalar notices.
+- [x] Verify declined consent results in zero provider invocations and leaves prepared local state non-durable except permitted scalar notices.
 - [ ] Revalidate provider and resolved model after local preparation and before consent/request dispatch.
 - [ ] Make cancellation cooperative at ingest, preparation, consent, and between provider operations.
 - [ ] Ensure provider timeout, malformed output, or cancellation rolls back staged observations and workflows.
@@ -93,7 +94,7 @@
 ## 3. Provider readiness and model policy
 
 ### 3.1 Define typed, durable configuration
-- [ ] Add a typed, versioned `ModelPolicy` with a single current policy version and explicit fallback ordering.
+- [x] Add a typed, versioned `ModelPolicy` with a single current policy version and explicit fallback ordering.
 - [ ] Store provider choice and optional explicit model override separately from policy/default resolution.
 - [ ] Store only non-secret configuration and bounded catalog metadata. Keep the OpenRouter key solely in its Keychain credential boundary.
 - [ ] Define model-readiness statuses with a concise reason and next action: no provider, provider unavailable, authentication needed, catalog stale/unavailable, preferred unavailable with fallback, override unavailable, ready.
@@ -128,7 +129,7 @@
 ### 4.1 Real observation surfaces
 - [ ] Render cards from actual review-session observations rather than seeded/read-only history only.
 - [ ] Show title, summary, confidence band, source/session metadata, chronology, observed tools, and exclusions.
-- [ ] Mark low-confidence evidence as uncertain instead of strengthening its wording.
+- [x] Mark low-confidence evidence as uncertain instead of strengthening its wording.
 - [ ] Add honest empty states for no captures, no safely prepared captures, no observations, and analysis failure.
 
 ### 4.2 Detail and detailed capture
@@ -139,23 +140,23 @@
 - [ ] Add lifecycle tests for start, stop, helper unavailable, permission denied, and interval persistence.
 
 ### 4.3 Canonical Workflow generation
-- [ ] Generate a canonical `WorkflowDocument` from the selected observation/candidate workflow using only observed or explicitly supplied scalar material.
+- [x] Generate a canonical `WorkflowDocument` from the selected observation/candidate workflow using only observed or explicitly supplied scalar material.
 - [ ] Persist the scalar workflow summary through `qaptr-store` and make it visible after relaunch.
-- [ ] Ensure missing sequence/details remain visibly missing rather than inferred.
-- [ ] Test generation from high, low, and sparse evidence; validate stable IDs and honest confidence/provenance.
+- [x] Ensure missing sequence/details remain visibly missing rather than inferred.
+- [x] Test generation from high, low, and sparse evidence; validate stable IDs and honest confidence/provenance.
 
 ### 4.4 Four in-app exports
-- [ ] Wire canonical Workflow rendering to automation, handoff, onboarding, and SOP Markdown variants.
+- [x] Wire canonical Workflow rendering to automation, handoff, onboarding, and SOP Markdown variants.
 - [ ] Add an app-owned save/export flow that needs no developer path entry and does not launch another application, agent, or automation.
 - [ ] Write files atomically and surface cancellation/write errors truthfully.
 - [ ] Verify rendered Markdown contains no raw capture material, thumbnails, privacy placeholders, or secrets.
 - [ ] Add stable golden/snapshot tests for all four export variants, including low-confidence and sparse workflows.
-- [ ] Install/document the required snapshot tool if it is not already available in CI and local development.
+- [x] Install/document the required snapshot tool if it is not already available in CI and local development. No external tool is required: the golden tests use Rust's built-in `include_str!` assertions.
 
 ## 5. Onboarding, settings, and runtime-state UX
 
 ### 5.1 Complete real onboarding
-- [ ] Explain periodic capture, local privacy preparation, provider transmission, and just-in-time consent in fresh-user onboarding.
+- [x] Explain periodic capture, local privacy preparation, provider transmission, and just-in-time consent in fresh-user onboarding.
 - [ ] Show Screen Recording status and selected displays from live state.
 - [ ] Let the user select a provider only when readiness checks make it usable.
 - [ ] Show the validated default/resolved model at setup time where available, without pretending network validation occurred if it did not.
