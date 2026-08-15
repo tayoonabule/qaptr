@@ -107,8 +107,8 @@ extension ButtonStyle where Self == QaptrOutlineButtonStyle {
     static var qaptrOutline: QaptrOutlineButtonStyle { QaptrOutlineButtonStyle() }
 }
 
-/// Native inputs use the design system's emphasized black 1px outline rather
-/// than the platform's default gray rounded field.
+/// Native inputs keep the platform focus treatment without adding a second
+/// padded outline around the control.
 struct QaptrTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
@@ -117,10 +117,6 @@ struct QaptrTextFieldStyle: TextFieldStyle {
             .padding(.horizontal, QaptrSpace.md)
             .padding(.vertical, QaptrSpace.sm)
             .background(Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.input, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: QaptrRadius.input, style: .continuous)
-                    .strokeBorder(Color.qaptrInputBorder, lineWidth: 1)
-            }
     }
 }
 
