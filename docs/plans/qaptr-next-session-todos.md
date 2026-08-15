@@ -22,7 +22,7 @@
 - [ ] Confirm fixture inventory and document which fixture captures can exercise real local preparation.
 
 ### 0.2 Prove packaged capture behavior
-- [ ] Build the packaged helper and review app with the normal packaging entrypoint.
+- [x] Build the packaged helper and review app with the normal packaging entrypoint. `bench/scripts/packaged_fixture_smoke.sh` invokes `packaging/release.sh --dry-run` by default and validates the resulting hierarchy.
 - [ ] Install the package in an isolated local app location, with a selected display and Screen Recording permission.
 - [ ] Configure a short valid capture interval and start the helper through its login-item/product path, not from an ad hoc binary only.
 - [ ] Verify that an attempted capture updates scalar capture status.
@@ -193,7 +193,7 @@
 ### 7.1 Packaged-app coverage
 - [ ] Extend U23/release checks to require a real helper-generated capture and review-session result, not an idle app launch.
 - [ ] Verify the helper is embedded at the expected location, starts as the login item, and is visible to the review app through scalar status.
-- [ ] Add a deterministic packaged smoke fixture for environments where Screen Recording cannot be granted.
+- [x] Add a deterministic packaged smoke fixture for environments where Screen Recording cannot be granted. See [`fixtures/packaged-smoke/`](../../fixtures/packaged-smoke/) and [`docs/release-packaged-smoke.md`](../release-packaged-smoke.md). The fixture is explicitly not a substitute for real Screen Recording evidence.
 
 ### 7.2 External validation environments
 - [ ] Run clean-machine install/bootstrap and record macOS version, architecture, permission prompts, helper startup, first capture, review, analysis fixture, Workflow, and export results.
@@ -216,6 +216,13 @@
 - [ ] Update `bench/release_validation.md`, plan status, and release evidence with actual dates/results only.
 - [ ] Review the final diff for prohibited vocabulary, secret leakage, raw capture persistence, provider calls before consent, and unsupported UI optimism.
 - [ ] Commit implementation work in small, independently testable commits. Do not commit generated build output or sensitive validation artifacts.
+
+### Code/documentation evidence completed in this pass
+
+- [x] The U23 validator now runs `packaged_fixture_smoke`, so an idle review launch cannot be the only packaged-app evidence.
+- [x] `docs/release.md` documents the command, fixture contents, and the boundary between deterministic fixture proof and real helper capture proof.
+- [x] `docs/release-packaged-smoke.md` records the manual handoff needed because `bench/release_validation.md` was already user-modified and was not edited.
+- [ ] Real helper capture, clean-machine install, permissions, login-item startup, provider analysis, and distribution signing remain external blockers and are intentionally not checked off.
 
 ## External blockers that cannot be closed by code alone
 

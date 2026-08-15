@@ -342,6 +342,12 @@ run_shell_gate rust_docs "cd '$repo_root' && RUSTDOCFLAGS='-D warnings' cargo do
 run_gate macos_os_integration cargo test -p qaptr-macos -- --ignored
 run_gate helper_tests swift test --package-path "$repo_root/apps/helper"
 
+# U23 must exercise the normal nested package with a meaningful fixture. The
+# fixture is deterministic and Screen Recording-independent, but it is not
+# substituted for the separate real helper-capture gate on a permitted machine.
+run_gate packaged_fixture_smoke bash "$repo_root/bench/scripts/packaged_fixture_smoke.sh" \
+    --output-dir "$output_dir/packaged_fixture_smoke"
+
 run_real_preparation
 
 # These gates close the image provenance and review serialization claims without

@@ -135,6 +135,28 @@ TCC for Screen Recording and Accessibility, and uses app-scoped non-synchronizin
 Keychain items. None requires a broader entitlement. TCC consent is a user
 permission, not an entitlement.
 
+### Deterministic packaged fixture smoke
+
+U23 now runs the normal packaging entrypoint through a credential-free fixture
+smoke in addition to the existing build/link audits:
+
+```sh
+bash bench/scripts/packaged_fixture_smoke.sh
+```
+
+The smoke validates the nested outer/review/login-item bundle, verifies the
+committed 24-capture fixture inventory, launches the packaged review executable
+in an isolated `HOME`, and checks scalar capture progress plus a non-empty
+review-session result fixture with one prepared capture, one observation, one
+Workflow, four exports, and zero provider requests. The fixture is deliberately
+not evidence of a real Screen Recording capture or provider analysis. A real
+helper-generated sealed capture still requires the packaged helper, a selected
+display, and Screen Recording permission on a validation machine.
+
+The fixture evidence lives under `fixtures/packaged-smoke/`; it contains no new
+screenshot bytes. The generated smoke log is local evidence and must not be
+committed.
+
 To verify packaging from two clean archived checkouts after committing the
 packaging change:
 
