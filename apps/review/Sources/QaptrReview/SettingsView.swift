@@ -1,10 +1,7 @@
 import QaptrReviewCore
 import SwiftUI
 
-/// The control surface for the small number of choices that actually affect
-/// Qaptr. It deliberately uses selection rails and radio rows instead of
-/// AppKit's generic popup controls, so every option stays visible and every
-/// state change has a clear, tactile response.
+/// The control surface for the small number of choices that affect Qaptr.
 struct SettingsView: View {
     @Bindable var model: ReviewAppModel
     let showObservations: () -> Void
@@ -14,7 +11,7 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 34) {
+            VStack(alignment: .leading, spacing: 24) {
                 AppHeader(
                     title: "Settings",
                     detail: "Choose what Qaptr can use and what it must leave alone.",
@@ -27,9 +24,8 @@ struct SettingsView: View {
                 privacySection
                 exclusionsSection
             }
-            .padding(.horizontal, 40)
-            .padding(.vertical, 34)
-            .frame(maxWidth: 680, alignment: .leading)
+            .padding(24)
+            .frame(maxWidth: 620, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .background(Color.qaptrSurface)
@@ -47,7 +43,7 @@ struct SettingsView: View {
                         .font(.system(size: 15, weight: .medium))
                     Spacer()
                     Text(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
-                        .font(.system(size: 14, design: .monospaced))
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                 }
                 Slider(
@@ -122,10 +118,8 @@ struct SettingsView: View {
                 status: model.settings.accessibilityContextStatus,
                 request: model.requestAccessibilityContext
             )
-            QaptrToggle(
-                title: "Start Qaptr at login",
-                isOn: loginItemBinding
-            )
+            Toggle("Start Qaptr at login", isOn: loginItemBinding)
+                .toggleStyle(.switch)
         }
     }
 
@@ -192,17 +186,19 @@ struct AppHeader: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
+        HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(.system(size: 34, weight: .semibold, design: .serif))
+                    .font(.system(size: 26, weight: .bold))
                 Text(detail)
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 18)
-            ActionButton(title: actionTitle, action: action)
+            Button(actionTitle, action: action)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
     }
 }
@@ -217,15 +213,21 @@ private struct SettingsSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Divider().overlay(Color.qaptrRule)
+        VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+                .font(.system(size: 15, weight: .semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            Divider()
             VStack(alignment: .leading, spacing: 14) {
                 content
             }
+            .padding(16)
+        }
+        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
         }
     }
 }
@@ -240,7 +242,7 @@ private struct SettingsFact: View {
                 .font(.system(size: 15, weight: .medium))
             Spacer()
             Text(value)
-                .font(.system(size: 14, design: .monospaced))
+                .font(.system(size: 14))
                 .foregroundStyle(.secondary)
         }
     }
@@ -379,7 +381,7 @@ private struct PermissionControlRow: View {
             Spacer(minLength: 12)
             VStack(alignment: .trailing, spacing: 4) {
                 Text(status.label)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(size: 12))
                     .foregroundStyle(status == .granted ? .secondary : .tertiary)
                 if status != .granted {
                     ActionButton(title: "Request", action: request)
@@ -485,68 +487,30 @@ private struct ExclusionEditor: View {
 struct ActionButton: View {
     let title: String
     let action: () -> Void
-    @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(isHovering ? Color.qaptrAccent : Color.secondary)
-                .padding(.vertical, 5)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(isHovering ? Color.qaptrAccent : Color.primary.opacity(0.32))
-                        .frame(height: 1)
-                }
-        }
-        .buttonStyle(.tactile)
-        .onHover { isHovering = $0 }
-        .accessibilityLabel(title)
+        Button(title, action: action)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
     }
 }
 
 struct PrimaryActionButton: View {
     let title: String
     let action: () -> Void
-    @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.qaptrSurface)
-                .padding(.horizontal, 17)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isHovering ? Color.qaptrAccent : Color.primary)
-                )
-        }
-        .buttonStyle(.tactile)
-        .onHover { isHovering = $0 }
-        .accessibilityLabel(title)
+        Button(title, action: action)
+            .buttonStyle(.borderedProminent)
     }
 }
 
 struct QuietButton: View {
     let title: String
     let action: () -> Void
-    @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(isHovering ? Color.primary : Color.secondary)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 7)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color.qaptrControlFill.opacity(isHovering ? 1 : 0.55))
-                )
-        }
-        .buttonStyle(.tactile)
-        .onHover { isHovering = $0 }
-        .accessibilityLabel(title)
+        Button(title, action: action)
+            .buttonStyle(.bordered)
     }
 }
