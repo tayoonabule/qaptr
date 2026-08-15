@@ -5,6 +5,14 @@ edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+# Named by the Verification Contract's "Provider contract" row so that
+# `cargo test -p qaptr-provider-cli --features contract -- --include-ignored`
+# runs. The contract tests are always compiled; the feature exists to give
+# release validation a single documented entry point, mirroring
+# qaptr-provider's `contract` feature.
+contract = []
+
 [dependencies]
 qaptr-provider = { path = "../qaptr-provider" }
 serde_json.workspace = true
