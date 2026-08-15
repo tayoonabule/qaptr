@@ -24,8 +24,9 @@ pub use exclusions::{
     CaptureDecision, ExclusionReason, ExclusionRules, PolicyError, seal_if_allowed,
 };
 pub use model_policy::{
-    ModelAvailability, ModelId, ModelPolicy, ModelPolicyError, ModelReadiness,
-    ModelReadinessNotice, PolicyVersion, ProviderReadinessInput, resolve_model,
+    ModelAvailability, ModelCatalog, ModelId, ModelPolicy, ModelPolicyError, ModelReadiness,
+    ModelReadinessNotice, PolicyVersion, ProviderReadinessInput, resolve_from_catalog,
+    resolve_model,
 };
 pub use profile::{
     CaptureProfileLifecycle, CaptureProfileState, DetailedCaptureProfile, ProfileError,

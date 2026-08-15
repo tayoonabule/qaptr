@@ -6,7 +6,8 @@
 //! contacts a provider, and never runs before consent. Callers (the
 //! OpenRouter catalog transport, a CLI adapter's default-model lookup, or a
 //! settings UI) are responsible for producing the already-known validated
-//! model set and provider-readiness input passed to [`resolve_model`].
+//! model set and provider-readiness input passed to [`resolve_model`], or a
+//! [`ModelCatalog`] snapshot passed to [`resolve_from_catalog`].
 //!
 //! # Invariants
 //!
@@ -17,11 +18,15 @@
 //!   substituting the preferred or a fallback model.
 //! - A stale or unavailable catalog blocks resolution rather than resolving
 //!   to a possibly-wrong cached model.
-//! - [`resolve_model`] performs no I/O and requires no credential, network
-//!   client, or provider adapter.
+//! - [`ModelCatalog`] freshness is derived only through the [`qaptr_domain::Clock`]
+//!   port; a non-monotonic clock can delay recognizing staleness but never
+//!   fabricates freshness.
+//! - [`resolve_model`] and [`resolve_from_catalog`] perform no I/O and require
+//!   no credential, network client, or provider adapter.
 
-use std::fmt;
+use std::{fmt, time::SystemTime};
 
+use qaptr_domain::{Clock, Duration};
 use thiserror::Error;
 
 /// Errors returned while constructing model-policy configuration values.
@@ -166,6 +171,77 @@ impl ModelAvailability {
     /// Returns whether the supplied model was validated.
     pub fn contains(&self, model: &ModelId) -> bool {
         self.validated.contains(model)
+    }
+}
+
+/// A model catalog/configuration snapshot with a bounded freshness window.
+///
+/// This is the pure, time-based companion to [`ModelAvailability`]. Instead of
+/// requiring every caller to compute its own `catalog_fresh` boolean, a
+/// catalog transport (the OpenRouter catalog fetch, a CLI adapter's own
+/// default-model lookup) records the already-validated model list plus the
+/// instant it was fetched, and freshness is derived only through the injected
+/// [`Clock`]. This type performs no I/O, holds no credential, and contacts no
+/// provider or catalog endpoint itself.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModelCatalog {
+    validated: Vec<ModelId>,
+    fetched_at: SystemTime,
+    freshness_window: Duration,
+}
+
+impl ModelCatalog {
+    /// Creates a catalog snapshot from an already-validated model list, the
+    /// instant it was fetched, and the duration it remains usable for.
+    pub const fn new(
+        validated: Vec<ModelId>,
+        fetched_at: SystemTime,
+        freshness_window: Duration,
+    ) -> Self {
+        Self {
+            validated,
+            fetched_at,
+            freshness_window,
+        }
+    }
+
+    /// Returns whether the supplied model was validated in this snapshot.
+    pub fn contains(&self, model: &ModelId) -> bool {
+        self.validated.contains(model)
+    }
+
+    /// Returns the validated models recorded in this snapshot.
+    pub fn validated(&self) -> &[ModelId] {
+        &self.validated
+    }
+
+    /// Returns the instant this snapshot was fetched.
+    pub const fn fetched_at(&self) -> SystemTime {
+        self.fetched_at
+    }
+
+    /// Returns whether this snapshot is still within its freshness window at
+    /// the instant supplied by `clock`.
+    ///
+    /// A clock reading at or before `fetched_at` (including one that moved
+    /// backwards) is treated as stale rather than fresh, matching the
+    /// retention policy's fail-closed handling of a non-monotonic clock: it
+    /// can delay recognizing staleness but never fabricate freshness.
+    pub fn is_fresh<C: Clock>(&self, clock: &C) -> bool {
+        self.is_fresh_at(clock.now())
+    }
+
+    fn is_fresh_at(&self, now: SystemTime) -> bool {
+        match now.duration_since(self.fetched_at) {
+            Ok(age) => age < self.freshness_window.as_std(),
+            Err(_) => false,
+        }
+    }
+
+    /// Converts this snapshot into the [`ModelAvailability`] input required by
+    /// [`resolve_model`], evaluating freshness through `clock`.
+    pub fn availability<C: Clock>(&self, clock: &C) -> ModelAvailability {
+        ModelAvailability::new(self.validated.clone(), self.is_fresh(clock))
     }
 }
 
@@ -317,8 +393,31 @@ pub fn resolve_model(
     ModelReadiness::CatalogStaleOrUnavailable
 }
 
+/// Resolves a model directly from a [`ModelCatalog`] snapshot, deriving
+/// catalog freshness through `clock` before delegating to [`resolve_model`].
+///
+/// This is the integration entry point a settings UI or CLI adapter should
+/// call once it has a versioned policy, an optional override, and a catalog
+/// snapshot from its own transport. It performs no I/O itself: freshness is a
+/// pure function of the snapshot's `fetched_at` instant and the supplied
+/// clock.
+pub fn resolve_from_catalog<C: Clock>(
+    policy: &ModelPolicy,
+    override_model: Option<&ModelId>,
+    catalog: &ModelCatalog,
+    provider: ProviderReadinessInput,
+    clock: &C,
+) -> ModelReadiness {
+    let availability = catalog.availability(clock);
+    resolve_model(policy, override_model, &availability, provider)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration as StdDuration, UNIX_EPOCH};
+
+    use qaptr_domain::FixedClock;
+
     use super::*;
 
     fn model(value: &str) -> ModelId {
@@ -330,6 +429,10 @@ mod tests {
             model("preferred"),
             vec![model("fallback-1"), model("fallback-2")],
         )
+    }
+
+    fn instant(seconds: u64) -> SystemTime {
+        UNIX_EPOCH + StdDuration::from_secs(seconds)
     }
 
     #[test]
@@ -528,5 +631,112 @@ mod tests {
             }
         );
         assert!(cli_policy.fallbacks().is_empty());
+    }
+
+    #[test]
+    fn catalog_is_fresh_strictly_within_its_window() {
+        let catalog = ModelCatalog::new(
+            vec![model("preferred")],
+            instant(100),
+            Duration::from_secs(60),
+        );
+        assert!(catalog.is_fresh(&FixedClock::new(instant(100))));
+        assert!(catalog.is_fresh(&FixedClock::new(instant(159))));
+    }
+
+    #[test]
+    fn catalog_is_stale_once_the_freshness_window_elapses() {
+        let catalog = ModelCatalog::new(
+            vec![model("preferred")],
+            instant(100),
+            Duration::from_secs(60),
+        );
+        assert!(!catalog.is_fresh(&FixedClock::new(instant(160))));
+        assert!(!catalog.is_fresh(&FixedClock::new(instant(500))));
+    }
+
+    #[test]
+    fn catalog_is_stale_when_the_clock_moved_backwards() {
+        let catalog = ModelCatalog::new(
+            vec![model("preferred")],
+            instant(100),
+            Duration::from_secs(60),
+        );
+        assert!(!catalog.is_fresh(&FixedClock::new(instant(50))));
+    }
+
+    #[test]
+    fn catalog_availability_reflects_freshness_and_validated_models() {
+        let catalog = ModelCatalog::new(
+            vec![model("preferred")],
+            instant(100),
+            Duration::from_secs(60),
+        );
+        let fresh = catalog.availability(&FixedClock::new(instant(100)));
+        assert!(fresh.contains(&model("preferred")));
+        assert!(!fresh.contains(&model("other")));
+
+        let stale = catalog.availability(&FixedClock::new(instant(1_000)));
+        assert!(stale.contains(&model("preferred")));
+        assert_eq!(catalog.validated(), &[model("preferred")]);
+        assert_eq!(catalog.fetched_at(), instant(100));
+    }
+
+    #[test]
+    fn resolve_from_catalog_selects_the_preferred_model_when_fresh() {
+        let catalog = ModelCatalog::new(
+            vec![model("preferred")],
+            instant(100),
+            Duration::from_secs(60),
+        );
+        let readiness = resolve_from_catalog(
+            &policy(),
+            None,
+            &catalog,
+            ProviderReadinessInput::Ready,
+            &FixedClock::new(instant(100)),
+        );
+        assert_eq!(
+            readiness,
+            ModelReadiness::Ready {
+                model: model("preferred")
+            }
+        );
+    }
+
+    #[test]
+    fn resolve_from_catalog_blocks_resolution_once_the_catalog_is_stale() {
+        let catalog = ModelCatalog::new(
+            vec![model("preferred")],
+            instant(100),
+            Duration::from_secs(60),
+        );
+        let readiness = resolve_from_catalog(
+            &policy(),
+            None,
+            &catalog,
+            ProviderReadinessInput::Ready,
+            &FixedClock::new(instant(1_000)),
+        );
+        assert_eq!(readiness, ModelReadiness::CatalogStaleOrUnavailable);
+    }
+
+    #[test]
+    fn resolve_from_catalog_short_circuits_on_provider_readiness_before_freshness() {
+        // Even a stale catalog must not mask a NoProvider/unavailable state:
+        // provider readiness is checked first inside resolve_model.
+        let catalog = ModelCatalog::new(
+            vec![model("preferred")],
+            instant(100),
+            Duration::from_secs(60),
+        );
+        let readiness = resolve_from_catalog(
+            &policy(),
+            None,
+            &catalog,
+            ProviderReadinessInput::NoProvider,
+            &FixedClock::new(instant(1_000)),
+        );
+        assert_eq!(readiness, ModelReadiness::NoProvider);
     }
 }
