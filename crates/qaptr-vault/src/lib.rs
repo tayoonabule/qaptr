@@ -42,7 +42,7 @@ use qaptr_domain::ports::{CredentialKey, CredentialPort};
 use thiserror::Error;
 
 /// The format version written into every bundle manifest.
-pub(crate) const FORMAT_VERSION: u8 = 1;
+pub(crate) const FORMAT_VERSION: u8 = 2;
 pub(crate) const IMAGE_FILE: &str = "image.age";
 pub(crate) const CONTEXT_FILE: &str = "context.age";
 pub(crate) const ARTIFACTS_FILE: &str = "artifacts.age";
@@ -91,6 +91,9 @@ pub enum VaultError {
     /// The bundle manifest is malformed or inconsistent.
     #[error("bundle {0} has an invalid manifest")]
     InvalidManifest(String),
+    /// The capture timestamp cannot be represented in the bundle manifest.
+    #[error("bundle {0} has an invalid capture timestamp")]
+    InvalidTimestamp(String),
     /// The bundle already exists.
     #[error("bundle {0} already exists")]
     BundleExists(String),
@@ -171,6 +174,46 @@ impl Vault {
     pub fn bundle_metadata(&self, capture_id: &qaptr_domain::CaptureId) -> Result<BundleMetadata> {
         let _lock = self.lock()?;
         self.read_metadata(capture_id)
+    }
+
+    /// Returns committed bundle metadata in deterministic capture-id order.
+    ///
+    /// Incomplete temporary directories and invalid directory names are ignored.
+    /// A directory marked committed but containing an invalid manifest is
+    /// returned as an error rather than being silently hidden.
+    pub fn list_committed_bundles(&self) -> Result<Vec<BundleMetadata>> {
+        let _lock = self.lock()?;
+        let bundles = self.root.join("bundles");
+        let mut metadata = Vec::new();
+        for entry in fs::read_dir(&bundles)? {
+            let entry = entry.map_err(|source| VaultError::Io {
+                operation: "read bundle directory entry",
+                path: bundles.clone(),
+                source,
+            })?;
+            let path = entry.path();
+            if !path.is_dir()
+                || path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with('.'))
+            {
+                continue;
+            }
+            let Some(id) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            let Ok(capture_id) = qaptr_domain::CaptureId::new(id) else {
+                continue;
+            };
+            match self.read_metadata(&capture_id) {
+                Ok(bundle) => metadata.push(bundle),
+                Err(VaultError::IncompleteBundle(_)) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        metadata.sort_by(|left, right| left.capture_id.cmp(&right.capture_id));
+        Ok(metadata)
     }
 
     /// Seals a capture using only the generation public key.
@@ -343,7 +386,7 @@ impl Vault {
         )?;
         fs::atomic_write(
             &directory.join(MANIFEST_FILE),
-            input.metadata.manifest().as_bytes(),
+            input.metadata.manifest()?.as_bytes(),
         )?;
         fs::atomic_write(&directory.join(COMMITTED_FILE), b"qaptr-vault committed\n")?;
         fs::mark_excluded(directory)?;

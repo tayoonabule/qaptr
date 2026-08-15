@@ -291,6 +291,7 @@ impl Harness {
                         &BundleInput::new(
                             capture.clone(),
                             keys.generation_id().clone(),
+                            UNIX_EPOCH + Duration::from_millis(10),
                             b"test image bytes".to_vec(),
                             SampledContext::new(br#"{"application":"Editor"}"#.to_vec()),
                             Vec::new(),

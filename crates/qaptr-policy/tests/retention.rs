@@ -75,6 +75,7 @@ fn input(id: &str, generation: &GenerationId) -> BundleInput {
     BundleInput::new(
         CaptureId::new(id).expect("test capture id"),
         generation.clone(),
+        UNIX_EPOCH + StdDuration::from_secs(1),
         b"image bytes".to_vec(),
         SampledContext::new(b"context".to_vec()),
         b"derived bytes".to_vec(),
@@ -175,6 +176,7 @@ fn retention_is_idempotent_and_clock_movement_backwards_is_safe() {
     let metadata = qaptr_vault::BundleMetadata {
         capture_id: CaptureId::new("capture-policy").expect("capture id"),
         generation_id: generation.clone(),
+        captured_at: UNIX_EPOCH + StdDuration::from_secs(100),
     };
     let captured_at = UNIX_EPOCH + StdDuration::from_secs(100);
     let policy = RetentionPolicy::new(qaptr_domain::Duration::from_secs(10));

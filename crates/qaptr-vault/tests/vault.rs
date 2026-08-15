@@ -6,6 +6,7 @@ use std::{
     path::Path,
     sync::{Arc, Barrier, Mutex},
     thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use qaptr_domain::{
@@ -68,6 +69,7 @@ fn input(id: &str, generation: &GenerationId) -> BundleInput {
     BundleInput::new(
         CaptureId::new(id).expect("capture id"),
         generation.clone(),
+        UNIX_EPOCH + Duration::from_secs(42),
         b"downscaled image bytes".to_vec(),
         SampledContext::new(br#"{"application":"Editor"}"#.to_vec()),
         b"derived artifact".to_vec(),
@@ -100,6 +102,10 @@ fn seal_open_round_trip_keeps_members_encrypted() {
         )
         .expect("seal");
     let opened = vault.open(&capture, &credentials).expect("open");
+    assert_eq!(
+        opened.metadata().captured_at,
+        UNIX_EPOCH + Duration::from_secs(42)
+    );
     assert_eq!(opened.context().as_bytes(), br#"{"application":"Editor"}"#);
     assert_eq!(opened.derived_artifacts(), b"derived artifact");
 
@@ -113,6 +119,64 @@ fn seal_open_round_trip_keeps_members_encrypted() {
         );
     }
     assert!(vault.exclusions_present(&capture).expect("exclusions"));
+}
+
+#[test]
+fn committed_bundle_listing_is_sorted_and_ignores_incomplete_directories() {
+    let root = temporary_root();
+    let vault = Vault::new(root.path()).expect("vault");
+    let keys = keypair();
+    for capture_id in ["capture-z", "capture-a"] {
+        let capture = CaptureId::new(capture_id).expect("capture id");
+        vault
+            .seal(
+                &input(capture.as_str(), keys.generation_id()),
+                keys.public_key(),
+            )
+            .expect("seal");
+    }
+
+    let incomplete = root.path().join("bundles/capture-incomplete");
+    fs::create_dir(&incomplete).expect("incomplete bundle directory");
+    fs::write(incomplete.join("COMMITTED"), b"marker without members\n")
+        .expect("incomplete marker");
+    fs::create_dir(root.path().join("bundles/.capture-tmp")).expect("temporary directory");
+
+    let listed = vault.list_committed_bundles().expect("list bundles");
+    assert_eq!(
+        listed
+            .iter()
+            .map(|metadata| metadata.capture_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["capture-a", "capture-z"]
+    );
+    assert!(
+        listed
+            .iter()
+            .all(|metadata| metadata.captured_at == UNIX_EPOCH + Duration::from_secs(42))
+    );
+}
+
+#[test]
+fn capture_timestamp_before_epoch_cannot_be_sealed() {
+    let root = temporary_root();
+    let vault = Vault::new(root.path()).expect("vault");
+    let keys = keypair();
+    let capture = CaptureId::new("capture-before-epoch").expect("capture id");
+    let input = BundleInput::new(
+        capture.clone(),
+        keys.generation_id().clone(),
+        SystemTime::UNIX_EPOCH - Duration::from_secs(1),
+        b"image".to_vec(),
+        SampledContext::new(b"context".to_vec()),
+        Vec::new(),
+    );
+
+    assert!(matches!(
+        vault.seal(&input, keys.public_key()),
+        Err(VaultError::InvalidTimestamp(id)) if id == capture.to_string()
+    ));
+    assert!(!root.path().join("bundles").join(capture.as_str()).exists());
 }
 
 #[test]
@@ -187,7 +251,7 @@ fn partially_written_bundle_is_rejected_without_repair() {
     fs::write(
         path.join("manifest"),
         format!(
-            "version=1\ncapture_id={capture}\ngeneration_id={}\n",
+            "version=2\ncapture_id={capture}\ngeneration_id={}\ncaptured_at_ms=42000\n",
             keys.generation_id()
         ),
     )

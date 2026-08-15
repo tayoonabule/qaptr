@@ -1,6 +1,9 @@
 //! Bundle payload types and the on-disk manifest.
 
-use std::{fmt, str};
+use std::{
+    fmt, str,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use qaptr_domain::CaptureId;
 
@@ -42,6 +45,7 @@ impl BundleInput {
     pub fn new(
         capture_id: CaptureId,
         generation_id: crate::GenerationId,
+        captured_at: SystemTime,
         image: Vec<u8>,
         context: SampledContext,
         derived_artifacts: Vec<u8>,
@@ -50,6 +54,7 @@ impl BundleInput {
             metadata: BundleMetadata {
                 capture_id,
                 generation_id,
+                captured_at,
             },
             image,
             context,
@@ -65,14 +70,23 @@ pub struct BundleMetadata {
     pub capture_id: CaptureId,
     /// Key generation used to encrypt all members.
     pub generation_id: crate::GenerationId,
+    /// Instant at which the capture was made.
+    pub captured_at: SystemTime,
 }
 
 impl BundleMetadata {
-    pub(crate) fn manifest(&self) -> String {
-        format!(
-            "version={FORMAT_VERSION}\ncapture_id={}\ngeneration_id={}\n",
+    pub(crate) fn manifest(&self) -> crate::Result<String> {
+        let captured_at_ms = self
+            .captured_at
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| VaultError::InvalidTimestamp(self.capture_id.to_string()))?
+            .as_millis();
+        let captured_at_ms = u64::try_from(captured_at_ms)
+            .map_err(|_| VaultError::InvalidTimestamp(self.capture_id.to_string()))?;
+        Ok(format!(
+            "version={FORMAT_VERSION}\ncapture_id={}\ngeneration_id={}\ncaptured_at_ms={captured_at_ms}\n",
             self.capture_id, self.generation_id
-        )
+        ))
     }
 
     pub(crate) fn from_manifest(
@@ -84,6 +98,7 @@ impl BundleMetadata {
         let mut version = None;
         let mut capture_id = None;
         let mut generation_id = None;
+        let mut captured_at_ms = None;
         for line in manifest.lines() {
             let (key, value) = line
                 .split_once('=')
@@ -92,6 +107,7 @@ impl BundleMetadata {
                 "version" => version = value.parse::<u8>().ok(),
                 "capture_id" => capture_id = Some(value.to_owned()),
                 "generation_id" => generation_id = Some(value.to_owned()),
+                "captured_at_ms" => captured_at_ms = value.parse::<u64>().ok(),
                 _ => return Err(VaultError::InvalidManifest(expected_capture_id.to_string())),
             }
         }
@@ -108,9 +124,15 @@ impl BundleMetadata {
         let generation_id = generation_id
             .ok_or_else(|| VaultError::InvalidManifest(expected_capture_id.to_string()))?
             .parse()?;
+        let captured_at = UNIX_EPOCH
+            .checked_add(Duration::from_millis(captured_at_ms.ok_or_else(|| {
+                VaultError::InvalidManifest(expected_capture_id.to_string())
+            })?))
+            .ok_or_else(|| VaultError::InvalidManifest(expected_capture_id.to_string()))?;
         Ok(Self {
             capture_id,
             generation_id,
+            captured_at,
         })
     }
 }

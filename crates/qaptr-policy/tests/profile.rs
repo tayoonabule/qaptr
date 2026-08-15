@@ -136,6 +136,7 @@ fn excluded_application_stays_excluded_while_detailed_profile_is_active() {
     let input = BundleInput::new(
         capture.clone(),
         keys.generation_id().clone(),
+        UNIX_EPOCH + StdDuration::from_secs(100),
         b"image bytes".to_vec(),
         SampledContext::new(b"context".to_vec()),
         b"derived bytes".to_vec(),

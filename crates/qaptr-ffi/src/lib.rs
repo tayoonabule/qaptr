@@ -14,7 +14,7 @@
 
 #![allow(unsafe_code)]
 
-use std::{slice, str};
+use std::{slice, str, time::SystemTime};
 
 use qaptr_domain::CaptureId;
 use qaptr_vault::{BundleInput, GenerationId, GenerationPublicKey, SampledContext, Vault};
@@ -165,6 +165,7 @@ pub unsafe extern "C" fn qaptr_vault_seal(
     let input = BundleInput::new(
         capture_id,
         generation,
+        SystemTime::now(),
         image.to_vec(),
         SampledContext::new(context.to_vec()),
         Vec::new(),
