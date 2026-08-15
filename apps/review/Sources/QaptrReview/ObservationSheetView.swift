@@ -2,10 +2,6 @@ import QaptrReviewCore
 import SwiftUI
 
 /// The primary surface: a small, honest list of recent observations.
-///
-/// Deliberately not a dashboard. There is no grid, no card chrome, no
-/// decorative icon per row — a plain vertical list of title, summary, and an
-/// honest confidence line, closer to a note than a control panel (R-D3).
 struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
     let showSettings: () -> Void
@@ -14,7 +10,7 @@ struct ObservationSheetView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 24) {
                 header
 
                 if model.loadError != nil {
@@ -32,8 +28,8 @@ struct ObservationSheetView: View {
                     NoticesView(notices: model.snapshot.notices)
                 }
             }
-            .padding(32)
-            .frame(maxWidth: 640, alignment: .leading)
+            .padding(24)
+            .frame(maxWidth: 620, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .background(Color.qaptrSurface)
@@ -51,13 +47,13 @@ struct ObservationSheetView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 24) {
+        HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Qaptr")
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
                 Text(headerTitle)
-                    .font(.system(size: 30, weight: .semibold, design: .serif))
+                    .font(.system(size: 26, weight: .bold))
             }
             Spacer(minLength: 18)
             ActionButton(title: "Settings", action: showSettings)
@@ -79,7 +75,7 @@ struct ObservationSheetView: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                     Text(model.captureProgress.captureCount.map(String.init) ?? "Not available")
-                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 22, weight: .semibold))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Capture state")
@@ -91,13 +87,19 @@ struct ObservationSheetView: View {
             }
             if let lastCaptureDate = model.captureProgress.lastCaptureDate {
                 Text("Last capture \(lastCaptureDate, format: .dateTime.hour().minute().second())")
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
             } else {
             Text("No screenshot yet")
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
             }
+        }
+        .padding(16)
+        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
         }
     }
 
@@ -161,8 +163,8 @@ private struct ObservationRow: View {
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("\(observation.confidenceBand.label) · View detail")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                Text("Confidence: \(observation.confidenceBand.label)")
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.tertiary)
                     .padding(.top, 2)
             }
@@ -190,7 +192,7 @@ private struct ObservationDetailView: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .top) {
                 Text(observation.title)
-                    .font(.system(size: 26, weight: .semibold, design: .serif))
+                    .font(.system(size: 24, weight: .bold))
                 Spacer()
                 QuietButton(title: "Close") { dismiss() }
             }
@@ -222,8 +224,8 @@ private struct ObservationDetailView: View {
 
     private func detailLine(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(label.uppercased())
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.tertiary)
                 .frame(width: 84, alignment: .leading)
             Text(value)
