@@ -1,0 +1,30 @@
+[package]
+name = "qaptr-review-ffi"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "The narrow C ABI used by the Qaptr review app"
+
+[workspace]
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+qaptr-domain = { path = "../qaptr-domain" }
+qaptr-macos = { path = "../qaptr-macos" }
+qaptr-policy = { path = "../qaptr-policy" }
+qaptr-store = { path = "../qaptr-store" }
+qaptr-vault = { path = "../qaptr-vault" }
+serde_json = "1.0.145"
+
+[lints.rust]
+warnings = "deny"
+missing_docs = "deny"
+
+[lints.clippy]
+all = "warn"
+
+[dev-dependencies]
+tempfile = "3.23.0"
