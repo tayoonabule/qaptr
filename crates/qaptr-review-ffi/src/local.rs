@@ -6,6 +6,7 @@ use std::sync::Arc;
 use qaptr_domain::ports::ContextSnapshot;
 use qaptr_privacy::{Image, ImageOrientation, ImageRecognizer, PreparationInput};
 use qaptr_vault::{OpenedBundle, PrivacyImage};
+use qaptr_workflow::{CaptureDecoder, DecodeError};
 use thiserror::Error;
 
 use qaptr_macos::MacImageRecognizer;
@@ -53,6 +54,12 @@ impl LocalBundleDecoder {
                 .with_image(image, ImageOrientation::Up)
                 .with_image_recognizer(self.recognizer.clone()),
         )
+    }
+}
+
+impl CaptureDecoder for LocalBundleDecoder {
+    fn decode(&self, bundle: &OpenedBundle) -> std::result::Result<PreparationInput, DecodeError> {
+        Self::decode(self, bundle).map_err(|error| DecodeError::InvalidInput(error.to_string()))
     }
 }
 

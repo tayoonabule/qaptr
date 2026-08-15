@@ -19,6 +19,7 @@
 #![allow(unsafe_code)]
 
 mod bootstrap;
+mod driver;
 pub mod local;
 mod support;
 mod system;
@@ -32,6 +33,98 @@ pub use system::{
 };
 
 use support::{copy_string, read_utf8};
+
+/// An opaque app-owned review-session driver.
+pub use driver::ReviewSessionDriver;
+
+/// Opens an app-owned review-session driver.
+///
+/// The driver creates no provider adapter. It owns only the supplied vault and
+/// scalar history paths and reports provider availability truthfully at start.
+///
+/// # Safety
+///
+/// Each path pointer must reference its declared UTF-8 byte length for the
+/// duration of the call, or be null when its length is zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_review_session_open(
+    vault_root: *const u8,
+    vault_root_len: usize,
+    store_path: *const u8,
+    store_path_len: usize,
+) -> *mut ReviewSessionDriver {
+    let (Some(vault_root), Some(store_path)) =
+        (unsafe { read_utf8(vault_root, vault_root_len) }, unsafe {
+            read_utf8(store_path, store_path_len)
+        })
+    else {
+        return std::ptr::null_mut();
+    };
+    if vault_root.is_empty() || store_path.is_empty() {
+        return std::ptr::null_mut();
+    }
+    Box::into_raw(Box::new(ReviewSessionDriver::new(
+        vault_root.into(),
+        store_path.into(),
+    )))
+}
+
+/// Destroys a review-session driver returned by [`qaptr_review_session_open`].
+///
+/// # Safety
+///
+/// `handle` must be null or a live pointer returned by
+/// [`qaptr_review_session_open`] that has not already been destroyed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_review_session_destroy(handle: *mut ReviewSessionDriver) {
+    if !handle.is_null() {
+        // SAFETY: the pointer came from Box::into_raw in the open function and
+        // is consumed exactly once by this destructor.
+        unsafe { drop(Box::from_raw(handle)) };
+    }
+}
+
+/// Executes one bounded JSON v1 review-session operation.
+///
+/// Requests are objects with `version: 1` and one of `start`, `state`,
+/// `decide_consent`, `cancel`, or `retry` operations. The response contains
+/// only scalar state, counts, consent summary metadata, and allowed operation
+/// names. It never contains image bytes, credentials, provider payloads, or
+/// provider responses.
+///
+/// The return value is the required output capacity including a trailing NUL.
+/// A caller can pass a null output pointer or zero capacity to query the size.
+///
+/// # Safety
+///
+/// `handle` must be a live driver. `request` must reference `request_len`
+/// readable bytes. `output` must reference a writable buffer of
+/// `output_capacity` bytes when non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_review_session_json(
+    handle: *mut ReviewSessionDriver,
+    request: *const u8,
+    request_len: usize,
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let Some(handle) = (unsafe { handle.as_ref() }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"invalid_handle"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let Some(request) = (unsafe { support::read_bytes(request, request_len) }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"malformed_request"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let response = handle.request(request).to_string();
+    copy_string(&response, output, output_capacity)
+}
 
 const LIVE_ANALYSIS_UNAVAILABLE_REASON: &str =
     "live provider analysis is not exposed by qaptr-review-ffi";
@@ -306,6 +399,45 @@ mod tests {
         let value: Value = serde_json::from_slice(&output[..required - 1]).expect("result JSON");
         assert_eq!(value["ready"], false);
         assert_eq!(value["reason"], "bootstrap input is not valid UTF-8");
+    }
+
+    #[test]
+    fn review_session_json_v1_shape_and_malformed_request_are_scalar() {
+        let root = tempfile::tempdir().expect("temporary root");
+        let vault_path = root.path().join("vault");
+        let store_path = root.path().join("history.sqlite3");
+        let vault_bytes = vault_path.to_string_lossy().into_owned();
+        let store_bytes = store_path.to_string_lossy().into_owned();
+        let handle = unsafe {
+            qaptr_review_session_open(
+                vault_bytes.as_bytes().as_ptr(),
+                vault_bytes.len(),
+                store_bytes.as_bytes().as_ptr(),
+                store_bytes.len(),
+            )
+        };
+        assert!(!handle.is_null());
+
+        let request = br#"{"version":1,"operation":"state","unknown":true}"#;
+        let mut output = vec![0_u8; 2048];
+        let required = unsafe {
+            qaptr_review_session_json(
+                handle,
+                request.as_ptr(),
+                request.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        };
+        assert!(required > 0 && required <= output.len());
+        let value: Value = serde_json::from_slice(&output[..required - 1]).expect("response JSON");
+        assert_eq!(value["version"], 1);
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["error"], "malformed_request");
+        assert_eq!(value["state"]["phase"], "idle");
+        assert!(value.to_string().find("image_bytes").is_none());
+
+        unsafe { qaptr_review_session_destroy(handle) };
     }
 
     #[test]
