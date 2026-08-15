@@ -128,7 +128,7 @@ pub(crate) fn render_provenance(output: &mut String, provenance: &Provenance, em
     }
 }
 
-/// Replaces known redaction-token forms with a generic phrase.
+/// Replaces known redaction-token forms with natural-language prose.
 ///
 /// Exports may be shared outside Qaptr. They therefore must not repeat the
 /// class of a sanitized value such as an email, face, barcode, or API key.
@@ -174,6 +174,6 @@ pub(crate) fn safe_text(value: &str) -> String {
     SENSITIVE_MARKERS
         .iter()
         .fold(value.to_owned(), |text, marker| {
-            text.replace(marker, "[sensitive value omitted]")
+            text.replace(marker, "a sensitive value")
         })
 }

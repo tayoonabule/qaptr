@@ -149,8 +149,8 @@
 - [x] Wire canonical Workflow rendering to automation, handoff, onboarding, and SOP Markdown variants.
 - [ ] Add an app-owned save/export flow that needs no developer path entry and does not launch another application, agent, or automation.
 - [ ] Write files atomically and surface cancellation/write errors truthfully.
-- [ ] Verify rendered Markdown contains no raw capture material, thumbnails, privacy placeholders, or secrets.
-- [ ] Add stable golden/snapshot tests for all four export variants, including low-confidence and sparse workflows.
+- [x] Verify rendered Markdown contains no raw capture material, thumbnails, privacy placeholders, or secrets. Export sanitization now replaces recognized redaction markers with neutral natural-language prose rather than bracketed placeholder tokens; the export safety test rejects both the original marker and the old placeholder while all four golden exports remain stable (`cargo test -p qaptr-workflow --test export` passes 7 tests and targeted clippy passes).
+- [x] Add stable golden/snapshot tests for all four export variants, including low-confidence and sparse workflows. `all_exports_match_golden_documents` asserts automation, handoff, onboarding, and SOP Markdown against committed goldens, alongside low-confidence/sparse and byte-determinism coverage (`cargo test -p qaptr-workflow --test export` passes 7 tests and targeted clippy passes).
 - [x] Install/document the required snapshot tool if it is not already available in CI and local development. No external tool is required: the golden tests use Rust's built-in `include_str!` assertions.
 
 ## 5. Onboarding, settings, and runtime-state UX

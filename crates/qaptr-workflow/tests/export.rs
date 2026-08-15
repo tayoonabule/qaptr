@@ -189,7 +189,8 @@ fn automation_export_is_descriptive_and_redaction_safe() {
 
     assert!(rendered.contains("does not launch tools"));
     assert!(!rendered.contains("[REDACTED_API_KEY]"));
-    assert!(rendered.contains("[sensitive value omitted]"));
+    assert!(rendered.contains("a sensitive value"));
+    assert!(!rendered.contains("[sensitive value omitted]"));
     assert!(!rendered.contains("```"));
 }
 
