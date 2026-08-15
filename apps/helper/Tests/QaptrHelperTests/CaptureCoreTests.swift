@@ -146,17 +146,26 @@ final class CaptureCoreTests: XCTestCase {
         capture.onStart = { firstStarted.fulfill() }
         let firstFinished = expectation(description: "first capture finishes")
         DispatchQueue.global().async {
-            _ = coordinator.runTick(displays: ["1"], context: SampledContext(application: "Editor")) { _ in "capture-1" }
+            _ = coordinator.runTick(
+                displays: ["1"],
+                context: SampledContext(application: "Editor"),
+                capturedAtMillis: 1_000
+            ) { _ in "capture-1" }
             firstFinished.fulfill()
         }
         wait(for: [firstStarted], timeout: 1)
         XCTAssertEqual(
-            coordinator.runTick(displays: ["1"], context: SampledContext(application: "Editor")) { _ in "capture-2" },
+            coordinator.runTick(
+                displays: ["1"],
+                context: SampledContext(application: "Editor"),
+                capturedAtMillis: 1_000
+            ) { _ in "capture-2" },
             [.refusedOverlap]
         )
         capture.release()
         wait(for: [firstFinished], timeout: 1)
         XCTAssertEqual(sealer.sealed.count, 1)
+        XCTAssertEqual(sealer.capturedAtMillis, [1_000])
     }
 
     func testPermissionRevocationIsQuietlySkippedByTheCallerBoundary() {
@@ -165,6 +174,7 @@ final class CaptureCoreTests: XCTestCase {
             coordinator.runTick(
                 displays: ["1"],
                 context: SampledContext(application: "Editor"),
+                capturedAtMillis: 1_000,
                 permissionGranted: false
             ) { _ in "capture-1" },
             [.skippedPermission]
@@ -287,7 +297,11 @@ final class CaptureCoreTests: XCTestCase {
         let sealer = FailingSealer()
         let coordinator = CaptureCoordinator(capture: capture, sealer: sealer)
         XCTAssertEqual(
-            coordinator.runTick(displays: ["1"], context: SampledContext(application: "Editor")) { _ in "capture-1" },
+            coordinator.runTick(
+                displays: ["1"],
+                context: SampledContext(application: "Editor"),
+                capturedAtMillis: 1_000
+            ) { _ in "capture-1" },
             [.skippedSealing(displayID: "1", reason: "Error Domain=tests Code=1 \"intentional failure\" UserInfo={NSLocalizedDescription=intentional failure}")]
         )
     }
@@ -317,6 +331,7 @@ final class CaptureCoreTests: XCTestCase {
 
         XCTAssertEqual(result, FixtureIngestionResult(attemptedCount: 2, sealedCount: 2, failedCount: 0))
         XCTAssertEqual(sealer.sealed, ["capture-01", "capture-02"])
+        XCTAssertEqual(sealer.capturedAtMillis, [0, 600_000])
         let progress = try CaptureProgressStore(url: statusURL).read()
         XCTAssertEqual(progress.state, .waiting)
         XCTAssertEqual(progress.captureCount, 2)
@@ -381,16 +396,30 @@ private final class ImmediateCapture: ImageCapture, @unchecked Sendable {
 
 private final class RecordingSealer: BundleSealer, @unchecked Sendable {
     private(set) var sealed: [String] = []
-    func seal(captureID: String, frame: CapturedFrame, context: SampledContext) throws {
+    private(set) var capturedAtMillis: [Int64] = []
+
+    func seal(
+        captureID: String,
+        capturedAtMillis: Int64,
+        frame: CapturedFrame,
+        context: SampledContext
+    ) throws {
         _ = frame
         _ = context
         sealed.append(captureID)
+        self.capturedAtMillis.append(capturedAtMillis)
     }
 }
 
 private struct FailingSealer: BundleSealer {
-    func seal(captureID: String, frame: CapturedFrame, context: SampledContext) throws {
+    func seal(
+        captureID: String,
+        capturedAtMillis: Int64,
+        frame: CapturedFrame,
+        context: SampledContext
+    ) throws {
         _ = captureID
+        _ = capturedAtMillis
         _ = frame
         _ = context
         throw NSError(domain: "tests", code: 1, userInfo: [NSLocalizedDescriptionKey: "intentional failure"])

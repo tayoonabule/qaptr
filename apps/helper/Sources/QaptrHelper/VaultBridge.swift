@@ -15,6 +15,7 @@ private typealias SealFunction = @convention(c) (
     UnsafeMutableRawPointer,
     UnsafeRawPointer?,
     Int,
+    Int64,
     UnsafeRawPointer?,
     Int,
     UnsafeRawPointer?,
@@ -104,7 +105,12 @@ final class RustVaultSealer: BundleSealer, @unchecked Sendable {
         api.destroy(handle)
     }
 
-    func seal(captureID: String, frame: CapturedFrame, context: SampledContext) throws {
+    func seal(
+        captureID: String,
+        capturedAtMillis: Int64,
+        frame: CapturedFrame,
+        context: SampledContext
+    ) throws {
         let captureData = Data(captureID.utf8)
         let contextData = try context.encoded()
         let result = captureData.withUnsafeBytes { captureBytes in
@@ -125,6 +131,7 @@ final class RustVaultSealer: BundleSealer, @unchecked Sendable {
                                 handle,
                                 UnsafeRawPointer(captureAddress),
                                 captureData.count,
+                                capturedAtMillis,
                                 UnsafeRawPointer(generationAddress),
                                 generationID.count,
                                 UnsafeRawPointer(publicAddress),

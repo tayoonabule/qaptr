@@ -319,6 +319,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             let events = coordinator.runTick(
                 displays: displays,
                 context: context.sample(),
+                capturedAtMillis: Self.currentTimestamp(),
                 maxDimension: options.maxDimension,
                 permissionGranted: true
             ) { displayID in
@@ -434,8 +435,14 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
 private struct UnavailableSealer: BundleSealer {
     let reason: String
 
-    func seal(captureID: String, frame: CapturedFrame, context: SampledContext) throws {
+    func seal(
+        captureID: String,
+        capturedAtMillis: Int64,
+        frame: CapturedFrame,
+        context: SampledContext
+    ) throws {
         _ = captureID
+        _ = capturedAtMillis
         _ = frame
         _ = context
         throw NSError(

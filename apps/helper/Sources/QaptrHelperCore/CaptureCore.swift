@@ -206,7 +206,12 @@ public protocol ImageCapture: Sendable {
 
 /// The write-only boundary used by the helper to seal a capture.
 public protocol BundleSealer: Sendable {
-    func seal(captureID: String, frame: CapturedFrame, context: SampledContext) throws
+    func seal(
+        captureID: String,
+        capturedAtMillis: Int64,
+        frame: CapturedFrame,
+        context: SampledContext
+    ) throws
 }
 
 /// A single capture tick's observable result.
@@ -612,6 +617,7 @@ public final class CaptureCoordinator: @unchecked Sendable {
     public func runTick(
         displays: [String],
         context: SampledContext,
+        capturedAtMillis: Int64,
         maxDimension: Int = 1_920,
         permissionGranted: Bool = true,
         captureID: (String) -> String
@@ -633,7 +639,12 @@ public final class CaptureCoordinator: @unchecked Sendable {
             do {
                 let frame = try capture.capture(displayID: displayID, maxDimension: maxDimension)
                 do {
-                    try sealer.seal(captureID: id, frame: frame, context: context)
+                    try sealer.seal(
+                        captureID: id,
+                        capturedAtMillis: capturedAtMillis,
+                        frame: frame,
+                        context: context
+                    )
                     events.append(.sealed(
                         captureID: id,
                         displayID: displayID,

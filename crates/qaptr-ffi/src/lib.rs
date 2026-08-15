@@ -14,7 +14,10 @@
 
 #![allow(unsafe_code)]
 
-use std::{slice, str, time::SystemTime};
+use std::{
+    slice, str,
+    time::{Duration, UNIX_EPOCH},
+};
 
 use qaptr_domain::CaptureId;
 use qaptr_vault::{BundleInput, GenerationId, GenerationPublicKey, SampledContext, Vault};
@@ -109,7 +112,9 @@ pub unsafe extern "C" fn qaptr_vault_public_key(
 /// Seals one downscaled image and its point-in-time context.
 ///
 /// The helper must pass only a generation public key. This function has no
-/// private-key parameter by design. The return value is zero on success and a
+/// private-key parameter by design. `captured_at_ms` is the explicit Unix
+/// epoch timestamp supplied by the helper; it is written into the vault's
+/// non-sensitive bundle metadata. The return value is zero on success and a
 /// negative value on failure; call [`qaptr_vault_last_error`] for details.
 ///
 /// # Safety
@@ -122,6 +127,7 @@ pub unsafe extern "C" fn qaptr_vault_seal(
     handle: *mut QaptrVault,
     capture_id: *const u8,
     capture_id_len: usize,
+    captured_at_ms: i64,
     generation: *const u8,
     generation_len: usize,
     public_key: *const u8,
@@ -149,6 +155,13 @@ pub unsafe extern "C" fn qaptr_vault_seal(
     let Some(context) = (unsafe { read_bytes(context, context_len) }) else {
         return fail(handle, "context pointer is null");
     };
+    let Some(captured_at) = captured_at_ms
+        .try_into()
+        .ok()
+        .and_then(|milliseconds| UNIX_EPOCH.checked_add(Duration::from_millis(milliseconds)))
+    else {
+        return fail(handle, "capture timestamp is invalid");
+    };
 
     let capture_id = match CaptureId::new(capture_id) {
         Ok(value) => value,
@@ -165,7 +178,7 @@ pub unsafe extern "C" fn qaptr_vault_seal(
     let input = BundleInput::new(
         capture_id,
         generation,
-        SystemTime::now(),
+        captured_at,
         image.to_vec(),
         SampledContext::new(context.to_vec()),
         Vec::new(),
@@ -250,6 +263,7 @@ mod tests {
                 handle,
                 b"capture-1".as_ptr(),
                 b"capture-1".len(),
+                0,
                 generation.as_str().as_ptr(),
                 generation.as_str().len(),
                 b"not-a-public-key".as_ptr(),
@@ -267,6 +281,74 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .expect("bundle entries");
         assert!(entries.is_empty());
+        unsafe { qaptr_vault_destroy(handle) };
+    }
+
+    #[test]
+    fn explicit_capture_timestamp_is_written_to_bundle_manifest() {
+        let root = tempfile::tempdir().expect("temporary root");
+        let generation = GenerationId::new("generation-1").expect("generation");
+        let keypair = GenerationKeypair::generate(generation.clone());
+        let vault = Vault::new(root.path()).expect("vault");
+        vault
+            .register_public_key(&generation, keypair.public_key())
+            .expect("public key");
+        let path = root.path().to_string_lossy().into_owned();
+        let handle = unsafe { qaptr_vault_create(path.as_bytes().as_ptr(), path.len()) };
+        assert!(!handle.is_null());
+
+        let captured_at_ms = 42_123;
+        let result = unsafe {
+            qaptr_vault_seal(
+                handle,
+                b"capture-1".as_ptr(),
+                b"capture-1".len(),
+                captured_at_ms,
+                generation.as_str().as_ptr(),
+                generation.as_str().len(),
+                keypair.public_key().as_str().as_ptr(),
+                keypair.public_key().as_str().len(),
+                b"image".as_ptr(),
+                5,
+                b"{}".as_ptr(),
+                2,
+            )
+        };
+        assert_eq!(result, 0);
+        let bundle = root.path().join("bundles/capture-1");
+        let manifest = fs::read_to_string(bundle.join("manifest")).expect("manifest");
+        assert!(manifest.contains("captured_at_ms=42123\n"));
+        let encrypted_image = fs::read(bundle.join("image.age")).expect("encrypted image");
+        assert!(!encrypted_image.windows(5).any(|window| window == b"image"));
+
+        unsafe { qaptr_vault_destroy(handle) };
+    }
+
+    #[test]
+    fn negative_capture_timestamp_leaves_no_bundle() {
+        let root = tempfile::tempdir().expect("temporary root");
+        let generation = GenerationId::new("generation-1").expect("generation");
+        let path = root.path().to_string_lossy().into_owned();
+        let handle = unsafe { qaptr_vault_create(path.as_bytes().as_ptr(), path.len()) };
+        assert!(!handle.is_null());
+        let result = unsafe {
+            qaptr_vault_seal(
+                handle,
+                b"capture-1".as_ptr(),
+                b"capture-1".len(),
+                -1,
+                generation.as_str().as_ptr(),
+                generation.as_str().len(),
+                b"not-a-public-key".as_ptr(),
+                b"not-a-public-key".len(),
+                b"image".as_ptr(),
+                5,
+                b"{}".as_ptr(),
+                2,
+            )
+        };
+        assert_eq!(result, -1);
+        assert!(!root.path().join("bundles/capture-1").exists());
         unsafe { qaptr_vault_destroy(handle) };
     }
 

@@ -143,7 +143,12 @@ public enum FixtureIngestion {
 
             do {
                 let frame = try capture.capture(displayID: record.source, maxDimension: maxDimension)
-                try sealer.seal(captureID: record.captureID, frame: frame, context: context)
+                try sealer.seal(
+                    captureID: record.captureID,
+                    capturedAtMillis: record.capturedAtMillis,
+                    frame: frame,
+                    context: context
+                )
                 sealedCount += 1
                 tracker.finishCapture(
                     at: timestampMillis,
