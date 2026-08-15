@@ -42,7 +42,7 @@
 - [x] Add a monotonic status revision/timestamp so the review app can recognize a fresh helper update after relaunch.
 
 ### 1.2 Show truthful capture status in review
-- [ ] Decode the shared schema in `QaptrReviewCore` with forward-compatible unknown-state handling.
+- [x] Decode the shared schema in `QaptrReviewCore` with forward-compatible unknown-state handling. Unknown helper states decode without losing the scalar snapshot and surface an honest update/recovery message (`eb0477e`; isolated `QaptrReviewCoreTests` target builds cleanly).
 - [x] Map real state to exactly: never configured, permission denied, waiting for first tick, capturing, capture failed, and capture ready.
 - [x] Show last successful capture and count only when a sealed bundle has actually succeeded.
 - [x] Show selected displays and configured interval from the same state/control boundary. `ObservationSheetView` now renders the scalar `selectedDisplayIDs` and the helper’s active interval, falling back only to the same local interval control when no helper update exists (`35d9405`; review Swift tests pass).
