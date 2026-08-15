@@ -91,6 +91,35 @@ ion-icon {
   vertical-align: -0.12em;
 }
 
+/* Animate UI-inspired patterns, kept dependency-free for the Astro site. */
+.animate-ui-button { transition: transform 180ms var(--ease-out), background-color 180ms var(--ease-out), border-color 180ms var(--ease-out); }
+.animate-ui-button:hover { transform: scale(1.02); }
+.animate-ui-button:active { transform: scale(0.97); }
+
+.animate-ui-tabs { border: 0; background: transparent; cursor: pointer; text-align: left; transition: transform 180ms var(--ease-out), background-color 180ms var(--ease-out), color 180ms var(--ease-out); }
+.animate-ui-tabs[aria-selected="true"] { background: var(--color-blue-wash); color: var(--color-deep-sapphire); transform: translateX(0.2rem); }
+.animate-ui-tabs:active { transform: translateX(0.2rem) scale(0.98); }
+
+.animate-ui-accordion { margin-top: var(--spacing-16); border-top: 1px solid var(--color-ash); padding-top: var(--spacing-8); }
+.animate-ui-accordion summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: var(--color-charcoal); font-size: var(--text-caption); font-weight: 600; list-style: none; }
+.animate-ui-accordion summary::-webkit-details-marker { display: none; }
+.animate-ui-accordion summary::after { content: "+"; color: var(--color-electric-blue); font-size: 1rem; }
+.animate-ui-accordion[open] summary::after { content: "-"; }
+.animate-ui-accordion p { max-width: 32ch; margin-top: var(--spacing-8); color: var(--color-steel); font-size: var(--text-caption); }
+
+.animate-ui-tooltip { position: relative; }
+.animate-ui-tooltip::after { position: absolute; bottom: calc(100% + var(--spacing-8)); left: 50%; z-index: 2; width: max-content; max-width: 12rem; border-radius: var(--radius-button); background: var(--color-midnight-ink); color: var(--color-canvas-white); content: attr(data-tooltip); font-family: var(--font-inter); font-size: var(--text-caption); opacity: 0; padding: var(--spacing-4) var(--spacing-8); pointer-events: none; transform: translate(-50%, 0.25rem); transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.animate-ui-tooltip:hover::after, .animate-ui-tooltip:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+
+.animate-ui-list > * { animation: animate-ui-list-in 500ms var(--ease-out) both; }
+.animate-ui-list > *:nth-child(2) { animation-delay: 70ms; }
+.animate-ui-list > *:nth-child(3) { animation-delay: 140ms; }
+@keyframes animate-ui-list-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ui-button, .animate-ui-tabs, .animate-ui-tooltip::after, .animate-ui-list > * { animation: none; transition: none; }
+}
+
 .feature-pill ion-icon {
   color: var(--color-tangerine);
   font-size: 1.05rem;
