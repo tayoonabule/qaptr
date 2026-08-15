@@ -2,19 +2,23 @@ import QaptrReviewCore
 import SwiftUI
 
 /// The top-level window content: the Observation Sheet by default, with a
-/// small toolbar-driven switch to Settings. Reduced-motion is respected by
-/// disabling the section-switch transition.
+/// toolbar-driven switch to Settings. The two surfaces crossfade on the
+/// shared `QaptrMotion.easeOut` curve rather than sliding or springing, so
+/// switching surfaces reads as the same one continuous motion language used
+/// everywhere else in the app.
 struct ContentView: View {
     @Bindable var model: ReviewAppModel
     @State private var showsSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack {
             if showsSettings {
                 SettingsView(model: model, showObservations: toggleSurface)
+                    .transition(.opacity)
             } else {
                 ObservationSheetView(model: model, showSettings: toggleSurface)
+                    .transition(.opacity)
             }
         }
     }
@@ -23,7 +27,7 @@ struct ContentView: View {
         if reduceMotion {
             showsSettings.toggle()
         } else {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+            withAnimation(QaptrMotion.easeOut(0.22)) {
                 showsSettings.toggle()
             }
         }

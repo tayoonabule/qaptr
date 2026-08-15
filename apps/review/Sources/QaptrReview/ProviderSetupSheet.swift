@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// A small sheet to connect (or disconnect) OpenRouter with a pasted key.
+///
+/// Every string is model-driven: the connection state comes only from
+/// `ProviderConnectionState`, never a guessed or optimistic label. Checking
+/// a key never happens until the person explicitly presses Connect.
 struct ProviderSetupSheet: View {
     @Bindable var model: ReviewAppModel
     @State private var key = ""
@@ -7,24 +12,24 @@ struct ProviderSetupSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: QaptrSpace.lg) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Connect OpenRouter")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(QaptrType.headline(18))
+                        .foregroundStyle(Color.qaptrInk)
                     Text("Paste your key to check the connection.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                        .font(QaptrType.caption())
+                        .foregroundStyle(Color.qaptrInkSoft)
                 }
                 Spacer()
                 Button("Disconnect") { model.disconnectProvider() }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(.qaptrQuiet)
             }
 
             Text("Your key stays in your Mac Keychain. This check sends no screenshots or notes.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.caption())
+                .foregroundStyle(Color.qaptrInkSoft)
 
             SecureField("OpenRouter key", text: $key)
                 .textFieldStyle(.roundedBorder)
@@ -34,8 +39,8 @@ struct ProviderSetupSheet: View {
 
             if case .failed(let failure) = model.providerConnection.kind {
                 Text(failure.message)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.red)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrError)
                     .accessibilityLabel("Connection failed: \(failure.message)")
             }
 
@@ -43,26 +48,33 @@ struct ProviderSetupSheet: View {
                 if model.providerConnection == .checking {
                     ProgressView("Checking")
                         .controlSize(.small)
+                        .tint(Color.qaptrAccent)
                 } else if model.providerConnection == .connected {
-                    Label("OpenRouter is connected", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.green)
+                    HStack(spacing: QaptrSpace.xs) {
+                        Circle().fill(Color.qaptrAccent).frame(width: 6, height: 6)
+                        Text("OpenRouter is connected")
+                            .font(QaptrType.title(13))
+                            .foregroundStyle(Color.qaptrInk)
+                    }
                 }
                 Spacer()
                 Button(model.providerConnection == .connected ? "Connected" : "Connect") {
                     model.startOpenRouterConnectionCheck(key)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.qaptrPrimary)
                 .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.providerConnection == .checking)
             }
+
+            Divider().overlay(Color.qaptrHairline)
 
             HStack {
                 Spacer()
                 Button("Done") { dismiss() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.qaptrOutline)
             }
         }
-        .padding(24)
+        .padding(QaptrSpace.xl)
         .frame(width: 420)
+        .background(Color.qaptrSurface)
     }
 }

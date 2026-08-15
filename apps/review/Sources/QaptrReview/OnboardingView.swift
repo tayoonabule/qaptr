@@ -2,6 +2,12 @@ import QaptrReviewCore
 import SwiftUI
 
 /// A short, truthful setup flow for capture, privacy, and provider preference.
+///
+/// Every stage is driven purely by `OnboardingStage`/`OnboardingCopy` --
+/// forward-only, one-time, and the provider connection sheet only ever
+/// appears from the final `providerSelection` stage onward, never before.
+/// This preserves KTD10's just-in-time consent boundary: no provider is
+/// ever contacted before the person has read every earlier stage.
 struct OnboardingView: View {
     @Bindable var model: ReviewAppModel
     @State private var stage: OnboardingStage = .permissions
@@ -11,20 +17,21 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: QaptrSpace.md) {
                 progressIndicator
-                Spacer(minLength: 12)
-                Text("Step \(stage.rawValue + 1) of \(OnboardingStage.allCases.count)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: QaptrSpace.md)
+                Text("STEP \(stage.rawValue + 1) OF \(OnboardingStage.allCases.count)")
+                    .font(QaptrType.meta(10.5))
+                    .tracking(1.0)
+                    .foregroundStyle(Color.qaptrInkSoft)
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, QaptrSpace.xl)
 
             if reduceMotion {
                 stageHeader
-                content.padding(.top, 16)
+                content.padding(.top, QaptrSpace.lg)
             } else {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: QaptrSpace.lg) {
                     stageHeader
                     content
                 }
@@ -32,23 +39,22 @@ struct OnboardingView: View {
                 .transition(stageTransition)
             }
 
-            Spacer(minLength: 28)
+            Spacer(minLength: QaptrSpace.xxl)
 
             HStack {
                 if let previous = stage.previous {
-                    QuietButton(title: "Back") {
+                    Button("Back") {
                         go(to: previous, direction: .backward)
                     }
+                    .buttonStyle(.qaptrQuiet)
                 }
                 Spacer()
-                PrimaryActionButton(
-                    title: stage == .privacyConsent ? "Finish" : "Continue",
-                    action: advance
-                )
-                .disabled(stage == .privacyConsent && model.loadError != nil)
+                Button(stage == .privacyConsent ? "Finish" : "Continue", action: advance)
+                    .buttonStyle(.qaptrPrimary)
+                    .disabled(stage == .privacyConsent && model.loadError != nil)
             }
         }
-        .padding(28)
+        .padding(QaptrSpace.xxl)
         .frame(maxWidth: 560, alignment: .leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.qaptrSurface)
@@ -79,17 +85,21 @@ struct OnboardingView: View {
 
     private var stageHeader: some View {
         Text(stage.title)
-            .font(.system(size: 24, weight: .bold))
-            .foregroundStyle(.primary)
+            .font(QaptrType.display(23))
+            .foregroundStyle(Color.qaptrInk)
     }
 
+    /// A row of hairline segments, one per stage, filled with the accent as
+    /// the person advances. Replaces the previous build's opacity-only
+    /// primary-color capsules with the same three-tier language used
+    /// elsewhere (accent / ink / hairline).
     private var progressIndicator: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: QaptrSpace.xs) {
             ForEach(OnboardingStage.allCases, id: \.self) { candidate in
                 Capsule()
                     .fill(fill(for: candidate))
-                    .frame(height: candidate == stage ? 3 : 2)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: stage)
+                    .frame(height: candidate == stage ? 2.5 : 1.5)
+                    .animation(reduceMotion ? nil : QaptrMotion.easeOut(0.18), value: stage)
                     .accessibilityHidden(true)
             }
         }
@@ -101,9 +111,9 @@ struct OnboardingView: View {
         if candidate == stage {
             AnyShapeStyle(Color.qaptrAccent)
         } else if candidate.rawValue < stage.rawValue {
-            AnyShapeStyle(Color.primary.opacity(0.65))
+            AnyShapeStyle(Color.qaptrInkSoft)
         } else {
-            AnyShapeStyle(Color.primary.opacity(0.12))
+            AnyShapeStyle(Color.qaptrHairline)
         }
     }
 
@@ -127,86 +137,84 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 0) {
             PermissionRow(
                 title: "Screen Recording",
-                detail: "Qaptr needs this to take small screenshots from time to time.",
+                detail: PermissionRationale.screenRecording,
                 status: model.settings.screenRecordingStatus,
                 actionTitle: "Allow",
                 action: model.requestScreenRecording
             )
-            Divider()
-                .padding(.vertical, 4)
+            Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.md)
             PermissionRow(
                 title: "App and window names",
-                detail: "Optional. This helps Qaptr describe what you were doing. You can skip it.",
+                detail: PermissionRationale.accessibilityContext,
                 status: model.settings.accessibilityContextStatus,
                 actionTitle: "Allow",
                 action: model.requestAccessibilityContext
             )
         }
-        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
-        }
     }
 
     private var displaysStage: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
             Text("Qaptr can use all of your screens.")
-                .font(.system(size: 14, weight: .medium))
+                .font(QaptrType.title())
+                .foregroundStyle(Color.qaptrInk)
             Text("You can choose fewer screens later in Settings.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
             Text("\(model.settings.availableDisplayIDs.count) screens available")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
+                .padding(.top, QaptrSpace.xs)
         }
         .accessibilityElement(children: .combine)
     }
 
     private var captureExplanationStage: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
             Text(OnboardingCopy.periodicCaptureStatement(intervalSeconds: model.settings.intervalSeconds))
-                .font(.system(size: 14, weight: .medium))
+                .font(QaptrType.title())
+                .foregroundStyle(Color.qaptrInk)
             Text(OnboardingCopy.captureBoundaryStatement)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
         }
         .accessibilityElement(children: .combine)
     }
 
     private var providerSelectionStage: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: QaptrSpace.md) {
             Text("Choose an analysis tool, or leave this empty for capture-only mode.")
-                .font(.system(size: 14, weight: .medium))
+                .font(QaptrType.title())
+                .foregroundStyle(Color.qaptrInk)
             Text(OnboardingCopy.providerTransmissionStatement(provider: model.settings.provider))
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-            ProviderChoiceList(selection: model.settings.provider) { provider in
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
+            OnboardingProviderChoiceList(selection: model.settings.provider) { provider in
                 model.connectProvider(provider)
                 if provider == .openRouter {
                     showsProviderSetup = true
                 }
             }
-                .padding(.top, 2)
+            .padding(.top, QaptrSpace.xxs)
         }
     }
 
     private var privacyConsentStage: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
             Text("Your screenshots stay on this Mac until you approve a review.")
-                .font(.system(size: 14, weight: .medium))
+                .font(QaptrType.title())
+                .foregroundStyle(Color.qaptrInk)
             Text(OnboardingCopy.localPreparationStatement)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
             Text(OnboardingCopy.justInTimeConsentStatement)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
             if model.loadError != nil {
                 Text("Setup could not finish. Try again after reopening Qaptr.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.red)
-                    .padding(.top, 4)
+                    .font(QaptrType.title(13))
+                    .foregroundStyle(Color.qaptrError)
+                    .padding(.top, QaptrSpace.xs)
                     .accessibilityLabel("Setup error: setup could not finish. Try again after reopening Qaptr.")
             }
         }
@@ -227,7 +235,7 @@ struct OnboardingView: View {
         if reduceMotion {
             stage = next
         } else {
-            withAnimation(.easeOut(duration: 0.18)) {
+            withAnimation(QaptrMotion.easeOut(0.18)) {
                 stage = next
             }
         }
@@ -242,71 +250,67 @@ private struct PermissionRow: View {
     let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.md) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                Spacer(minLength: 8)
+                    .font(QaptrType.title(14.5))
+                    .foregroundStyle(Color.qaptrInk)
+                Spacer(minLength: QaptrSpace.sm)
                 Text(status.label)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(status == .granted ? .green : .secondary)
+                    .font(QaptrType.meta(10.5))
+                    .foregroundStyle(status == .granted ? Color.qaptrAccent : Color.qaptrInkSoft)
             }
             Text(detail)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.caption())
+                .foregroundStyle(Color.qaptrInkSoft)
                 .fixedSize(horizontal: false, vertical: true)
             if status != .granted {
-                ActionButton(title: actionTitle, action: action)
+                Button(actionTitle, action: action)
+                    .buttonStyle(.qaptrOutline)
             }
         }
-        .padding(14)
+        .padding(.vertical, QaptrSpace.sm)
         .accessibilityElement(children: .contain)
     }
 }
 
-private struct ProviderChoiceList: View {
+/// Onboarding's own provider list, distinct from the Settings list, since it
+/// carries no "not selected" affordance -- leaving a provider unset here is
+/// a legitimate capture-only choice, not an omission to correct.
+private struct OnboardingProviderChoiceList: View {
     let selection: ProviderChoice?
     let select: (ProviderChoice) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
             ForEach(ProviderChoice.allCases, id: \.self) { provider in
-                ProviderRow(provider: provider, isSelected: provider == selection) {
+                Button {
                     select(provider)
+                } label: {
+                    HStack(spacing: QaptrSpace.sm) {
+                        Circle()
+                            .strokeBorder(selection == provider ? Color.qaptrAccent : Color.qaptrHairline, lineWidth: 1.5)
+                            .frame(width: 15, height: 15)
+                            .overlay {
+                                if selection == provider {
+                                    Circle().fill(Color.qaptrAccent).frame(width: 7, height: 7)
+                                }
+                            }
+                        Text(provider.displayName)
+                            .font(QaptrType.body(14))
+                            .foregroundStyle(Color.qaptrInk)
+                        Spacer()
+                    }
+                    .padding(.vertical, QaptrSpace.xs)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.tactile)
+                .accessibilityAddTraits(selection == provider ? .isSelected : [])
+                .accessibilityLabel(provider.displayName)
+                .accessibilityValue(selection == provider ? "Selected" : "Not selected")
             }
         }
         .accessibilityElement(children: .contain)
-    }
-}
-
-private struct ProviderRow: View {
-    let provider: ProviderChoice
-    let isSelected: Bool
-    let select: () -> Void
-
-    var body: some View {
-        Button(action: select) {
-            HStack(spacing: 10) {
-                Text(isSelected ? "Selected" : "")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.qaptrAccent)
-                    .frame(width: 52, alignment: .leading)
-                Text(provider.displayName)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(.primary)
-                Spacer()
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 8)
-            .padding(.horizontal, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? Color.qaptrAccent.opacity(0.09) : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityLabel("\(provider.displayName), \(isSelected ? "selected" : "not selected")")
+        .accessibilityLabel("Provider")
     }
 }

@@ -2,6 +2,12 @@ import QaptrReviewCore
 import SwiftUI
 
 /// The control surface for the small number of choices that affect Qaptr.
+///
+/// Redesigned around the same hairline-rhythm language as the Observation
+/// Sheet: no bordered card boxes, one rule between sections, the mono meta
+/// voice for eyebrows. `showsOpenRouterKeyNotice` is a static, directly
+/// testable decision function -- its signature is a preserved contract
+/// (`SettingsViewOpenRouterReadinessTests`) and must not change shape.
 struct SettingsView: View {
     @Bindable var model: ReviewAppModel
     let showObservations: () -> Void
@@ -11,20 +17,19 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                AppHeader(
-                    title: "Settings",
-                    detail: "Choose what Qaptr can use and what it must leave alone.",
-                    actionTitle: "Observations",
-                    action: showObservations
-                )
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.xl)
 
                 captureSection
+                sectionDivider
                 analysisSection
+                sectionDivider
                 privacySection
+                sectionDivider
                 exclusionsSection
             }
-            .padding(24)
+            .padding(QaptrSpace.xl)
             .frame(maxWidth: 620, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
@@ -35,51 +40,80 @@ struct SettingsView: View {
         }
     }
 
+    private var sectionDivider: some View {
+        Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.xl)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: QaptrSpace.lg) {
+            VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+                Text("QAPTR")
+                    .font(QaptrType.meta())
+                    .tracking(1.2)
+                    .foregroundStyle(Color.qaptrInkSoft)
+                Text("Settings")
+                    .font(QaptrType.display())
+                    .foregroundStyle(Color.qaptrInk)
+                Text("Choose what Qaptr can use and what it must leave alone.")
+                    .font(QaptrType.body())
+                    .foregroundStyle(Color.qaptrInkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: QaptrSpace.lg)
+            Button("Observations", action: showObservations)
+                .buttonStyle(.qaptrOutline)
+        }
+    }
+
     private var captureSection: some View {
         SettingsSection(title: "Capture") {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: QaptrSpace.sm) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Capture interval")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(QaptrType.title())
+                        .foregroundStyle(Color.qaptrInk)
                     Spacer()
                     Text(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                        .font(QaptrType.body(13))
+                        .foregroundStyle(Color.qaptrInkSoft)
                 }
                 Slider(
                     value: captureIntervalBinding,
                     in: Double(CaptureIntervalPolicy.minimumSeconds)...Double(CaptureIntervalPolicy.maximumSeconds),
                     step: Double(CaptureIntervalPolicy.stepSeconds)
                 )
+                .tint(Color.qaptrAccent)
                 .accessibilityLabel("Capture interval")
                 .accessibilityValue(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
                 Text("Qaptr uses this time for the next screenshot. No picture is shown here.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft.opacity(0.8))
             }
             SettingsFact(label: "Displays", value: "\(model.settings.availableDisplayIDs.count) available")
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: QaptrSpace.md) {
                 Text("Keep captures for")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(QaptrType.title(13))
+                    .foregroundStyle(Color.qaptrInk)
                 ChoiceRail(
                     values: CacheLifetime.allCases,
                     selection: cacheLifetimeBinding,
                     label: \.displayName
                 )
             }
-            .padding(.top, 6)
+            .padding(.top, QaptrSpace.xs)
         }
     }
 
     private var analysisSection: some View {
         SettingsSection(title: "Analysis") {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                 Text("Connect a provider")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(QaptrType.title(13))
+                    .foregroundStyle(Color.qaptrInk)
                 Text("Qaptr checks a key before it says connected.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft)
             }
             ForEach(ProviderChoice.allCases, id: \.self) { provider in
                 Button {
@@ -88,17 +122,19 @@ struct SettingsView: View {
                 } label: {
                     HStack {
                         Text(provider.displayName)
-                            .font(.system(size: 15, weight: model.settings.provider == provider ? .semibold : .regular))
+                            .font(QaptrType.body(14.5))
+                            .foregroundStyle(Color.qaptrInk)
                         Spacer()
                         if model.settings.provider == provider {
                             Text(model.providerConnection.title)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.secondary)
+                                .font(QaptrType.meta(10.5))
+                                .foregroundStyle(Color.qaptrInkSoft)
                         }
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, QaptrSpace.sm)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
                 .accessibilityAddTraits(model.settings.provider == provider ? .isSelected : [])
                 .accessibilityLabel(provider.displayName)
                 .accessibilityValue(
@@ -143,8 +179,7 @@ struct SettingsView: View {
                 status: model.settings.accessibilityContextStatus,
                 request: model.requestAccessibilityContext
             )
-            Toggle("Start Qaptr at login", isOn: loginItemBinding)
-                .toggleStyle(.switch)
+            QaptrToggle(title: "Start Qaptr at login", isOn: loginItemBinding)
         }
     }
 
@@ -183,19 +218,6 @@ struct SettingsView: View {
         )
     }
 
-    private var providerBinding: Binding<ProviderChoice?> {
-        Binding(
-            get: { model.settings.provider },
-            set: { newValue in
-                if let newValue {
-                    model.setProvider(newValue)
-                } else {
-                    model.clearProvider()
-                }
-            }
-        )
-    }
-
     private var loginItemBinding: Binding<Bool> {
         Binding(
             get: { model.settings.loginItemEnabled },
@@ -204,30 +226,10 @@ struct SettingsView: View {
     }
 }
 
-struct AppHeader: View {
-    let title: String
-    let detail: String
-    let actionTitle: String
-    let action: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.system(size: 26, weight: .bold))
-                Text(detail)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 18)
-            Button(actionTitle, action: action)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-        }
-    }
-}
-
+/// A section of settings rows, separated from its neighbors by a hairline
+/// rather than a card border. No background fill, no corner radius, no
+/// stroke -- the section title in the mono meta voice is the only
+/// separator the eye needs.
 private struct SettingsSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
@@ -238,21 +240,14 @@ private struct SettingsSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.system(size: 15, weight: .semibold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            Divider()
-            VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+            Text(title.uppercased())
+                .font(QaptrType.meta(10.5))
+                .tracking(1.0)
+                .foregroundStyle(Color.qaptrInkSoft)
+            VStack(alignment: .leading, spacing: QaptrSpace.lg) {
                 content
             }
-            .padding(16)
-        }
-        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
         }
     }
 }
@@ -264,15 +259,18 @@ private struct SettingsFact: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
-                .font(.system(size: 15, weight: .medium))
+                .font(QaptrType.title())
+                .foregroundStyle(Color.qaptrInk)
             Spacer()
             Text(value)
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
         }
     }
 }
 
+/// A tabbed rail of choices marked by an accent underline, matching the
+/// website's own segmented-choice pattern rather than a macOS pill control.
 private struct ChoiceRail<Value: Hashable>: View {
     let values: [Value]
     @Binding var selection: Value
@@ -280,28 +278,29 @@ private struct ChoiceRail<Value: Hashable>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: QaptrSpace.xs) {
             ForEach(values, id: \.self) { value in
                 Button {
                     guard selection != value else { return }
                     if reduceMotion {
                         selection = value
                     } else {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                        withAnimation(QaptrMotion.easeOut(0.22)) {
                             selection = value
                         }
                     }
                 } label: {
-                    VStack(spacing: 6) {
+                    VStack(spacing: QaptrSpace.xs) {
                         Text(label(value))
-                            .font(.system(size: 13, weight: selection == value ? .semibold : .regular))
-                            .foregroundStyle(selection == value ? Color.primary : .secondary)
-                        Capsule()
+                            .font(QaptrType.body(13))
+                            .fontWeight(selection == value ? .semibold : .regular)
+                            .foregroundStyle(selection == value ? Color.qaptrInk : Color.qaptrInkSoft)
+                        Rectangle()
                             .fill(selection == value ? Color.qaptrAccent : .clear)
-                            .frame(height: 2)
+                            .frame(height: 1.5)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, QaptrSpace.sm)
+                    .padding(.vertical, QaptrSpace.xs)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.tactile)
@@ -315,101 +314,23 @@ private struct ChoiceRail<Value: Hashable>: View {
     }
 }
 
-struct SettingsProviderChoiceList: View {
-    @Binding var selection: ProviderChoice?
-    let includesNoSelection: Bool
-
-    init(selection: Binding<ProviderChoice?>, includesNoSelection: Bool = false) {
-        _selection = selection
-        self.includesNoSelection = includesNoSelection
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if includesNoSelection {
-                ProviderChoiceRow(
-                    title: "Not selected",
-                    isSelected: selection == nil,
-                    select: { selection = nil }
-                )
-            }
-            ForEach(ProviderChoice.allCases, id: \.self) { provider in
-                ProviderChoiceRow(
-                    title: provider.displayName,
-                    isSelected: selection == provider,
-                    select: { selection = provider }
-                )
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Provider")
-    }
-}
-
-private struct ProviderChoiceRow: View {
-    let title: String
-    let isSelected: Bool
-    let select: () -> Void
-    @State private var isHovering = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Button(action: select) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .strokeBorder(isSelected ? Color.qaptrAccent : Color.primary.opacity(0.24), lineWidth: 1.5)
-                        .frame(width: 16, height: 16)
-                    Circle()
-                        .fill(Color.qaptrAccent)
-                        .frame(width: 8, height: 8)
-                        .scaleEffect(isSelected ? 1 : 0.001)
-                        .opacity(isSelected ? 1 : 0)
-                }
-                .animation(
-                    reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.3, dampingFraction: 0.62),
-                    value: isSelected
-                )
-                Text(title)
-                    .font(.system(size: 15, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Color.primary : .secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 7)
-            .contentShape(Rectangle())
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.qaptrControlFill.opacity(isHovering ? 1 : 0))
-            )
-        }
-        .buttonStyle(.tactile)
-        .onHover { isHovering = $0 }
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
-    }
-}
-
 /// A single, concise status/recovery row shown only when OpenRouter is the
 /// selected provider and no key has been saved. It reads solely from
-/// `ProviderConnectionState`, which is derived from Keychain presence
-/// (`ProviderCredentialStoring.containsOpenRouterKey`), never from a network
-/// call. Selecting a provider must never itself validate a catalog or model;
-/// this notice states only that a key is missing and offers the one action
-/// that can resolve it (open the setup sheet), without claiming the key,
-/// once entered, has been checked against OpenRouter.
+/// `ProviderConnectionState`, derived from Keychain presence, never from a
+/// network call.
 private struct OpenRouterKeyReadinessNotice: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.md) {
             Text("OpenRouter needs a key before Qaptr can use it.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 12)
-            ActionButton(title: "Add key", action: action)
+                .font(QaptrType.caption())
+                .foregroundStyle(Color.qaptrInkSoft)
+            Spacer(minLength: QaptrSpace.md)
+            Button("Add key", action: action)
+                .buttonStyle(.qaptrOutline)
         }
-        .padding(.top, 4)
+        .padding(.top, QaptrSpace.xs)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("OpenRouter needs a key before Qaptr can use it.")
     }
@@ -422,28 +343,31 @@ private struct PermissionControlRow: View {
     let request: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .center, spacing: QaptrSpace.lg) {
+            VStack(alignment: .leading, spacing: QaptrSpace.xxs + 1) {
                 Text(title)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(QaptrType.title())
+                    .foregroundStyle(Color.qaptrInk)
                 Text(detail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft)
             }
-            Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 4) {
+            Spacer(minLength: QaptrSpace.md)
+            VStack(alignment: .trailing, spacing: QaptrSpace.xs) {
                 Text(status.label)
-                    .font(.system(size: 12))
-                    .foregroundStyle(status == .granted ? .secondary : .tertiary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(status == .granted ? Color.qaptrInkSoft : Color.qaptrInkSoft.opacity(0.65))
                 if status != .granted {
-                    ActionButton(title: "Request", action: request)
+                    Button("Request", action: request)
+                        .buttonStyle(.qaptrOutline)
                 }
             }
         }
-        .padding(.vertical, 2)
     }
 }
 
+/// A minimal switch drawn from the shared token set, replacing AppKit's
+/// stock `Toggle` so its color and motion match every other control.
 private struct QaptrToggle: View {
     let title: String
     var detail: String? = nil
@@ -455,35 +379,29 @@ private struct QaptrToggle: View {
             if reduceMotion {
                 isOn.toggle()
             } else {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.7)) {
+                withAnimation(QaptrMotion.easeOut(0.2)) {
                     isOn.toggle()
                 }
             }
         } label: {
-            HStack(alignment: .center, spacing: 10) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isOn ? Color.qaptrAccent : Color.qaptrControlFill)
-                    .frame(width: 24, height: 24)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(isOn ? Color.qaptrAccent : Color.primary.opacity(0.16), lineWidth: 1)
+            HStack(alignment: .center, spacing: QaptrSpace.md) {
+                Capsule()
+                    .fill(isOn ? Color.qaptrAccent : Color.qaptrHairline)
+                    .frame(width: 30, height: 17)
+                    .overlay(alignment: isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(Color.qaptrSurface)
+                            .frame(width: 13, height: 13)
+                            .padding(2)
                     }
-                    .overlay {
-                        if isOn {
-                            Circle()
-                                .fill(Color.qaptrSurface)
-                                .frame(width: 8, height: 8)
-                                .transition(.scale.combined(with: .opacity))
-                        }
-                    }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text(title)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.primary)
+                        .font(QaptrType.title())
+                        .foregroundStyle(Color.qaptrInk)
                     if let detail {
                         Text(detail)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(QaptrType.caption())
+                            .foregroundStyle(Color.qaptrInkSoft)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -505,26 +423,30 @@ private struct ExclusionEditor: View {
     let remove: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: QaptrSpace.md) {
             Text(title)
-                .font(.system(size: 14, weight: .medium))
+                .font(QaptrType.title(13))
+                .foregroundStyle(Color.qaptrInk)
 
             ForEach(entries, id: \.self) { entry in
                 HStack {
                     Text(entry)
-                        .font(.system(size: 14))
+                        .font(QaptrType.body())
+                        .foregroundStyle(Color.qaptrInk)
                     Spacer()
-                    ActionButton(title: "Remove") { remove(entry) }
+                    Button("Remove") { remove(entry) }
+                        .buttonStyle(.qaptrQuiet)
                 }
-                .padding(.vertical, 2)
+                .padding(.vertical, QaptrSpace.xxs)
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: QaptrSpace.md) {
                 TextField(placeholder, text: $newValue)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel(title)
                     .onSubmit(addEntry)
-                ActionButton(title: "Add", action: addEntry)
+                Button("Add", action: addEntry)
+                    .buttonStyle(.qaptrOutline)
                     .disabled(newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
@@ -533,36 +455,5 @@ private struct ExclusionEditor: View {
     private func addEntry() {
         add(newValue)
         newValue = ""
-    }
-}
-
-struct ActionButton: View {
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(title, action: action)
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-    }
-}
-
-struct PrimaryActionButton: View {
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(title, action: action)
-            .buttonStyle(.borderedProminent)
-    }
-}
-
-struct QuietButton: View {
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(title, action: action)
-            .buttonStyle(.bordered)
     }
 }

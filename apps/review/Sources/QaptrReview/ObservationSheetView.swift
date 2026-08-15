@@ -2,6 +2,11 @@ import QaptrReviewCore
 import SwiftUI
 
 /// The primary surface: a small, honest list of recent observations.
+///
+/// The redesign trades the previous build's bordered card boxes for a single
+/// hairline rhythm -- one rule between every section, matching the
+/// website's own section dividers. Nothing here is boxed; the page reads as
+/// one continuous column, the way Linear and Apple's own utility windows do.
 struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
     let showSettings: () -> Void
@@ -10,27 +15,33 @@ struct ObservationSheetView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 0) {
                 header
+                Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.xl)
 
                 reviewStatusSummary
 
                 if model.loadError != nil {
                     ErrorStateView(retry: model.refresh)
+                        .padding(.top, QaptrSpace.lg)
                 } else {
                     captureProgress
+                        .padding(.top, QaptrSpace.lg)
                     if model.snapshot.observations.isEmpty {
                         EmptyStateView(progress: model.captureProgress)
+                            .padding(.top, QaptrSpace.xl)
                     } else {
+                        Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.xl)
                         observationList
                     }
                 }
 
                 if !model.snapshot.notices.isEmpty {
                     NoticesView(notices: model.snapshot.notices)
+                        .padding(.top, QaptrSpace.xl)
                 }
             }
-            .padding(24)
+            .padding(QaptrSpace.xl)
             .frame(maxWidth: 620, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
@@ -49,16 +60,19 @@ struct ObservationSheetView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Qaptr")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: QaptrSpace.lg) {
+            VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+                Text("QAPTR")
+                    .font(QaptrType.meta())
+                    .tracking(1.2)
+                    .foregroundStyle(Color.qaptrInkSoft)
                 Text(headerTitle)
-                    .font(.system(size: 26, weight: .bold))
+                    .font(QaptrType.display())
+                    .foregroundStyle(Color.qaptrInk)
             }
-            Spacer(minLength: 18)
-            ActionButton(title: "Settings", action: showSettings)
+            Spacer(minLength: QaptrSpace.lg)
+            Button("Settings", action: showSettings)
+                .buttonStyle(.qaptrOutline)
         }
     }
 
@@ -70,42 +84,38 @@ struct ObservationSheetView: View {
     }
 
     private var captureProgress: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 28) {
-                VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.xxl) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Screenshots captured")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(QaptrType.meta())
+                        .foregroundStyle(Color.qaptrInkSoft)
                     Text(model.captureProgress.captureCount.map(String.init) ?? "Not available")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(QaptrType.headline(21))
+                        .foregroundStyle(Color.qaptrInk)
                 }
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Capture state")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(QaptrType.meta())
+                        .foregroundStyle(Color.qaptrInkSoft)
                     Text(model.captureProgress.statusLabel)
-                        .font(.system(size: 13))
+                        .font(QaptrType.body())
+                        .foregroundStyle(Color.qaptrInk)
                 }
             }
             if let lastCaptureDate = model.captureProgress.lastCaptureDate {
                 Text("Last capture \(lastCaptureDate, format: .dateTime.hour().minute().second())")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft)
             } else {
                 Text("No screenshot yet")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft)
             }
             Text(captureConfigurationSummary)
-                .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+                .font(QaptrType.caption())
+                .foregroundStyle(Color.qaptrInkSoft)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(16)
-        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
         }
     }
 
@@ -118,40 +128,35 @@ struct ObservationSheetView: View {
         return "\(displaySummary) · Every \(interval) seconds"
     }
 
+    @ViewBuilder
     private var reviewStatusSummary: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let status = model.reviewStatus {
-                VStack(alignment: .leading, spacing: 3) {
+        if let status = model.reviewStatus {
+            VStack(alignment: .leading, spacing: QaptrSpace.md) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Durable history")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(QaptrType.title())
+                        .foregroundStyle(Color.qaptrInk)
                     Text(historySummary(status.reviewSession))
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                        .font(QaptrType.body(13))
+                        .foregroundStyle(Color.qaptrInkSoft)
                 }
-
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Live analysis unavailable")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(QaptrType.title())
+                        .foregroundStyle(Color.qaptrInk)
                     Text(status.analysis.reason ?? "Live provider analysis is not available here.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                        .font(QaptrType.body(13))
+                        .foregroundStyle(Color.qaptrInkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            } else if model.reviewStatusError != nil {
-                Text("History status unavailable. Saved observations may still be shown.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
+        } else if model.reviewStatusError != nil {
+            Text("History status unavailable. Saved observations may still be shown.")
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInkSoft)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
-        }
-        .accessibilityElement(children: .combine)
     }
 
     private func historySummary(_ session: ReviewSessionStatus) -> String {
@@ -161,7 +166,7 @@ struct ObservationSheetView: View {
     }
 
     private var observationList: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: QaptrSpace.lg) {
             ForEach(Array(model.snapshot.recentObservations.enumerated()), id: \.element.id) { index, observation in
                 ObservationRow(
                     observation: observation,
@@ -169,7 +174,9 @@ struct ObservationSheetView: View {
                     reduceMotion: reduceMotion,
                     select: { selectedObservation = observation }
                 )
-                Divider()
+                if observation.id != model.snapshot.recentObservations.last?.id {
+                    Divider().overlay(Color.qaptrHairline)
+                }
             }
         }
     }
@@ -189,18 +196,12 @@ private struct ObservationRow: View {
     /// per row *identity* via the initializer below, not recomputed from a
     /// parent-level flag on every render.
     ///
-    /// An earlier version gated the stagger on a shared `hasPlayedEntrance`
-    /// flag flipped in the sheet's own `.onAppear`. Because
-    /// `ReviewAppModel.refresh()` is synchronous, that flip landed in the
-    /// same render pass as the data load, so by the time `observationList`
-    /// first rendered with real rows the flag was already `true` and no row
-    /// ever animated on a genuine app launch. `@State`'s initial value is
-    /// evaluated exactly once per SwiftUI identity (here, `observation.id`
-    /// via `ForEach`), so seeding `hasAppeared` from `reduceMotion` in
-    /// `init` gives every row that appears for the first time an honest,
-    /// un-interruptible entrance, while a row whose identity SwiftUI already
-    /// knows about (an unrelated re-render, e.g. a settings-driven refresh)
-    /// keeps its already-settled state and does not replay or snap.
+    /// `@State`'s initial value is evaluated exactly once per SwiftUI
+    /// identity (here, `observation.id` via `ForEach`), so seeding
+    /// `hasAppeared` from `reduceMotion` in `init` gives every row that
+    /// appears for the first time an honest, un-interruptible entrance,
+    /// while a row whose identity SwiftUI already knows about (an unrelated
+    /// re-render) keeps its already-settled state and does not replay.
     @State private var hasAppeared: Bool
 
     init(observation: QaptrObservation, index: Int, reduceMotion: Bool, select: @escaping () -> Void) {
@@ -213,17 +214,18 @@ private struct ObservationRow: View {
 
     var body: some View {
         Button(action: select) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(observation.title)
-                    .font(.system(size: 17, weight: .semibold))
+            VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(observation.title)
+                        .font(QaptrType.title(15))
+                        .foregroundStyle(Color.qaptrInk)
+                    Spacer(minLength: QaptrSpace.md)
+                    ConfidenceTag(band: observation.confidenceBand)
+                }
                 Text(observation.summary)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+                    .font(QaptrType.body())
+                    .foregroundStyle(Color.qaptrInkSoft)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Confidence: \(observation.confidenceBand.label)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -233,10 +235,21 @@ private struct ObservationRow: View {
         .offset(y: hasAppeared ? 0 : 4)
         .onAppear {
             guard !reduceMotion, !hasAppeared else { return }
-            withAnimation(.easeOut(duration: 0.24).delay(Double(index) * 0.04)) {
+            withAnimation(QaptrMotion.easeOut(0.24).delay(Double(index) * 0.04)) {
                 hasAppeared = true
             }
         }
+    }
+}
+
+/// A quiet, mono-set confidence label. Never rounds an honest low score up.
+private struct ConfidenceTag: View {
+    let band: ConfidenceBand
+
+    var body: some View {
+        Text(band.label)
+            .font(QaptrType.meta(10.5))
+            .foregroundStyle(band == .high ? Color.qaptrAccent : Color.qaptrInkSoft)
     }
 }
 
@@ -246,20 +259,24 @@ private struct ObservationDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: QaptrSpace.xl) {
             HStack(alignment: .top) {
                 Text(observation.title)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(QaptrType.headline(22))
+                    .foregroundStyle(Color.qaptrInk)
                 Spacer()
-                QuietButton(title: "Close") { dismiss() }
+                Button("Close") { dismiss() }
+                    .buttonStyle(.qaptrQuiet)
             }
 
             Text(observation.summary)
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.body(14.5))
+                .foregroundStyle(Color.qaptrInkSoft)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: 8) {
+            Divider().overlay(Color.qaptrHairline)
+
+            VStack(alignment: .leading, spacing: QaptrSpace.sm) {
                 detailLine("Confidence", observation.confidenceBand.label)
                 detailLine("Session", observation.sessionID)
                 detailLine("Capture", observation.captureID ?? "Source capture expired")
@@ -271,40 +288,41 @@ private struct ObservationDetailView: View {
             }
 
             Text("This view contains only durable scalar history. It does not open or export the original screenshot.")
-                .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+                .font(QaptrType.caption())
+                .foregroundStyle(Color.qaptrInkSoft)
         }
-        .padding(32)
-        .frame(width: 520, alignment: .leading)
+        .padding(QaptrSpace.xxl)
+        .frame(width: 480, alignment: .leading)
         .background(Color.qaptrSurface)
     }
 
     private func detailLine(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.md) {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .frame(width: 84, alignment: .leading)
+                .font(QaptrType.meta(10.5))
+                .foregroundStyle(Color.qaptrInkSoft)
+                .frame(width: 80, alignment: .leading)
             Text(value)
-                .font(.system(size: 13))
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInk)
                 .textSelection(.enabled)
         }
     }
 }
 
-/// The Granola-level empty state: quiet, no illustration, no call to action
-/// that would suggest launching anything.
+/// A quiet empty state: no illustration, no call to action that would
+/// suggest launching anything.
 private struct EmptyStateView: View {
     let progress: CaptureProgressSnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
             Text(title)
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
+                .font(QaptrType.body(14))
+                .foregroundStyle(Color.qaptrInkSoft)
             Text(detail)
-                .font(.system(size: 13))
-                .foregroundStyle(.tertiary)
+                .font(QaptrType.caption())
+                .foregroundStyle(Color.qaptrInkSoft.opacity(0.75))
         }
     }
 
@@ -336,17 +354,19 @@ private struct ErrorStateView: View {
     let retry: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: QaptrSpace.md) {
             Text("Qaptr is not ready yet.")
-                .font(.system(size: 16, weight: .medium))
+                .font(QaptrType.title(15))
+                .foregroundStyle(Color.qaptrInk)
             Text("Check that Qaptr is open, then try again.")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                ActionButton(title: "Try again", action: retry)
+                .font(QaptrType.body())
+                .foregroundStyle(Color.qaptrInkSoft)
+            HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.md) {
+                Button("Try again", action: retry)
+                    .buttonStyle(.qaptrOutline)
                 Text("If this keeps happening, open Settings to check your setup.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft.opacity(0.75))
             }
         }
     }
@@ -357,13 +377,12 @@ private struct NoticesView: View {
     let notices: [ExclusionNotice]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: QaptrSpace.xs) {
             ForEach(notices) { notice in
                 Text(notice.text)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft.opacity(0.75))
             }
         }
-        .padding(.top, 8)
     }
 }
