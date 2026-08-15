@@ -110,6 +110,10 @@ enum QaptrSpace {
     static let xxxl: CGFloat = 56
 }
 
+enum QaptrControlMetrics {
+    static let height: CGFloat = 44
+}
+
 /// A crisp system sans display voice with a system sans body voice. The native
 /// app should feel precise and editorial, not soft or toy-like.
 enum QaptrType {

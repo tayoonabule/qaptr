@@ -61,9 +61,7 @@ struct ContentView: View {
       Spacer()
 
       VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-        Capsule()
-          .fill(Color.qaptrSignalGradient)
-          .frame(height: 4)
+        CaptureSignalBar(isActive: model.captureProgress.helperIsRunning)
         Text(model.captureProgress.helperIsRunning ? "CAPTURE LIVE" : "CAPTURE PAUSED")
           .font(QaptrType.meta(9))
           .tracking(0.7)
@@ -91,13 +89,6 @@ struct ContentView: View {
           selected ? Color.qaptrAccentTint : Color.clear,
           in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
         )
-        .overlay(alignment: .leading) {
-          if selected {
-            Capsule()
-              .fill(Color.qaptrAccent)
-              .frame(width: 3)
-          }
-        }
     }
     .buttonStyle(.plain)
     .accessibilityAddTraits(selected ? .isSelected : [])
@@ -111,6 +102,43 @@ struct ContentView: View {
         showsSettings = settings
       }
     }
+  }
+}
+
+struct CaptureSignalBar: View {
+  let isActive: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+      let cycle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.6) / 3.6
+      let breathing = isActive && !reduceMotion ? 1 + (sin(cycle * .pi * 2) * 0.07) : 1
+      let shimmer = isActive && !reduceMotion ? cycle : 0
+
+      Capsule()
+        .fill(Color.qaptrSignalGradient)
+        .frame(height: 4)
+        .scaleEffect(y: breathing, anchor: .center)
+        .opacity(isActive ? 1 : 0.5)
+        .overlay {
+          GeometryReader { proxy in
+            Capsule()
+              .fill(
+                LinearGradient(
+                  colors: [.clear, Color.white.opacity(isActive ? 0.65 : 0), .clear],
+                  startPoint: .leading,
+                  endPoint: .trailing
+                )
+              )
+              .frame(width: proxy.size.width * 0.38)
+              .offset(x: ((shimmer * 1.65) - 0.38) * proxy.size.width)
+          }
+          .clipShape(Capsule())
+        }
+        .animation(.easeInOut(duration: 0.2), value: isActive)
+    }
+    .frame(height: 8)
+    .accessibilityLabel(isActive ? "Capture live" : "Capture paused")
   }
 }
 

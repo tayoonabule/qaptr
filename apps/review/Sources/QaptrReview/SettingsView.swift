@@ -98,34 +98,27 @@ struct SettingsView: View {
           Text(category.rawValue)
             .font(QaptrType.body(12.5))
             .fontWeight(selectedCategory == category ? .semibold : .regular)
-          .foregroundStyle(selectedCategory == category ? Color.qaptrInk : Color.qaptrInkSoft)
+          .foregroundStyle(selectedCategory == category ? Color.qaptrSurface : Color.qaptrInkSoft)
           .padding(.horizontal, QaptrSpace.sm)
           .padding(.vertical, QaptrSpace.sm)
           .background(
-            selectedCategory == category ? Color.qaptrAccentTint : Color.clear,
+            selectedCategory == category ? Color.qaptrPrimaryAction : Color.clear,
             in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
           )
-          .overlay(alignment: .leading) {
-            if selectedCategory == category {
-              Capsule()
-                .fill(Color.qaptrAccent)
-                .frame(width: 3)
-            }
-          }
           .contentShape(Rectangle())
-        }
-        .buttonStyle(.tactile)
+      }
+      .buttonStyle(.tactile)
         .accessibilityAddTraits(selectedCategory == category ? .isSelected : [])
         .accessibilityLabel(category.rawValue)
         .accessibilityValue(selectedCategory == category ? "Selected" : "Not selected")
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(QaptrSpace.xs)
-    .background(Color.qaptrPaperMist.opacity(0.5), in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
-    .overlay {
-      RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-        .strokeBorder(Color.qaptrHairline, lineWidth: 1)
+    .padding(.bottom, QaptrSpace.xs)
+    .overlay(alignment: .bottom) {
+      Rectangle()
+        .fill(Color.qaptrHairline)
+        .frame(height: 1)
     }
   }
 
@@ -283,13 +276,6 @@ struct SettingsView: View {
     .accessibilityAddTraits(selected ? .isSelected : [])
     .accessibilityLabel(provider.displayName)
     .accessibilityValue(selected ? model.providerConnection.title : "Not selected")
-    .overlay(alignment: .leading) {
-      if selected {
-        Rectangle()
-          .fill(Color.qaptrAccent)
-          .frame(width: 3)
-      }
-    }
     .contextMenu {
       if provider == .openRouter && selected && showsOpenRouterChangeKeyAction {
         Button("Change key") {
@@ -721,12 +707,12 @@ private struct ExclusionEditor: View {
       HStack(spacing: QaptrSpace.md) {
         TextField(placeholder, text: $newValue)
           .textFieldStyle(.qaptr)
-          .frame(height: 36)
+          .frame(height: QaptrControlMetrics.height)
           .accessibilityLabel(title)
           .onSubmit(addEntry)
         Button("Add", action: addEntry)
           .buttonStyle(.qaptrOutline)
-          .frame(height: 36)
+          .frame(height: QaptrControlMetrics.height)
           .disabled(newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
     }

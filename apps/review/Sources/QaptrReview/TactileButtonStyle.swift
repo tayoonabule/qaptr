@@ -112,6 +112,7 @@ extension ButtonStyle where Self == QaptrOutlineButtonStyle {
 struct QaptrTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
+            .textFieldStyle(.plain)
             .font(QaptrType.body())
             .foregroundStyle(Color.qaptrInk)
             .padding(.horizontal, QaptrSpace.md)

@@ -60,9 +60,7 @@ struct ObservationSheetView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: QaptrSpace.md) {
-            Capsule()
-                .fill(Color.qaptrSignalGradient)
-                .frame(height: 4)
+            CaptureSignalBar(isActive: model.captureProgress.helperIsRunning)
             VStack(alignment: .leading, spacing: QaptrSpace.xs) {
                 HStack(spacing: QaptrSpace.xs) {
                     Circle()
@@ -73,10 +71,6 @@ struct ObservationSheetView: View {
                         .tracking(1.2)
                         .foregroundStyle(Color.qaptrInkSoft)
                 }
-                Text("REVIEW WORKSPACE")
-                    .font(QaptrType.meta(10.5))
-                    .tracking(1.2)
-                    .foregroundStyle(Color.qaptrInkMuted)
                 Text(headerTitle)
                     .font(QaptrType.editorial(38))
                     .foregroundStyle(Color.qaptrInk)
@@ -84,24 +78,15 @@ struct ObservationSheetView: View {
                     .font(QaptrType.body(14))
                     .foregroundStyle(Color.qaptrInkSoft)
             }
-            HStack(alignment: .firstTextBaseline) {
-                Text("OBSERVATION LEDGER")
-                    .font(QaptrType.meta(10))
-                    .tracking(1.1)
-                    .foregroundStyle(Color.qaptrInkMuted)
-                Spacer()
-            }
         }
         .padding(.bottom, QaptrSpace.lg)
     }
 
     private var statusLedger: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ledgerHeading("STATUS")
             captureProgress
             if model.reviewStatus != nil || model.reviewStatusError != nil {
                 ledgerRule
-                ledgerHeading("HISTORY")
                 reviewStatusSummary
                     .padding(.bottom, QaptrSpace.md)
             }
@@ -132,10 +117,9 @@ struct ObservationSheetView: View {
 
     private var captureProgress: some View {
         VStack(alignment: .leading, spacing: QaptrSpace.sm) {
-            Text("CAPTURE STATUS")
-                .font(QaptrType.meta(10.5))
-                .tracking(1)
-                .foregroundStyle(Color.qaptrInkMuted)
+            Text("Capture")
+                .font(QaptrType.title(16))
+                .foregroundStyle(Color.qaptrInk)
             HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.xxl) {
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Screenshots captured")
@@ -190,6 +174,9 @@ struct ObservationSheetView: View {
     private var reviewStatusSummary: some View {
         if let status = model.reviewStatus {
             VStack(alignment: .leading, spacing: QaptrSpace.md) {
+                Text("History")
+                    .font(QaptrType.title(16))
+                    .foregroundStyle(Color.qaptrInk)
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
                     Text("Durable history")
                         .font(QaptrType.title())
