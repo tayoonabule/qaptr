@@ -165,7 +165,7 @@
 ### 5.2 Reconcile the settings surface
 - [ ] Restrict settings to capture interval, displays, cache lifetime, provider/model, privacy/permission status, and justified exclusion controls.
 - [ ] Remove obsolete sparse/pause/frequency vocabulary from `docs/plans/qaptr-v1.md`, source, tests, and user-visible copy.
-- [ ] Keep login-item state and permissions live rather than cached as optimistic success.
+- [x] Keep login-item state and permissions live rather than cached as optimistic success. `ReviewAppModel.refreshSettings` queries `ReviewBridge.permissionState` and `loginItemEnabled` on each refresh, and bridge/system tests map the native codes without treating unknown/error as granted (`QaptrReviewCoreTests.testMapsBridgeCodesToTheCorrectStatus`; review package previously passed 65 tests).
 - [ ] Add visible provider/model readiness and one recovery action per unavailable state.
 
 ### 5.3 Runtime-state visual coverage
