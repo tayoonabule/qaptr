@@ -290,7 +290,7 @@ import ArcDial from "../components/ArcDial.astro";
     .workspace-preview {
       width: 100%;
       overflow: hidden;
-      border: 1px solid transparent;
+      border: 1px solid var(--color-blue-wash);
       border-radius: var(--radius-large-card);
       background: var(--color-canvas-white);
       box-shadow: 0 1rem 3rem var(--color-paper-mist);
@@ -685,7 +685,7 @@ import ArcDial from "../components/ArcDial.astro";
     .mini-timeline__event::before {
       position: absolute;
       top: 50%;
-      left: -1.55rem;
+      left: calc(-1.55rem + 2px);
       width: 9px;
       height: 9px;
       border: 2px solid var(--color-orange-wash);
