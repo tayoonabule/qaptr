@@ -1,6 +1,6 @@
 # Qaptr next-session checklist audit against HEAD
 
-**Audited revision:** `02b6d60` (`test(review): cover capture status readiness states`)
+**Audited revision:** `2d78708` (`qaptr-policy: add pure ModelCatalog freshness integration`)
 
 This report records only checklist items that are fully supported by code or tests already committed at HEAD. No source files were changed for this audit.
 
@@ -19,7 +19,8 @@ This report records only checklist items that are fully supported by code or tes
 | 1.3 every visible capture state has review-core tests | The same test suite exercises every `CaptureReadiness` case and the forward-compatible v1 field decoder (`CaptureProgressTests.swift:60-166`). |
 | 1.3 helper has no OCR/provider integration | A source scan of `apps/helper` found no OCR, provider, `qaptr-provider`, or `qaptr-privacy` import/call. The helper remains limited to capture/sealing/status responsibilities. |
 | 2.2 declined consent invokes no provider | `declined_consent_keeps_preparation_local` asserts one explicit consent request, zero provider invocations, and zero durable observations (`crates/qaptr-workflow/tests/analyze.rs:512-533`). |
-| 3.1 typed versioned model policy | `ModelPolicy`, `PolicyVersion::CURRENT`, ordered fallbacks, and explicit override resolution are implemented (`crates/qaptr-policy/src/model_policy.rs:64-125,275-323`) and covered by version, fallback-order, unavailable-override, and CLI-default tests (`model_policy.rs:343-532`). |
+| 3.1 typed versioned model policy | `ModelPolicy`, `PolicyVersion::CURRENT`, ordered fallbacks, explicit override resolution, and pure clock-based catalog freshness validation are implemented (`crates/qaptr-policy/src/model_policy.rs`) and covered by version, fallback-order, unavailable-override, CLI-default, malformed catalog, and stale catalog tests. |
+| 2.3 honest review-session bridge status | `qaptr_review_status_json` reports store/history counts and explicitly reports provider analysis as unavailable rather than inventing a live session (`crates/qaptr-review-ffi/src/lib.rs`), covered by its focused FFI contract test. |
 | 4.1 low confidence remains uncertain | Observation rows/details display the computed confidence band, and `testNeverInventsCertaintyForAZeroScore` requires “Low confidence” (`ObservationSheetView.swift:121-169`; `QaptrReviewCoreTests.swift:5-24`). |
 | 4.3 canonical Workflow generation | `WorkflowDocument::from_observation` and `from_candidate` accept durable scalar evidence and preserve missing material (`crates/qaptr-workflow/src/document.rs:19-136`). |
 | 4.3 missing sequence stays missing | Both constructors leave unobserved steps/details empty; export tests assert “No steps were captured” and reject invented steps (`crates/qaptr-workflow/tests/export.rs:143-182,214-273`). |
@@ -32,4 +33,21 @@ This report records only checklist items that are fully supported by code or tes
 
 The audit did not close items requiring unknown-enum-state decoding, exhaustive `CaptureEvent` mapping tests, selected-display controls, app wiring for `ReviewSessionCoordinator`, model catalog transport, request-boundary model revalidation, app-owned export/save flows, real hardware/permission/credential evidence, signing, or soak/performance runs.
 
-No test suite was rerun during this documentation-only audit. The evidence above points to committed tests and implementation at the audited HEAD.
+## Final validation at audited HEAD
+
+The full required gate passed after the last implementation commit:
+
+```text
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --workspace
+cargo doc --workspace --no-deps
+swift test --package-path apps/helper
+swift test --package-path apps/review
+bash bench/scripts/packaged_fixture_smoke.sh
+```
+
+The packaged smoke result was `PASS` with `manifest_captures=24`,
+`scalar_capture_count=1`, `review_observations=1`, `review_workflows=1`, and
+`exports=4`. This proves the implemented fixture-shaped flow and package
+hierarchy, not the still-blocked live hardware/provider path.
