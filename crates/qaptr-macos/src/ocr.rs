@@ -11,7 +11,12 @@ use crate::error::MacosError;
 use crate::recognition::{decode_base64, run_helper};
 
 /// Default recognition deadline used by the review app.
-pub const DEFAULT_RECOGNITION_TIMEOUT: Duration = Duration::from_millis(500);
+///
+/// Vision is launched in a short-lived local helper so a cold framework start
+/// can exceed 500 ms even for a small fixture. Two seconds still fails closed
+/// promptly while allowing the on-device recognizer to return a real result
+/// rather than treating startup latency as an unavailable recognizer.
+pub const DEFAULT_RECOGNITION_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// A local Vision-framework OCR adapter backed by the review app's image root.
 #[derive(Clone, Debug)]
