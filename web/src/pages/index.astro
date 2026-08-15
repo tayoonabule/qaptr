@@ -1,6 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
 import WaitlistForm from "../components/WaitlistForm.astro";
+import ArcDiagram from "../components/ArcDiagram.astro";
+import ScrollReveal from "../components/ScrollReveal.astro";
 ---
 
 <Base
@@ -24,18 +26,8 @@ import WaitlistForm from "../components/WaitlistForm.astro";
           Qaptr takes a few private snapshots, then helps you turn useful steps into clear notes.
         </p>
         <WaitlistForm source="hero" id="join-hero" />
+        <p class="hero-note">No spam. No data sold. Cancel any time before launch.</p>
       </div>
-      <figure class="hero-visual">
-        <img
-          src="/qaptr-workspace.webp"
-          alt="A laptop on a cool gray desk beside a cobalt notebook"
-          width="1200"
-          height="751"
-          loading="eager"
-          fetchpriority="high"
-        />
-        <figcaption>Private by default, useful when you need it.</figcaption>
-      </figure>
     </section>
 
     <section class="trust-strip wrap" aria-label="Qaptr principles">
@@ -52,14 +44,15 @@ import WaitlistForm from "../components/WaitlistForm.astro";
           sensitive apps out, and leaves you with the parts worth keeping.
         </p>
       </div>
-      <div class="intro-aside" aria-label="How Qaptr works">
-        <span class="step-number" aria-hidden="true">01</span>
-        <p>Choose a light capture cadence.</p>
-        <span class="step-number" aria-hidden="true">02</span>
-        <p>Review what was noticed.</p>
-        <span class="step-number" aria-hidden="true">03</span>
-        <p>Keep only the useful note.</p>
-      </div>
+    </section>
+
+    <section class="arc-section wrap" aria-labelledby="arc-heading">
+      <h2 id="arc-heading" class="hero-kicker">Capture cadence</h2>
+      <ArcDiagram />
+      <p class="arc-caption">
+        Qaptr starts sparse, one snapshot every ten minutes, and only tightens its cadence once a
+        workflow is worth remembering in more detail.
+      </p>
     </section>
 
     <section class="passages wrap" aria-label="What Qaptr does and does not do">
@@ -121,4 +114,6 @@ import WaitlistForm from "../components/WaitlistForm.astro";
     <span>Qaptr, built to be quiet while it works.</span>
     <span>© 2026 Qaptr. No data is sold.</span>
   </footer>
+
+  <ScrollReveal />
 </Base>
