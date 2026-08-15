@@ -15,10 +15,22 @@ private func recordFirstPaintIfRequested() {
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
-    private let model = ReviewAppModel()
+    let model = ReviewAppModel()
+
+    private static let openSettingsNotification = Notification.Name("com.qaptr.review.command.openSettings")
 
     override init() {
         super.init()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleOpenSettingsNotification(_:)),
+            name: Self.openSettingsNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        DistributedNotificationCenter.default().removeObserver(self)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -67,6 +79,25 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         recordFirstPaintIfRequested()
     }
 
+    func showMainWindow() {
+        guard let window else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// Opens the SwiftUI Settings scene rather than creating a second ad-hoc
+    /// window. The selector is the AppKit bridge installed by SwiftUI's
+    /// `Settings` scene.
+    func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
+    @objc private func handleOpenSettingsNotification(_ notification: Notification) {
+        _ = notification
+        openSettings()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
@@ -77,6 +108,18 @@ struct QaptrReviewApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        Settings { EmptyView() }
+        Settings {
+            SettingsView(model: appDelegate.model, showObservations: appDelegate.showMainWindow)
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…", action: appDelegate.openSettings)
+                    .keyboardShortcut(",", modifiers: [.command])
+            }
+            CommandGroup(after: .windowArrangement) {
+                Button("Show Qaptr / Observations", action: appDelegate.showMainWindow)
+                    .keyboardShortcut("1", modifiers: [.command])
+            }
+        }
     }
 }

@@ -65,6 +65,10 @@ private struct Options {
     }
 }
 
+private enum ReviewCommandNotification {
+    static let openSettings = Notification.Name("com.qaptr.review.command.openSettings")
+}
+
 @MainActor
 private final class HelperApplication: NSObject, NSApplicationDelegate {
     private let options: Options
@@ -140,11 +144,92 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
 
     private func configureStatusItem() {
         statusItem.button?.title = "Q"
+        statusItem.button?.toolTip = "Qaptr capture helper"
         let menu = NSMenu()
-        menu.addItem(withTitle: "Qaptr capture helper", action: nil, keyEquivalent: "")
+
+        let showQaptr = NSMenuItem(
+            title: "Show Qaptr / Observations",
+            action: #selector(showQaptr(_:)),
+            keyEquivalent: "1"
+        )
+        showQaptr.target = self
+        showQaptr.keyEquivalentModifierMask = [.command]
+        menu.addItem(showQaptr)
+
+        let openSettings = NSMenuItem(
+            title: "Open Settings",
+            action: #selector(openReviewSettings(_:)),
+            keyEquivalent: ","
+        )
+        openSettings.target = self
+        openSettings.keyEquivalentModifierMask = [.command]
+        menu.addItem(openSettings)
+
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit", action: #selector(quit(_:)), keyEquivalent: "q")
+        quit.target = self
+        quit.keyEquivalentModifierMask = [.command]
+        menu.addItem(quit)
         statusItem.menu = menu
+    }
+
+    @objc private func showQaptr(_ sender: Any?) {
+        _ = sender
+        openReviewApp(requestSettings: false)
+    }
+
+    @objc private func openReviewSettings(_ sender: Any?) {
+        _ = sender
+        openReviewApp(requestSettings: true)
+    }
+
+    @objc private func quit(_ sender: Any?) {
+        NSApp.terminate(sender)
+    }
+
+    /// The helper is an accessory app, so these shortcuts are available while
+    /// its status menu is open. This intentionally does not install a global
+    /// hotkey or claim one: global registration needs a separate permissions
+    /// and lifecycle design and is not safe to infer from an NSMenu shortcut.
+    private func openReviewApp(requestSettings: Bool) {
+        let command = requestSettings ? "open_settings" : "show_qaptr"
+        guard let reviewAppURL else {
+            print("event=command_failed command=\(command) reason=review_app_not_found")
+            return
+        }
+
+        NSWorkspace.shared.openApplication(at: reviewAppURL, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            if let error {
+                print("event=command_failed command=\(command) detail=\(error)")
+                return
+            }
+            guard requestSettings else { return }
+            DistributedNotificationCenter.default().post(
+                name: ReviewCommandNotification.openSettings,
+                object: nil
+            )
+        }
+    }
+
+    private var reviewAppURL: URL? {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_REVIEW_APP_PATH"], !override.isEmpty {
+            let url = URL(fileURLWithPath: override, isDirectory: true)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+
+        let nested = Bundle.main.bundleURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("QaptrReview.app", isDirectory: true)
+        if FileManager.default.fileExists(atPath: nested.path) {
+            return nested
+        }
+
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.qaptr.review")
     }
 
     private func scheduleTimer() {
