@@ -214,6 +214,21 @@ final class SettingsPreferencesTests: XCTestCase {
         XCTAssertNil(preferences.provider)
     }
 
+    func testPersistsAnExplicitModelOverrideSeparatelyFromProvider() {
+        let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        preferences.provider = .openRouter
+        preferences.explicitModelOverride = "  openai/gpt-5  "
+
+        XCTAssertEqual(preferences.provider, .openRouter)
+        XCTAssertEqual(preferences.explicitModelOverride, "openai/gpt-5")
+    }
+
+    func testRejectsAnEmptyExplicitModelOverride() {
+        let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        preferences.explicitModelOverride = "   "
+        XCTAssertNil(preferences.explicitModelOverride)
+    }
+
     func testAddsNormalizedExcludedApplicationAndRejectsBlankEntries() {
         let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
         preferences.addExcludedApplication("  1Password  ")

@@ -70,7 +70,8 @@ public final class InMemoryPreferenceStore: PreferenceStore, @unchecked Sendable
 /// Persists the small settings surface's user-editable preferences.
 ///
 /// This intentionally persists only what a person actually configures here:
-/// cache lifetime, provider choice, and the two exclusion lists. Permission
+/// cache lifetime, provider choice, an optional explicit model override, and
+/// the two exclusion lists. Permission
 /// and login-item status are always read live through the bridge rather than
 /// cached, so settings can never show a stale granted state.
 public struct SettingsPreferences: Sendable {
@@ -79,6 +80,7 @@ public struct SettingsPreferences: Sendable {
     private enum Key {
         static let cacheLifetime = "com.qaptr.review.settings.cacheLifetime"
         static let provider = "com.qaptr.review.settings.provider"
+        static let explicitModelOverride = "com.qaptr.review.settings.explicitModelOverride"
         static let excludedApplications = "com.qaptr.review.settings.excludedApplications"
         static let excludedWindowTitles = "com.qaptr.review.settings.excludedWindowTitles"
         static let onboardingCompleted = "com.qaptr.review.onboarding.completed"
@@ -103,6 +105,19 @@ public struct SettingsPreferences: Sendable {
         }
         nonmutating set {
             store.set(newValue?.rawValue, forKey: Key.provider)
+        }
+    }
+
+    /// The person's requested model identifier, if any.
+    ///
+    /// This is intentionally independent of `provider` and of policy/default
+    /// resolution. The value is non-secret configuration only: validation and
+    /// resolution happen later, immediately before a consented request.
+    public var explicitModelOverride: String? {
+        get { store.string(forKey: Key.explicitModelOverride) }
+        nonmutating set {
+            let normalized = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+            store.set(normalized?.isEmpty == false ? normalized : nil, forKey: Key.explicitModelOverride)
         }
     }
 
