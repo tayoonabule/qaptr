@@ -609,7 +609,7 @@ Commands are run from the repository root unless a directory is named. Each comm
 | Opened-app budget | `bash bench/scripts/review_budget.sh` | U3, U20, U23 | median under 150 MB, peak under 180 MB |
 | Privacy corpus | `cargo test -p qaptr-privacy --features corpus -- --include-ignored` | U10, U11, U12, U23 | zero residual findings |
 | Provider contract | `cargo test -p qaptr-provider --features contract` and `cargo test -p qaptr-provider-cli --features contract -- --include-ignored` | U13, U15, U16 | all four required adapters pass |
-| Export snapshots | `cargo insta test --package qaptr-workflow` | U19 | snapshots match |
+| Export snapshots | `cargo test -p qaptr-workflow --test export` | U19 | golden documents match |
 | Web checks | `npm run check && npm run test && npm run build` in `web` | U21 | pass with budgets met |
 | Accessibility | `npm run test:a11y` in `web` | U21 | no violations |
 | Packaging | `bash packaging/release.sh --dry-run` | U22 | signing and notarization steps verify |
