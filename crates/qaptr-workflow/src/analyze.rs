@@ -381,8 +381,15 @@ where
             .iter()
             .filter(|payload| payload.masked_image().is_some())
             .count();
+        let payload_kind = if image_count > 0 {
+            qaptr_provider::ProviderPayloadKind::Images
+        } else {
+            qaptr_provider::ProviderPayloadKind::Text
+        };
         let consent_request = ConsentRequest::new(
             verified.descriptor().id().clone(),
+            None,
+            payload_kind,
             prepared.len(),
             image_count,
             exclusions.len(),
