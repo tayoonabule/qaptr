@@ -286,6 +286,94 @@ final class OnboardingStageTests: XCTestCase {
     }
 }
 
+final class OnboardingCompletionPolicyTests: XCTestCase {
+    private func inputs(
+        hasSelectedDisplay: Bool = true,
+        screenRecordingStatus: PermissionStatus = .granted,
+        hasUsableProvider: Bool = true
+    ) -> OnboardingCompletionInputs {
+        OnboardingCompletionInputs(
+            hasSelectedDisplay: hasSelectedDisplay,
+            screenRecordingStatus: screenRecordingStatus,
+            hasUsableProvider: hasUsableProvider
+        )
+    }
+
+    func testIsEligibleWhenEveryRequiredDecisionIsMade() {
+        XCTAssertNil(OnboardingCompletionPolicy.blocker(for: inputs()))
+        XCTAssertTrue(OnboardingCompletionPolicy.isEligible(inputs()))
+    }
+
+    func testBlocksOnNoDisplaySelectedBeforeCheckingAnythingElse() {
+        let allUnmet = inputs(
+            hasSelectedDisplay: false,
+            screenRecordingStatus: .notDetermined,
+            hasUsableProvider: false
+        )
+        XCTAssertEqual(OnboardingCompletionPolicy.blocker(for: allUnmet), .displayNotSelected)
+        XCTAssertFalse(OnboardingCompletionPolicy.isEligible(allUnmet))
+    }
+
+    func testBlocksOnScreenRecordingNotGrantedWhenDisplayIsAlreadySelected() {
+        for status: PermissionStatus in [.denied, .notDetermined, .unavailable] {
+            let underTest = inputs(screenRecordingStatus: status, hasUsableProvider: false)
+            XCTAssertEqual(OnboardingCompletionPolicy.blocker(for: underTest), .screenRecordingNotGranted)
+        }
+    }
+
+    func testBlocksOnProviderNotUsableWhenDisplayAndPermissionAreAlreadySatisfied() {
+        let underTest = inputs(hasUsableProvider: false)
+        XCTAssertEqual(OnboardingCompletionPolicy.blocker(for: underTest), .providerNotUsable)
+        XCTAssertFalse(OnboardingCompletionPolicy.isEligible(underTest))
+    }
+}
+
+final class SettingsPreferencesOnboardingCompletionTests: XCTestCase {
+    func testCompletesOnboardingWhenEveryRequiredDecisionIsMade() {
+        let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        let eligible = OnboardingCompletionInputs(
+            hasSelectedDisplay: true,
+            screenRecordingStatus: .granted,
+            hasUsableProvider: true
+        )
+
+        let completed = preferences.completeOnboardingIfEligible(eligible)
+
+        XCTAssertTrue(completed)
+        XCTAssertTrue(preferences.onboardingCompleted)
+    }
+
+    func testLeavesOnboardingIncompleteWhenAnyRequiredDecisionIsMissing() {
+        let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        let ineligible = OnboardingCompletionInputs(
+            hasSelectedDisplay: true,
+            screenRecordingStatus: .granted,
+            hasUsableProvider: false
+        )
+
+        let completed = preferences.completeOnboardingIfEligible(ineligible)
+
+        XCTAssertFalse(completed)
+        XCTAssertFalse(preferences.onboardingCompleted)
+    }
+
+    func testDoesNotRegressAnAlreadyCompletedOnboardingWhenCalledAgainIneligibly() {
+        let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        preferences.onboardingCompleted = true
+
+        let stillIneligible = preferences.completeOnboardingIfEligible(
+            OnboardingCompletionInputs(
+                hasSelectedDisplay: false,
+                screenRecordingStatus: .notDetermined,
+                hasUsableProvider: false
+            )
+        )
+
+        XCTAssertFalse(stillIneligible)
+        XCTAssertTrue(preferences.onboardingCompleted)
+    }
+}
+
 final class PermissionStatusTests: XCTestCase {
     func testMapsBridgeCodesToTheCorrectStatus() {
         XCTAssertEqual(PermissionStatus(bridgeCode: 1), .granted)
