@@ -91,8 +91,15 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     /// window. The selector is the AppKit bridge installed by SwiftUI's
     /// `Settings` scene.
     func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        switch SettingsEntryPolicy.route(onboardingCompleted: model.onboardingCompleted) {
+        case .settings:
+            NSApp.activate(ignoringOtherApps: true)
+            _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        case .primaryUI:
+            // Settings must not become a back door around onboarding's final
+            // privacy/capture-consent step. Return to the primary UI instead.
+            showMainWindow()
+        }
     }
 
     @objc private func handleOpenSettingsNotification(_ notification: Notification) {
@@ -111,7 +118,10 @@ struct QaptrReviewApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(model: appDelegate.model)
+            NativeSettingsEntryView(
+                model: appDelegate.model,
+                redirectToPrimaryUI: appDelegate.showMainWindow
+            )
         }
         .commands {
             CommandGroup(replacing: .appSettings) {
