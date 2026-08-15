@@ -97,7 +97,7 @@
 - [x] Add a typed, versioned `ModelPolicy` with a single current policy version and explicit fallback ordering.
 - [ ] Store provider choice and optional explicit model override separately from policy/default resolution.
 - [ ] Store only non-secret configuration and bounded catalog metadata. Keep the OpenRouter key solely in its Keychain credential boundary.
-- [ ] Define model-readiness statuses with a concise reason and next action: no provider, provider unavailable, authentication needed, catalog stale/unavailable, preferred unavailable with fallback, override unavailable, ready.
+- [x] Define model-readiness statuses with a concise reason and next action: no provider, provider unavailable, authentication needed, catalog stale/unavailable, preferred unavailable with fallback, override unavailable, ready. `ModelReadiness` now provides typed reason/recovery guidance for all seven states, with no recovery action for ready or safe fallback selection (`cdf2e8b`; 21 policy unit tests pass).
 - [ ] Make the resolved provider/model immutable for one consented request and record it in scalar result metadata.
 
 ### 3.2 OpenRouter catalog strategy
