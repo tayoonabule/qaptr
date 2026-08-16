@@ -19,6 +19,7 @@ qaptr-macos = { path = "../qaptr-macos" }
 qaptr-privacy = { path = "../qaptr-privacy" }
 qaptr-policy = { path = "../qaptr-policy" }
 qaptr-provider = { path = "../qaptr-provider" }
+qaptr-provider-cli = { path = "../qaptr-provider-cli" }
 qaptr-store = { path = "../qaptr-store" }
 qaptr-vault = { path = "../qaptr-vault" }
 qaptr-workflow = { path = "../qaptr-workflow" }

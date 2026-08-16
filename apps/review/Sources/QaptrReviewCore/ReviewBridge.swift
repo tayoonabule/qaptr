@@ -7,6 +7,7 @@ public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
     case secureBootstrapUnavailable(String)
     case storeUnavailable
     case snapshotUnavailable(String)
+    case providerReadinessUnavailable(String)
 
     public var description: String {
         switch self {
@@ -20,6 +21,8 @@ public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
             "the durable history store could not be opened"
         case let .snapshotUnavailable(reason):
             "durable history snapshot unavailable: \(reason)"
+        case let .providerReadinessUnavailable(reason):
+            "provider readiness unavailable: \(reason)"
         }
     }
 }
@@ -38,6 +41,10 @@ private typealias StoreLastErrorFunction = @convention(c) (
 ) -> Int
 private typealias ReviewStatusFunction = @convention(c) (
     UnsafeMutableRawPointer,
+    UnsafeMutableRawPointer?,
+    Int
+) -> Int
+private typealias ProviderReadinessFunction = @convention(c) (
     UnsafeMutableRawPointer?,
     Int
 ) -> Int
@@ -98,6 +105,7 @@ private final class ReviewFFILibrary: @unchecked Sendable {
     let storeSnapshot: StoreSnapshotFunction
     let storeLastError: StoreLastErrorFunction
     let reviewStatus: ReviewStatusFunction
+    let providerReadiness: ProviderReadinessFunction
     let keyBootstrap: KeyBootstrapFunction
     let permissionState: PermissionStateFunction
     let permissionRequest: PermissionRequestFunction
@@ -124,6 +132,7 @@ private final class ReviewFFILibrary: @unchecked Sendable {
             self.storeSnapshot = try Self.load("qaptr_store_snapshot_json", from: handle)
             self.storeLastError = try Self.load("qaptr_store_last_error", from: handle)
             self.reviewStatus = try Self.load("qaptr_review_status_json", from: handle)
+            self.providerReadiness = try Self.load("qaptr_provider_readiness_json", from: handle)
             self.keyBootstrap = try Self.load("qaptr_key_bootstrap_json", from: handle)
             self.permissionState = try Self.load("qaptr_permission_state", from: handle)
             self.permissionRequest = try Self.load("qaptr_permission_request", from: handle)
@@ -283,6 +292,34 @@ public final class ReviewBridge: @unchecked Sendable {
                     return try ReviewStatusDecoder.decode(data)
                 } catch {
                     throw ReviewBridgeError.snapshotUnavailable(String(describing: error))
+                }
+            }
+            capacity = required
+        }
+    }
+
+    /// Reads the bounded, path-only readiness state of the supported local
+    /// CLI providers. An installed executable is never treated as usable.
+    public func providerReadinessSnapshot() throws -> ProviderReadinessSnapshot {
+        let maximumCapacity = 4_096
+        var capacity = 512
+        while true {
+            var buffer = [UInt8](repeating: 0, count: capacity)
+            let required = buffer.withUnsafeMutableBytes { bytes in
+                library.providerReadiness(bytes.baseAddress, capacity)
+            }
+            guard required > 0 else {
+                throw ReviewBridgeError.providerReadinessUnavailable("native readiness returned no result")
+            }
+            guard required <= maximumCapacity else {
+                throw ReviewBridgeError.providerReadinessUnavailable("native readiness exceeded its output limit")
+            }
+            if required <= capacity {
+                let data = Data(buffer.prefix(required - 1))
+                do {
+                    return try ProviderReadinessDecoder.decode(data)
+                } catch {
+                    throw ReviewBridgeError.providerReadinessUnavailable(String(describing: error))
                 }
             }
             capacity = required

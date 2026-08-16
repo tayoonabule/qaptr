@@ -27,6 +27,8 @@ mod system;
 use qaptr_store::Store;
 use serde_json::{Value, json};
 
+use qaptr_provider_cli::{CliDetectionStatus, CliProvider, detect_cli_installation};
+
 pub use system::{
     qaptr_login_item_set_enabled, qaptr_login_item_status, qaptr_permission_request,
     qaptr_permission_state,
@@ -306,6 +308,28 @@ pub unsafe extern "C" fn qaptr_review_status_json(
     copy_string(&json.to_string(), output, output_capacity)
 }
 
+/// Copies a bounded, read-only snapshot of the supported local CLI providers.
+///
+/// Detection only inspects the explicitly configured executable search paths.
+/// A detected executable is reported as installed, but `usable` remains false
+/// because this endpoint does not authenticate or invoke a provider. The
+/// output contains no executable paths, environment, credentials, or process
+/// output. The return value is the required buffer size, including a trailing
+/// NUL; a null output or zero capacity is a size query.
+///
+/// # Safety
+///
+/// `output` must reference a writable buffer of `output_capacity` bytes when
+/// the capacity is non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_provider_readiness_json(
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let json = provider_readiness_to_json();
+    copy_string(&json.to_string(), output, output_capacity)
+}
+
 /// Copies the most recent error into a caller-provided buffer.
 ///
 /// The return value is the required buffer size, including the trailing NUL.
@@ -371,6 +395,27 @@ fn snapshot_to_json(
     })
 }
 
+fn provider_readiness_to_json() -> Value {
+    let providers = [CliProvider::Claude, CliProvider::Codex, CliProvider::Jcode]
+        .into_iter()
+        .map(|provider| provider_readiness_entry(provider, detect_cli_installation(provider)))
+        .collect::<Vec<_>>();
+    json!({ "version": 1, "providers": providers })
+}
+
+fn provider_readiness_entry(provider: CliProvider, detection: CliDetectionStatus) -> Value {
+    let state = match detection {
+        CliDetectionStatus::Unavailable => "unavailable",
+        CliDetectionStatus::NotInstalled => "not_installed",
+        CliDetectionStatus::Detected { .. } => "detected",
+    };
+    json!({
+        "id": provider.id(),
+        "state": state,
+        "usable": false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
@@ -403,6 +448,43 @@ mod tests {
         let value: Value = serde_json::from_slice(&output[..required - 1]).expect("result JSON");
         assert_eq!(value["ready"], false);
         assert_eq!(value["reason"], "bootstrap input is not valid UTF-8");
+    }
+
+    #[test]
+    fn provider_readiness_is_path_only_and_never_usable() {
+        let value = provider_readiness_entry(
+            CliProvider::Codex,
+            CliDetectionStatus::Detected {
+                authentication: None,
+            },
+        );
+        assert_eq!(value["id"], "codex");
+        assert_eq!(value["state"], "detected");
+        assert_eq!(value["usable"], false);
+        let serialized = value.to_string();
+        for forbidden in ["path", "env", "credential", "stdout", "stderr"] {
+            assert!(!serialized.contains(forbidden), "found {forbidden}");
+        }
+    }
+
+    #[test]
+    fn provider_readiness_json_is_bounded_and_reports_truncation_as_size_query() {
+        let required = unsafe { qaptr_provider_readiness_json(std::ptr::null_mut(), 0) };
+        assert!(required > 1);
+
+        let mut truncated = vec![0xA5_u8; required - 1];
+        let returned =
+            unsafe { qaptr_provider_readiness_json(truncated.as_mut_ptr(), truncated.len()) };
+        assert_eq!(returned, required);
+        assert!(truncated.iter().all(|byte| *byte == 0xA5));
+
+        let mut output = vec![0_u8; required];
+        let returned = unsafe { qaptr_provider_readiness_json(output.as_mut_ptr(), output.len()) };
+        assert_eq!(returned, required);
+        let value: Value = serde_json::from_slice(&output[..returned - 1]).expect("readiness JSON");
+        assert_eq!(value["version"], 1);
+        assert_eq!(value["providers"].as_array().map(Vec::len), Some(3));
+        assert!(value.to_string().find("/Users/").is_none());
     }
 
     #[test]
