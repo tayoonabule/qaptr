@@ -44,6 +44,10 @@ cp "$review_dir/Resources/Info.plist" "$app_dir/Contents/Info.plist"
 cp "$swift_binary" "$app_dir/Contents/MacOS/QaptrReview"
 ffi_name=$(basename "$ffi_library")
 cp "$ffi_library" "$app_dir/Contents/Frameworks/$ffi_name"
+# Cargo embeds the build-machine path as the dylib install name. Rewrite it
+# before packaging so the nested review app never depends on the source tree.
+install_name_tool -id "@rpath/$ffi_name" "$app_dir/Contents/Frameworks/$ffi_name"
+install_name_tool -add_rpath "@loader_path/../Frameworks" "$app_dir/Contents/MacOS/QaptrReview" 2>/dev/null || true
 
 # Ad-hoc signatures identify the exact binary hash. That makes Keychain ask for
 # permission again after every rebuild. Prefer the user's stable Apple

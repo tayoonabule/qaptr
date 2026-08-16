@@ -290,13 +290,17 @@ final class ReviewAppModel {
 
     /// Requests Screen Recording through the native prompt.
     func requestScreenRecording() {
-        guard let bridge else { return }
         settings.screenRecordingStatus = .notDetermined
-        let requestedStatus = bridge.requestPermission(.screenCapture)
-        if requestedStatus != .unavailable {
-            settings.screenRecordingStatus = requestedStatus
+        if let bridge {
+            let requestedStatus = bridge.requestPermission(.screenCapture)
+            if requestedStatus != .unavailable {
+                settings.screenRecordingStatus = requestedStatus
+            }
+            refreshPermissionAfterSystemPrompt(.screenCapture)
         }
-        refreshPermissionAfterSystemPrompt(.screenCapture)
+        if settings.screenRecordingStatus != .granted {
+            openPrivacySettings(anchor: "Privacy_ScreenCapture")
+        }
     }
 
     /// Requests the optional accessibility-context permission.
@@ -310,10 +314,21 @@ final class ReviewAppModel {
                 name: Notification.Name("com.qaptr.review.command.requestAccessibility"),
                 object: nil
             )
-        } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
+        } else {
+            openPrivacySettings(anchor: "Privacy_Accessibility")
         }
         refreshPermissionAfterSystemPrompt(.accessibilityContext)
+    }
+
+    private func openPrivacySettings(anchor: String) {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?") else {
+            return
+        }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.query = anchor
+        if let settingsURL = components?.url {
+            NSWorkspace.shared.open(settingsURL)
+        }
     }
 
     /// TCC writes its decision asynchronously after the native prompt closes.

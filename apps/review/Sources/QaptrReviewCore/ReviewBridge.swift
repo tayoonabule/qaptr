@@ -99,6 +99,12 @@ enum ReviewFFILibraryPath {
             paths.append(URL(fileURLWithPath: privateFrameworksPath, isDirectory: true)
                 .appendingPathComponent(fileName).path)
         }
+        // Embedded review apps may not expose privateFrameworksPath. Keep the
+        // packaged layout explicit: QaptrReview.app/Contents/Frameworks/<library>.
+        paths.append(bundle.bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Frameworks", isDirectory: true)
+            .appendingPathComponent(fileName).path)
         if let executableDirectory = bundle.executableURL?.deletingLastPathComponent() {
             paths.append(executableDirectory.appendingPathComponent(fileName).path)
         }

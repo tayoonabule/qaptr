@@ -396,6 +396,9 @@ final class ReviewFFILibraryPathTests: XCTestCase {
 
         XCTAssertEqual(candidates.first, "/tmp/explicit/libqaptr_review_ffi.dylib")
         XCTAssertTrue(candidates.contains("/tmp/development/libqaptr_review_ffi.dylib"))
+        XCTAssertTrue(candidates.contains {
+            $0.hasSuffix("/Contents/Frameworks/libqaptr_review_ffi.dylib")
+        })
         XCTAssertEqual(candidates.filter { $0 == "/tmp/explicit/libqaptr_review_ffi.dylib" }.count, 1)
     }
 
