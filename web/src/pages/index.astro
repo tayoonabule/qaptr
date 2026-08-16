@@ -165,10 +165,6 @@ import ArcDial from "../components/ArcDial.astro";
           <span class="privacy-orbit__lock"><ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon></span>
           <span class="privacy-orbit__label">Private on this Mac</span>
           </div>
-          <details class="animate-ui-accordion">
-            <summary>What stays local?</summary>
-            <p>Capture remains on this Mac until you choose what belongs in a record.</p>
-          </details>
       </article>
 
       <article class="product-card passage product-card--document">
@@ -596,7 +592,7 @@ import ArcDial from "../components/ArcDial.astro";
       border-top: 1px solid var(--color-ash);
       border-radius: 0;
       background: transparent;
-      padding: var(--spacing-32) 0;
+      padding: clamp(var(--spacing-48), 7vw, var(--spacing-80)) 0;
       box-shadow: none;
     }
 
@@ -1016,6 +1012,43 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     /* Final distillation: the product story is a sequence, not a card wall. */
+    .workspace-preview__appbar {
+      padding: var(--spacing-16) var(--spacing-24);
+    }
+
+    .workspace-preview__body {
+      min-height: 28rem;
+    }
+
+    .workspace-preview__sidebar {
+      padding: var(--spacing-24);
+    }
+
+    .workspace-preview__nav {
+      padding: var(--spacing-12);
+    }
+
+    .workspace-preview__main {
+      padding: clamp(var(--spacing-24), 5vw, var(--spacing-48));
+    }
+
+    .workspace-preview__summary {
+      margin-top: var(--spacing-32);
+      padding: var(--spacing-24);
+    }
+
+    .workspace-preview__rows {
+      margin-top: var(--spacing-32);
+    }
+
+    .workspace-preview__row {
+      min-height: 4rem;
+    }
+
+    .workspace-preview__caption {
+      padding: var(--spacing-16) var(--spacing-24);
+    }
+
     .product-bento__intro {
       border-top: 1px solid var(--color-ash);
       border-bottom: 0;
@@ -1047,7 +1080,7 @@ import ArcDial from "../components/ArcDial.astro";
       border-top: 1px solid var(--color-ash);
       border-radius: 0;
       background: transparent;
-      padding: var(--spacing-32) 0;
+      padding: clamp(var(--spacing-48), 7vw, var(--spacing-80)) 0;
       box-shadow: none;
       height: auto;
     }
