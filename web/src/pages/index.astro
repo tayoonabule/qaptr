@@ -6,68 +6,69 @@ import ArcDial from "../components/ArcDial.astro";
 
 <BaseLayout title="Qaptr — private beta for macOS">
   <section class="hero wrap">
-    <div class="hero__content">
-      <h1 class="hero__headline reveal">Remember what you did without stopping to document it.</h1>
-      <p class="hero__subhead reveal">
-        Qaptr quietly records the shape of your work on your Mac, then gives you a clear draft to review when you are ready.
+    <div class="hero__lede">
+      <h1 class="hero__headline reveal">Screenshots now. A readable session later.</h1>
+      <p class="hero__sub reveal">
+        Qaptr captures on the interval you choose, assembles the session on this Mac, and sends nothing until you approve it.
       </p>
-
-      <ul class="feature-pills reveal" aria-label="Qaptr product principles">
-        <li class="feature-pill feature-pill--orange">
-          <ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon>
-          Stays on your Mac
-        </li>
-        <li class="feature-pill feature-pill--green">
-          <ion-icon name="camera-outline" aria-hidden="true"></ion-icon>
-          Captures in the background
-        </li>
-        <li class="feature-pill feature-pill--violet">
-          <ion-icon name="eye-outline" aria-hidden="true"></ion-icon>
-          You approve what leaves
-        </li>
-      </ul>
 
       <div class="hero__form reveal">
         <WaitlistForm variant="hero" />
       </div>
     </div>
 
-    <figure class="workspace-preview reveal" aria-labelledby="workspace-preview-caption">
-      <div class="workspace-preview__appbar">
-        <span class="workspace-preview__mode"><ion-icon name="laptop-outline" aria-hidden="true"></ion-icon>Local capture</span>
+    <figure class="pipeline reveal" aria-labelledby="pipeline-caption">
+      <div class="pipeline__bar">
+        <span class="pipeline__live">
+          <span class="pipeline__pulse" aria-hidden="true"></span>
+          Capturing
+        </span>
+        <span class="pipeline__interval">every 5 min</span>
       </div>
 
-      <div class="workspace-preview__body">
-        <div class="workspace-preview__main">
-          <div class="workspace-preview__toolbar">
-            <div>
-              <p class="meta">Recent session</p>
-              <h2>Project brief</h2>
+      <ol class="pipeline__stages" aria-label="How Qaptr turns a work session into a reviewable record">
+        <li class="pipeline__stage">
+          <span class="pipeline__node" aria-hidden="true"><ion-icon name="scan-outline"></ion-icon></span>
+          <div class="pipeline__body">
+            <h2 class="pipeline__title">Captures while you work</h2>
+            <div class="pipeline__apps" aria-hidden="true">
+              <span class="pipeline__app">Editor</span>
+              <span class="pipeline__app">Browser</span>
+              <span class="pipeline__app">Notes</span>
+              <span class="pipeline__app pipeline__app--off">Excluded</span>
+              <span class="pipeline__sweep"></span>
             </div>
-            <span class="workspace-preview__status"><ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon>Ready to review</span>
           </div>
+        </li>
 
-          <div class="workspace-preview__rows animate-ui-list" aria-label="Illustrative session activity">
-            <div class="workspace-preview__row">
-              <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
-              <span>Outlined the project brief</span>
-              <span class="meta">Recorded</span>
-            </div>
-            <div class="workspace-preview__row">
-              <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
-              <span>Checked source notes</span>
-              <span class="meta">Recorded</span>
-            </div>
-            <div class="workspace-preview__row">
-              <ion-icon class="workspace-preview__row-marker" name="checkmark-outline" aria-hidden="true"></ion-icon>
-              <span>Mapped the next step</span>
-              <span class="meta">Recorded</span>
+        <li class="pipeline__stage">
+          <span class="pipeline__node" aria-hidden="true"><ion-icon name="git-commit-outline"></ion-icon></span>
+          <div class="pipeline__body">
+            <h2 class="pipeline__title">Assembles the session for you</h2>
+            <div class="pipeline__tape" aria-hidden="true">
+              <div class="pipeline__event"><b>09:42</b><span>Drafted the brief</span></div>
+              <div class="pipeline__event"><b>10:18</b><span>Compared source notes</span></div>
+              <div class="pipeline__event"><b>11:06</b><span>Wrote the next step</span></div>
+              <p class="pipeline__rollup">14 captures · assembled automatically</p>
             </div>
           </div>
-        </div>
-      </div>
-      <figcaption id="workspace-preview-caption" class="workspace-preview__caption">
-        Qaptr does not share anything without your approval.
+        </li>
+
+        <li class="pipeline__stage">
+          <span class="pipeline__node pipeline__node--done" aria-hidden="true"><ion-icon name="checkmark-outline"></ion-icon></span>
+          <div class="pipeline__body">
+            <h2 class="pipeline__title">Waits for your approval</h2>
+            <div class="pipeline__result" aria-hidden="true">
+              <span class="pipeline__result-state">ready to review</span>
+              <span class="pipeline__action">Review</span>
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <figcaption id="pipeline-caption" class="pipeline__caption">
+        <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>
+        Example session. Nothing leaves this Mac without your approval.
       </figcaption>
     </figure>
   </section>
@@ -169,7 +170,7 @@ import ArcDial from "../components/ArcDial.astro";
         </div>
         <div class="mini-handoff" aria-hidden="true">
           <div class="mini-handoff__header">
-            <span class="mini-handoff__title">Project brief</span>
+            <span class="mini-handoff__title">Today&rsquo;s session</span>
             <span class="mini-handoff__status">ready</span>
           </div>
           <div class="mini-handoff__row"><span></span><span></span><b>Keep</b></div>
@@ -193,217 +194,344 @@ import ArcDial from "../components/ArcDial.astro";
   </section>
 
   <style>
+    /* Hallmark · genre: modern-minimal · macrostructure: Narrative Workflow · theme: Qaptr paper (locked tokens.css)
+     * hero: H2 Split Diptych · enrichment: glass session panel · nav: unchanged (out of scope)
+     * The workflow is stated once, in the panel. Copy on the left is headline + one sentence only;
+     * each stage carries a label and an artifact, never a paragraph — the artifact is the explanation.
+     * pre-emit critique: P5 H5 E5 S5 R5 V5
+     * contrast: pass (40-41) · chrome: pass (47, no re-drawn window bar) · tokens: pass (48) · responsive: pass (34, 49-51)
+     */
     .hero {
       display: grid;
       gap: var(--spacing-40);
-      padding-block: clamp(var(--spacing-48), 9vw, var(--spacing-96)) var(--spacing-64);
+      align-items: start;
+      padding-block: clamp(var(--spacing-40), 5vw, var(--spacing-64)) clamp(var(--spacing-64), 10vw, var(--spacing-96));
     }
 
-    .hero__content {
-      max-width: 62rem;
-    }
-
-    .hero__eyebrow {
-      display: block;
-      margin-bottom: var(--spacing-16);
+    .hero__lede {
+      min-width: 0;
+      max-width: 34rem;
     }
 
     .hero__headline {
-      max-width: 16ch;
+      max-width: 15ch;
+      min-width: 0;
+      overflow-wrap: break-word;
+      hyphens: none;
       color: var(--color-charcoal);
       font-size: var(--text-display);
       letter-spacing: var(--tracking-display);
       line-height: var(--leading-display);
     }
 
-    .hero__subhead {
-      max-width: 46ch;
+    .hero__sub {
+      max-width: 44ch;
       margin-top: var(--spacing-20);
       color: var(--color-steel);
       font-size: var(--text-body-xl);
       line-height: 1.55;
     }
 
-    .feature-pills {
+    .hero__form {
+      max-width: 34rem;
+      margin-top: var(--spacing-28);
+    }
+
+    /* Capture pipeline — the automation itself, shown once, as a quiet running process. */
+    .pipeline {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--color-blue-wash);
+      border-radius: var(--radius-large-card);
+      background: linear-gradient(160deg, var(--color-canvas-white), var(--color-paper-mist));
+      box-shadow: 0 1rem 3rem var(--color-paper-mist);
+    }
+
+    .pipeline__bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: clamp(var(--spacing-8), 2vw, var(--spacing-24));
-      margin: var(--spacing-28) 0 0;
-      padding: 0;
+      gap: var(--spacing-12);
+      border-bottom: 1px solid var(--color-ash);
+      padding: var(--spacing-12) var(--spacing-20);
+    }
+
+    .pipeline__live {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-8);
+      min-width: 0;
+      color: var(--color-green-ink);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .pipeline__pulse {
+      flex: 0 0 auto;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--color-vivid-green);
+    }
+
+    .js-motion .pipeline__pulse {
+      animation: pipeline-pulse 2400ms var(--ease-in-out) infinite;
+    }
+
+    @keyframes pipeline-pulse {
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.3;
+        transform: scale(0.82);
+      }
+    }
+
+    .pipeline__interval {
+      color: var(--color-fog);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .pipeline__stages {
+      margin: 0;
+      padding: var(--spacing-24) var(--spacing-20) var(--spacing-16);
       list-style: none;
     }
 
-    .feature-pill {
-      display: inline-flex;
-      flex: 0 1 auto;
-      align-items: center;
-      gap: var(--spacing-4);
+    .pipeline__stage {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1.75rem minmax(0, 1fr);
+      gap: var(--spacing-16);
+      padding-bottom: var(--spacing-20);
+    }
+
+    /* The connector that makes three steps read as one automatic flow. */
+    .pipeline__stage::before {
+      position: absolute;
+      top: 1.75rem;
+      bottom: 0.25rem;
+      left: 0.875rem;
+      width: 1px;
+      background: linear-gradient(var(--color-smoke), var(--color-ash));
+      content: "";
+    }
+
+    .pipeline__stage:last-child {
+      padding-bottom: 0;
+    }
+
+    .pipeline__stage:last-child::before {
+      display: none;
+    }
+
+    .pipeline__node {
+      display: grid;
+      width: 1.75rem;
+      height: 1.75rem;
+      place-items: center;
+      border: 1px solid var(--color-blue-wash);
+      border-radius: 50%;
+      background: var(--color-canvas-white);
+      color: var(--color-electric-blue);
+    }
+
+    .pipeline__node ion-icon {
+      font-size: 0.9rem;
+    }
+
+    .pipeline__node--done {
+      border-color: var(--color-vivid-green);
+      background: var(--color-soft-mint);
+      color: var(--color-green-ink);
+    }
+
+    .pipeline__body {
       min-width: 0;
-      padding: 0;
+    }
+
+    .pipeline__title {
       color: var(--color-charcoal);
-      font-size: clamp(0.65rem, 1.05vw, 0.75rem);
-      font-weight: 500;
-      letter-spacing: -0.015em;
-      white-space: nowrap;
+      font-size: var(--text-body-lg);
+      font-weight: 600;
       line-height: 1.3;
     }
 
-    @media (max-width: 640px) {
-      .feature-pills {
+    .pipeline__apps {
+      position: relative;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-8);
+      overflow: hidden;
+      margin-top: var(--spacing-12);
+      border-radius: var(--radius-input);
+    }
+
+    .pipeline__app {
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-tag);
+      background: var(--color-canvas-white);
+      padding: var(--spacing-4) var(--spacing-12);
+      color: var(--color-slate);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+    }
+
+    .pipeline__app--off {
+      border-style: dashed;
+      border-color: var(--color-smoke);
+      background: transparent;
+      color: var(--color-fog);
+      text-decoration: line-through;
+      text-decoration-color: var(--color-smoke);
+    }
+
+    .pipeline__sweep {
+      position: absolute;
+      inset-block: 0;
+      left: 0;
+      width: 40%;
+      background: linear-gradient(90deg, transparent, rgb(37 99 235 / 0.1), transparent);
+      pointer-events: none;
+    }
+
+    .js-motion .pipeline__sweep {
+      animation: pipeline-sweep 4200ms var(--ease-in-out) infinite;
+    }
+
+    @keyframes pipeline-sweep {
+      0% {
+        transform: translateX(-110%);
+      }
+
+      100% {
+        transform: translateX(330%);
+      }
+    }
+
+    .pipeline__tape {
+      margin-top: var(--spacing-12);
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-card);
+      background: var(--color-canvas-white);
+      padding: var(--spacing-4) var(--spacing-12) var(--spacing-8);
+    }
+
+    .pipeline__event {
+      display: grid;
+      grid-template-columns: 3.25rem minmax(0, 1fr);
+      gap: clamp(var(--spacing-8), 1.5vw, var(--spacing-12));
+      align-items: baseline;
+      padding-block: var(--spacing-8);
+    }
+
+    .pipeline__event + .pipeline__event {
+      border-top: 1px solid var(--color-ash);
+    }
+
+    .pipeline__event b {
+      color: var(--color-fog);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      font-variant-numeric: tabular-nums;
+      font-weight: 400;
+    }
+
+    .pipeline__event span {
+      min-width: 0;
+      color: var(--color-charcoal);
+      font-size: var(--text-body);
+      line-height: 1.4;
+    }
+
+    .pipeline__rollup {
+      margin-top: var(--spacing-4);
+      border-top: 1px solid var(--color-ash);
+      padding-top: var(--spacing-8);
+      color: var(--color-deep-sapphire);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
+    }
+
+    .pipeline__result {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-12);
+      margin-top: var(--spacing-12);
+      border: 1px solid var(--color-vivid-green);
+      border-radius: var(--radius-card);
+      background: var(--color-green-wash);
+      padding: var(--spacing-12) var(--spacing-16);
+    }
+
+    .pipeline__result-state {
+      color: var(--color-green-ink);
+      font-family: var(--font-geist-mono);
+      font-size: var(--text-caption);
+      letter-spacing: var(--tracking-meta);
+      text-transform: uppercase;
+    }
+
+    .pipeline__action {
+      border: 1px solid var(--color-primary-action-fill);
+      border-radius: var(--radius-button);
+      background: var(--color-primary-action-fill);
+      padding: var(--spacing-4) var(--spacing-12);
+      color: var(--color-canvas-white);
+      font-size: var(--text-caption);
+      font-weight: 600;
+    }
+
+    /* No max-width here: the rule above the caption should span the whole panel. */
+    .pipeline__caption {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-8);
+      border-top: 1px solid var(--color-ash);
+      padding: var(--spacing-12) var(--spacing-20);
+      color: var(--color-steel);
+      font-size: var(--text-caption);
+      line-height: 1.5;
+    }
+
+    .pipeline__caption ion-icon {
+      flex: 0 0 auto;
+      color: var(--color-green-ink);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 360px) {
+      .pipeline__bar {
         align-items: flex-start;
         flex-direction: column;
         gap: var(--spacing-8);
       }
+    }
 
-      .feature-pill {
-        flex: 0 0 auto;
-        font-size: 0.75rem;
+    @media (prefers-reduced-motion: reduce) {
+      .js-motion .pipeline__pulse,
+      .js-motion .pipeline__sweep {
+        animation: none;
       }
-    }
 
-
-    .hero__form {
-      max-width: 40rem;
-      margin-top: var(--spacing-28);
-    }
-
-    .workspace-preview {
-      width: 100%;
-      overflow: hidden;
-      border: 1px solid var(--color-blue-wash);
-      border-radius: var(--radius-large-card);
-      background: var(--color-canvas-white);
-      box-shadow: 0 1rem 3rem var(--color-paper-mist);
-    }
-
-    .workspace-preview__appbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--spacing-16);
-      border-bottom: 1px solid var(--color-ash);
-      padding: var(--spacing-12) var(--spacing-16);
-    }
-
-    .workspace-preview__brand {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--spacing-8);
-      font-size: var(--text-body);
-      font-weight: 600;
-    }
-
-    .workspace-preview__mode,
-    .workspace-preview__status {
-      color: var(--color-deep-sapphire);
-      font-size: var(--text-caption);
-      font-weight: 600;
-      white-space: nowrap;
-    }
-
-    .workspace-preview__body {
-      display: grid;
-      grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
-      min-height: 22rem;
-    }
-
-    .workspace-preview__sidebar {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-4);
-      border-right: 1px solid var(--color-ash);
-      background: var(--color-paper-mist);
-      padding: var(--spacing-16);
-    }
-
-    .workspace-preview__sidebar-label {
-      margin-bottom: var(--spacing-8);
-    }
-
-    .workspace-preview__nav {
-      border-radius: var(--radius-button);
-      padding: var(--spacing-8);
-      color: var(--color-slate);
-      font-size: var(--text-body);
-    }
-
-    .workspace-preview__nav--active {
-      background: var(--color-blue-wash);
-      color: var(--color-deep-sapphire);
-      font-weight: 600;
-    }
-
-    .workspace-preview__main {
-      min-width: 0;
-      padding: clamp(var(--spacing-16), 4vw, var(--spacing-32));
-    }
-
-    .workspace-preview__toolbar {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--spacing-16);
-    }
-
-    .workspace-preview h2 {
-      margin-top: var(--spacing-4);
-      color: var(--color-charcoal);
-      font-size: var(--text-heading-sm);
-    }
-
-    .workspace-preview__summary {
-      display: flex;
-      gap: var(--spacing-12);
-      margin-top: var(--spacing-24);
-      border: 1px solid var(--color-ash);
-      border-radius: var(--radius-card);
-      background: var(--color-paper-mist);
-      padding: var(--spacing-16);
-    }
-
-    .workspace-preview__summary strong {
-      display: block;
-      font-size: var(--text-body);
-    }
-
-    .workspace-preview__summary p {
-      margin-top: var(--spacing-4);
-      color: var(--color-steel);
-      font-size: var(--text-body);
-    }
-
-    .workspace-preview__rows {
-      margin-top: var(--spacing-24);
-      border-top: 1px solid var(--color-ash);
-    }
-
-    .workspace-preview__row {
-      display: grid;
-      grid-template-columns: 8px minmax(0, 1fr) auto;
-      gap: var(--spacing-12);
-      align-items: center;
-      min-height: 3.25rem;
-      border-bottom: 1px solid var(--color-ash);
-      color: var(--color-graphite);
-      font-size: var(--text-body);
-    }
-
-    .workspace-preview__row-marker {
-      color: var(--color-electric-blue);
-      font-size: 0.9rem;
-    }
-
-    .workspace-preview__sample {
-      margin-top: var(--spacing-12);
-      color: var(--color-fog);
-    }
-
-    .workspace-preview__caption {
-      border-top: 1px solid var(--color-ash);
-      padding: var(--spacing-12) var(--spacing-16);
-      color: var(--color-steel);
-      font-size: var(--text-caption);
+      .pipeline__sweep {
+        display: none;
+      }
     }
 
     .dial-section {
@@ -884,16 +1012,15 @@ import ArcDial from "../components/ArcDial.astro";
       max-width: 40rem;
     }
 
-    @media (min-width: 768px) {
+    @media (min-width: 1000px) {
       .hero {
-        grid-template-columns: minmax(0, 1fr) minmax(32rem, 1.25fr);
-        gap: clamp(var(--spacing-40), 7vw, var(--spacing-80));
+        grid-template-columns: minmax(22rem, 1fr) minmax(26rem, 1fr);
+        gap: clamp(var(--spacing-40), 5vw, var(--spacing-64));
         align-items: center;
       }
+    }
 
-      .workspace-preview {
-        margin-top: var(--spacing-16);
-      }
+    @media (min-width: 768px) {
 
       .dial-section__inner,
       .join__inner {
@@ -902,21 +1029,6 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     @media (max-width: 639px) {
-      .workspace-preview__body {
-        grid-template-columns: 1fr;
-      }
-
-      .workspace-preview__sidebar {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: var(--spacing-4);
-        border-right: 0;
-        border-bottom: 1px solid var(--color-ash);
-      }
-
-      .workspace-preview__sidebar-label {
-        grid-column: 1 / -1;
-      }
 
       .product-bento__intro {
         grid-template-columns: 1fr;
@@ -957,98 +1069,17 @@ import ArcDial from "../components/ArcDial.astro";
       }
     }
 
-    @media (max-width: 400px) {
-      .workspace-preview__appbar,
-      .workspace-preview__toolbar {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      .workspace-preview__row {
-        grid-template-columns: 8px minmax(0, 1fr);
-        padding-block: var(--spacing-8);
-      }
-
-      .workspace-preview__row .meta {
-        grid-column: 2;
-      }
-    }
-
-    /* Final distillation: the product story is a sequence, not a card wall. */
-    .workspace-preview__appbar {
-      padding: var(--spacing-16) var(--spacing-24);
-      background: rgb(255 255 255 / 0.42);
-      backdrop-filter: blur(14px);
-    }
-
-    .workspace-preview__body {
-      grid-template-columns: 1fr;
-      min-height: 0;
-    }
-
-    .workspace-preview__sidebar {
-      padding: var(--spacing-24);
-    }
-
-    .workspace-preview__nav {
-      padding: var(--spacing-12);
-    }
-
-    .workspace-preview__main {
-      padding: clamp(var(--spacing-24), 4vw, var(--spacing-40));
-    }
-
-    .workspace-preview {
-      border-color: rgb(37 99 235 / 0.2);
-      background: linear-gradient(145deg, rgb(255 255 255 / 0.86), rgb(239 247 255 / 0.7));
-      backdrop-filter: blur(18px);
-      box-shadow:
-        0 24px 56px rgb(26 86 130 / 0.14),
-        inset 0 1px 0 rgb(255 255 255 / 0.9);
-    }
-
-    .workspace-preview h2 {
-      font-size: clamp(1.75rem, 3vw, 2.5rem);
-      line-height: 1.05;
-    }
-
-    .workspace-preview__summary {
-      margin-top: var(--spacing-32);
-      border: 0;
-      border-top: 1px solid var(--color-ash);
-      border-bottom: 1px solid var(--color-ash);
-      border-radius: 0;
-      background: transparent;
-      padding: var(--spacing-24) 0;
-    }
-
-    .workspace-preview__rows {
-      margin-top: var(--spacing-24);
-    }
-
-    .workspace-preview__row {
-      min-height: 4rem;
-    }
-
-    .workspace-preview__caption {
-      padding: var(--spacing-16) var(--spacing-24);
-    }
-
     .product-card {
       width: 100%;
     }
 
     .product-card--privacy .product-card__copy,
-    .product-card--handoff .product-card__copy,
-    .product-card--capture .product-card__copy,
-    .product-card--document .product-card__copy {
+    .product-card--handoff .product-card__copy {
       order: 2;
     }
 
     .product-card--privacy .privacy-orbit,
-    .product-card--handoff .mini-handoff,
-    .product-card--capture .mini-timeline,
-    .product-card--document .mini-document {
+    .product-card--handoff .mini-handoff {
       order: 1;
     }
 
@@ -1061,13 +1092,6 @@ import ArcDial from "../components/ArcDial.astro";
 
     .mini-document {
       transform: none;
-    }
-
-    @media (max-width: 900px) {
-      .workspace-preview__toolbar {
-        flex-direction: column;
-        align-items: flex-start;
-      }
     }
 
     .product-bento__intro {
