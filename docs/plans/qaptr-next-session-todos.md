@@ -67,7 +67,7 @@
 - [x] Include exact capture count, prepared count, excluded count, provider, resolved model, and payload kinds in the consent summary. `ConsentRequest` is built after local preparation with capture/prepared/exclusion counts, provider, request-scoped resolved model, and payload kind; `cargo test -p qaptr-workflow --test analyze` passes 13 tests including `consent_receives_request_scoped_resolved_model` and `provider_payload_kind_is_text_without_image_opt_in`.
 
 ### 2.2 Consent, retry, cancellation, and error semantics
-- [ ] Make consent explicit and scoped to one session immediately before the first request.
+- [x] Make consent explicit and scoped to one session immediately before the first request. `ConsentPort::request` is called once after every eligible capture has completed local privacy preparation and provider verification, immediately before the first `ProviderGate::invoke`; the immutable `ConsentRequest` carries the request-scoped provider/model and payload summary. `declined_consent_keeps_preparation_local`, `consent_receives_request_scoped_resolved_model`, and `declined_consent_through_coordinator_makes_zero_provider_calls` pass in `cargo test -p qaptr-workflow --test analyze --test session`.
 - [x] Verify declined consent results in zero provider invocations and leaves prepared local state non-durable except permitted scalar notices.
 - [ ] Revalidate provider and resolved model after local preparation and before consent/request dispatch.
 - [ ] Make cancellation cooperative at ingest, preparation, consent, and between provider operations.
