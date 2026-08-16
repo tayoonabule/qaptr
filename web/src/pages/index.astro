@@ -1040,12 +1040,16 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .product-card--privacy .product-card__copy,
-    .product-card--handoff .product-card__copy {
+    .product-card--handoff .product-card__copy,
+    .product-card--capture .product-card__copy,
+    .product-card--document .product-card__copy {
       order: 2;
     }
 
     .product-card--privacy .privacy-orbit,
-    .product-card--handoff .mini-handoff {
+    .product-card--handoff .mini-handoff,
+    .product-card--capture .mini-timeline,
+    .product-card--document .mini-document {
       order: 1;
     }
 
@@ -1115,8 +1119,12 @@ import ArcDial from "../components/ArcDial.astro";
 
       .product-card--privacy .product-card__copy,
       .product-card--handoff .product-card__copy,
+      .product-card--capture .product-card__copy,
+      .product-card--document .product-card__copy,
       .product-card--privacy .privacy-orbit,
-      .product-card--handoff .mini-handoff {
+      .product-card--handoff .mini-handoff,
+      .product-card--capture .mini-timeline,
+      .product-card--document .mini-document {
         order: initial;
       }
 
