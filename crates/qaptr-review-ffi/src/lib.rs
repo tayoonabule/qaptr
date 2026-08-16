@@ -19,6 +19,7 @@
 #![allow(unsafe_code)]
 
 mod bootstrap;
+mod document_bridge;
 mod driver;
 pub mod local;
 mod support;
@@ -355,6 +356,136 @@ pub unsafe extern "C" fn qaptr_store_last_error(
     copy_string(&handle.last_error, output, output_capacity)
 }
 
+/// Copies one durable observation's scalar detail into a caller-provided
+/// buffer.
+///
+/// The request is bounded JSON v1: `{"version":1,"observation_id":"..."}`.
+/// The response contains the same scalar fields as
+/// [`qaptr_store_snapshot_json`] for exactly one observation, or a terse
+/// `ok:false` error when the observation is not found, the request is
+/// malformed, or the store could not be read. It never returns image bytes,
+/// credentials, or provider payloads. The return value is the required buffer
+/// size, including the trailing NUL; a null output or zero capacity is a size
+/// query.
+///
+/// # Safety
+///
+/// `handle` must be a live handle. `request` must reference `request_len`
+/// readable bytes. `output` must reference a writable buffer of
+/// `output_capacity` bytes when the capacity is non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_observation_detail_json(
+    handle: *mut QaptrStoreHandle,
+    request: *const u8,
+    request_len: usize,
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let Some(handle) = (unsafe { handle.as_mut() }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"invalid_handle"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let Some(request) = (unsafe { support::read_bytes(request, request_len) }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"malformed_request"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let response = document_bridge::observation_detail(handle, request).to_string();
+    copy_string(&response, output, output_capacity)
+}
+
+/// Generates and persists a canonical Workflow from one durable observation,
+/// then copies its scalar summary into a caller-provided buffer.
+///
+/// The request is bounded JSON v1: `{"version":1,"observation_id":"..."}`.
+/// Generation uses only the pure, deterministic
+/// [`qaptr_workflow::WorkflowDocument::from_observation`] construction and
+/// the existing allowlisted [`qaptr_store::Store::put_workflow`] writer.
+/// Missing procedure detail remains visibly missing; nothing is inferred.
+/// Repeating this request for the same observation replaces the same durable
+/// workflow row rather than creating a duplicate. The return value is the
+/// required buffer size, including the trailing NUL; a null output or zero
+/// capacity is a size query.
+///
+/// # Safety
+///
+/// `handle` must be a live handle. `request` must reference `request_len`
+/// readable bytes. `output` must reference a writable buffer of
+/// `output_capacity` bytes when the capacity is non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_workflow_generate_json(
+    handle: *mut QaptrStoreHandle,
+    request: *const u8,
+    request_len: usize,
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let Some(handle) = (unsafe { handle.as_mut() }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"invalid_handle"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let Some(request) = (unsafe { support::read_bytes(request, request_len) }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"malformed_request"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let response = document_bridge::workflow_generate(handle, request).to_string();
+    copy_string(&response, output, output_capacity)
+}
+
+/// Saves one canonical Markdown export variant for a durable workflow to a
+/// caller-chosen destination.
+///
+/// The request is bounded JSON v1:
+/// `{"version":1,"workflow_id":"...","variant":"automation"|"handoff"|"onboarding"|"sop","destination":"..."}`.
+/// The destination must already be chosen by the caller, such as through a
+/// native save panel; this function does not choose a developer path, create
+/// parent directories, or launch another app, agent, or automation. Rendering
+/// reuses the existing pure `qaptr_workflow` renderers and the vault's atomic
+/// filesystem write. The return value is the required buffer size, including
+/// the trailing NUL; a null output or zero capacity is a size query.
+///
+/// # Safety
+///
+/// `handle` must be a live handle. `request` must reference `request_len`
+/// readable bytes. `output` must reference a writable buffer of
+/// `output_capacity` bytes when the capacity is non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_workflow_export_json(
+    handle: *mut QaptrStoreHandle,
+    request: *const u8,
+    request_len: usize,
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let Some(handle) = (unsafe { handle.as_mut() }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"invalid_handle"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let Some(request) = (unsafe { support::read_bytes(request, request_len) }) else {
+        return copy_string(
+            r#"{"version":1,"ok":false,"error":"malformed_request"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let response = document_bridge::workflow_export(handle, request).to_string();
+    copy_string(&response, output, output_capacity)
+}
+
 fn read_store_view(
     handle: &QaptrStoreHandle,
 ) -> Result<(qaptr_store::HistorySnapshot, Vec<qaptr_store::NoticeRecord>), String> {
@@ -368,28 +499,12 @@ fn snapshot_to_json(
     notices: &[qaptr_store::NoticeRecord],
 ) -> Value {
     json!({
-        "observations": snapshot.observations.iter().map(|observation| json!({
-            "id": observation.id.as_str(),
-            "capture_id": observation.capture_id.as_ref().map(qaptr_domain::CaptureId::as_str),
-            "session_id": observation.session_id.as_str(),
-            "title": observation.title,
-            "summary": observation.summary,
-            "confidence": observation.confidence.as_f32(),
-            "created_at_ms": observation.created_at.as_millis(),
-        })).collect::<Vec<_>>(),
-        "workflows": snapshot.workflows.iter().map(|workflow| json!({
-            "id": workflow.id.as_str(),
-            "session_id": workflow.session_id.as_str(),
-            "title": workflow.title,
-            "goal": workflow.goal,
-            "context": workflow.context,
-            "tools": workflow.tools,
-            "sequence": workflow.sequence,
-            "decisions": workflow.decisions,
-            "variations": workflow.variations,
-            "evidence_confidence": workflow.evidence_confidence.as_f32(),
-            "created_at_ms": workflow.created_at.as_millis(),
-        })).collect::<Vec<_>>(),
+        "observations": snapshot.observations.iter()
+            .map(document_bridge::observation_to_json)
+            .collect::<Vec<_>>(),
+        "workflows": snapshot.workflows.iter()
+            .map(document_bridge::workflow_to_json)
+            .collect::<Vec<_>>(),
         "notices": notices.iter().map(|notice| json!({
             "id": notice.id,
             "created_at_ms": notice.created_at.as_millis(),
