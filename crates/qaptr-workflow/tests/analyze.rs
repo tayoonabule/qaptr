@@ -32,7 +32,7 @@ use qaptr_vault::OpenedBundle;
 use qaptr_vault::{BundleInput, GenerationId, GenerationKeypair, SampledContext, Vault};
 use qaptr_workflow::{
     AnalysisRunner, Cancellation, CaptureDecoder, CaptureRecordInput, ConsentDecision, ConsentPort,
-    ConsentRequest, DecodeError, ProviderOutcome, ReviewSessionCoordinator,
+    ConsentRequest, DecodeError, ProviderOutcome, ReviewSessionCoordinator, SessionCancellation,
 };
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -255,6 +255,17 @@ struct FakeConsent {
     last_resolved_model: RefCell<Option<ModelId>>,
 }
 
+struct CancellingConsent {
+    cancellation: SessionCancellation,
+}
+
+impl ConsentPort for CancellingConsent {
+    fn request(&self, _request: &ConsentRequest) -> ConsentDecision {
+        self.cancellation.cancel();
+        ConsentDecision::Granted
+    }
+}
+
 struct CancelAfterPreparation {
     checks: Cell<u32>,
 }
@@ -387,13 +398,14 @@ fn failure() -> ProviderError {
     }
 }
 
-fn runner<'a, A>(
+fn runner<'a, A, P>(
     harness: &'a Harness,
     provider: Option<&'a ProviderGate<A>>,
-    consent: &'a FakeConsent,
-) -> AnalysisRunner<'a, MemoryCredentials, FakeOcr, FakeVision, A, Decoder, FakeConsent, FixedClock>
+    consent: &'a P,
+) -> AnalysisRunner<'a, MemoryCredentials, FakeOcr, FakeVision, A, Decoder, P, FixedClock>
 where
     A: ProviderAdapter,
+    P: ConsentPort,
 {
     AnalysisRunner::new(
         &harness.vault,
@@ -700,5 +712,30 @@ fn interruption_discards_staged_observations_for_a_clean_resume() {
             .observations
             .len(),
         1
+    );
+}
+
+#[test]
+fn cancellation_requested_by_consent_stops_before_provider_invocation() {
+    let (harness, capture) = Harness::new("cancelled-at-consent", safe_context());
+    let provider = ProviderGate::new(FakeProvider::new(None));
+    let cancellation = SessionCancellation::new();
+    let consent = CancellingConsent {
+        cancellation: cancellation.clone(),
+    };
+
+    let report = runner(&harness, Some(&provider), &consent)
+        .run_with_cancellation(session(), &[capture], &cancellation)
+        .expect("analysis");
+
+    assert!(matches!(report.provider, ProviderOutcome::Cancelled));
+    assert_eq!(provider.adapter().invocations.get(), 0);
+    assert!(
+        harness
+            .store
+            .snapshot()
+            .expect("snapshot")
+            .observations
+            .is_empty()
     );
 }
