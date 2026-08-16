@@ -34,20 +34,10 @@ import ArcDial from "../components/ArcDial.astro";
 
     <figure class="workspace-preview reveal" aria-labelledby="workspace-preview-caption">
       <div class="workspace-preview__appbar">
-        <div class="workspace-preview__brand">
-          <span>Qaptr</span>
-        </div>
-          <span class="workspace-preview__mode"><ion-icon name="laptop-outline" aria-hidden="true"></ion-icon>Local capture</span>
+        <span class="workspace-preview__mode"><ion-icon name="laptop-outline" aria-hidden="true"></ion-icon>Local capture</span>
       </div>
 
       <div class="workspace-preview__body">
-        <aside class="workspace-preview__sidebar" aria-label="Illustrative workspace navigation">
-          <p class="meta workspace-preview__sidebar-label">Workspace</p>
-          <span class="workspace-preview__nav workspace-preview__nav--active"><ion-icon name="albums-outline" aria-hidden="true"></ion-icon>Sessions</span>
-          <span class="workspace-preview__nav"><ion-icon name="list-outline" aria-hidden="true"></ion-icon>Review</span>
-          <span class="workspace-preview__nav"><ion-icon name="settings-outline" aria-hidden="true"></ion-icon>Settings</span>
-        </aside>
-
         <div class="workspace-preview__main">
           <div class="workspace-preview__toolbar">
             <div>
@@ -55,13 +45,6 @@ import ArcDial from "../components/ArcDial.astro";
               <h2>Project brief</h2>
             </div>
             <span class="workspace-preview__status"><ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon>Ready to review</span>
-          </div>
-
-          <div class="workspace-preview__summary">
-            <div>
-              <strong>A clear record of your work.</strong>
-              <p>See the sequence, keep the context, decide what to share.</p>
-            </div>
           </div>
 
           <div class="workspace-preview__rows animate-ui-list" aria-label="Illustrative session activity">
@@ -81,7 +64,6 @@ import ArcDial from "../components/ArcDial.astro";
               <span class="meta">Recorded</span>
             </div>
           </div>
-          <p class="workspace-preview__sample meta"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>Illustrative preview</p>
         </div>
       </div>
       <figcaption id="workspace-preview-caption" class="workspace-preview__caption">
@@ -100,7 +82,7 @@ import ArcDial from "../components/ArcDial.astro";
       <div class="dial-section__visual">
         <ArcDial />
         <p class="meta dial-section__caption">
-          Choose an interval from 5 seconds to 5 minutes. Change it when your work changes.
+          Set the interval from 5 seconds to 30 minutes. Qaptr captures quietly at the pace you choose.
         </p>
       </div>
     </div>
@@ -690,10 +672,10 @@ import ArcDial from "../components/ArcDial.astro";
     .mini-timeline__event::before {
       position: absolute;
       top: 50%;
-      left: calc(-1.55rem + 2px);
+      left: calc(-1.5rem + 0.4px);
       width: 9px;
       height: 9px;
-      border: 2px solid var(--color-orange-wash);
+      border: 2px solid var(--color-canvas-white);
       border-radius: 50%;
       background: var(--color-tangerine);
       content: "";
@@ -995,10 +977,13 @@ import ArcDial from "../components/ArcDial.astro";
     /* Final distillation: the product story is a sequence, not a card wall. */
     .workspace-preview__appbar {
       padding: var(--spacing-16) var(--spacing-24);
+      background: rgb(255 255 255 / 0.42);
+      backdrop-filter: blur(14px);
     }
 
     .workspace-preview__body {
-      min-height: 32rem;
+      grid-template-columns: 1fr;
+      min-height: 0;
     }
 
     .workspace-preview__sidebar {
@@ -1010,7 +995,21 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .workspace-preview__main {
-      padding: clamp(var(--spacing-32), 5vw, var(--spacing-56));
+      padding: clamp(var(--spacing-24), 4vw, var(--spacing-40));
+    }
+
+    .workspace-preview {
+      border-color: rgb(37 99 235 / 0.2);
+      background: linear-gradient(145deg, rgb(255 255 255 / 0.86), rgb(239 247 255 / 0.7));
+      backdrop-filter: blur(18px);
+      box-shadow:
+        0 24px 56px rgb(26 86 130 / 0.14),
+        inset 0 1px 0 rgb(255 255 255 / 0.9);
+    }
+
+    .workspace-preview h2 {
+      font-size: clamp(1.75rem, 3vw, 2.5rem);
+      line-height: 1.05;
     }
 
     .workspace-preview__summary {
@@ -1024,11 +1023,11 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .workspace-preview__rows {
-      margin-top: var(--spacing-32);
+      margin-top: var(--spacing-24);
     }
 
     .workspace-preview__row {
-      min-height: 4.5rem;
+      min-height: 4rem;
     }
 
     .workspace-preview__caption {
@@ -1058,6 +1057,13 @@ import ArcDial from "../components/ArcDial.astro";
 
     .mini-document {
       transform: none;
+    }
+
+    @media (max-width: 900px) {
+      .workspace-preview__toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
 
     .product-bento__intro {
@@ -1094,6 +1100,22 @@ import ArcDial from "../components/ArcDial.astro";
       padding: clamp(var(--spacing-48), 7vw, var(--spacing-80)) 0;
       box-shadow: none;
       height: auto;
+    }
+
+    .product-card:nth-child(odd) .product-card__copy {
+      order: 2;
+    }
+
+    .product-card:nth-child(odd) > :not(.product-card__copy) {
+      order: 1;
+    }
+
+    .product-card:nth-child(even) .product-card__copy {
+      order: 1;
+    }
+
+    .product-card:nth-child(even) > :not(.product-card__copy) {
+      order: 2;
     }
 
     .product-card:last-child {
