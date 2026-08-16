@@ -101,6 +101,10 @@ impl ProviderAdapter for UnavailableProvider {
 struct ConsentSummaryState {
     provider: String,
     resolved_model: Option<String>,
+    /// The resolved model identifier, or the honest
+    /// [`qaptr_workflow::PROVIDER_DEFAULT_MODEL_LABEL`] when the provider's
+    /// own documented default model will be used instead. Never blank.
+    model_label: String,
     payload_kind: &'static str,
     capture_count: usize,
     image_count: usize,
@@ -120,6 +124,15 @@ struct DriverState {
     result: Option<&'static str>,
     outcome: Option<&'static str>,
     error: Option<&'static str>,
+    /// The provider that produced the terminal result, when analysis actually
+    /// invoked one. This is scalar result metadata for the same provider
+    /// verified and used for the request; it is never inferred or guessed.
+    result_provider: Option<String>,
+    /// The resolved model identifier for the terminal result, or the honest
+    /// [`qaptr_workflow::PROVIDER_DEFAULT_MODEL_LABEL`] when the provider
+    /// used its own documented default model. `None` only when no provider
+    /// was invoked at all.
+    result_model_label: Option<String>,
 }
 
 impl Default for DriverState {
@@ -136,6 +149,8 @@ impl Default for DriverState {
             result: None,
             outcome: None,
             error: None,
+            result_provider: None,
+            result_model_label: None,
         }
     }
 }
@@ -163,6 +178,7 @@ impl DriverState {
             json!({
                 "provider": summary.provider,
                 "resolved_model": summary.resolved_model,
+                "model_label": summary.model_label,
                 "payload_kind": summary.payload_kind,
                 "capture_count": summary.capture_count,
                 "image_count": summary.image_count,
@@ -181,6 +197,8 @@ impl DriverState {
             "result": self.result,
             "outcome": self.outcome,
             "error": self.error,
+            "result_provider": self.result_provider,
+            "result_model_label": self.result_model_label,
             "allowed_operations": self.allowed_operations(),
         })
     }
@@ -414,6 +432,7 @@ impl SharedState {
             resolved_model: request
                 .resolved_model()
                 .map(|model| model.as_str().to_owned()),
+            model_label: request.model_label(),
             payload_kind: match request.payload_kind() {
                 ProviderPayloadKind::Text => "text",
                 ProviderPayloadKind::Images => "images",
@@ -452,6 +471,7 @@ impl SharedState {
                     state.consent_summary = Some(ConsentSummaryState {
                         provider: provider.as_str().to_owned(),
                         resolved_model: None,
+                        model_label: qaptr_workflow::PROVIDER_DEFAULT_MODEL_LABEL.to_owned(),
                         payload_kind: "text",
                         capture_count: prepared_captures,
                         image_count: 0,
@@ -500,10 +520,16 @@ impl SharedState {
             return;
         }
         match &report.provider {
-            ProviderOutcome::Completed { .. } => {
+            ProviderOutcome::Completed {
+                provider,
+                resolved_model,
+            } => {
                 state.phase = "completed";
                 state.result = Some("analysis_completed");
                 state.outcome = Some("provider_completed");
+                state.result_provider = Some(provider.as_str().to_owned());
+                state.result_model_label =
+                    Some(qaptr_workflow::model_label(resolved_model.as_ref()));
             }
             ProviderOutcome::ConsentDeclined => {
                 state.phase = "completed";
@@ -515,10 +541,17 @@ impl SharedState {
                 state.outcome = Some(PROVIDER_UNAVAILABLE);
                 state.error = Some(PROVIDER_UNAVAILABLE);
             }
-            ProviderOutcome::Failed { .. } => {
+            ProviderOutcome::Failed {
+                provider,
+                resolved_model,
+                ..
+            } => {
                 state.phase = "failed";
                 state.outcome = Some(PROVIDER_FAILED);
                 state.error = Some(PROVIDER_FAILED);
+                state.result_provider = Some(provider.as_str().to_owned());
+                state.result_model_label =
+                    Some(qaptr_workflow::model_label(resolved_model.as_ref()));
             }
             ProviderOutcome::Cancelled => {
                 state.phase = "cancelled";
@@ -1472,8 +1505,76 @@ mod tests {
         let value = shared.snapshot().to_json();
         assert_eq!(value["consent_summary"]["provider"], "fixture-provider");
         assert_eq!(value["consent_summary"]["resolved_model"], "fixture-model");
+        assert_eq!(value["consent_summary"]["model_label"], "fixture-model");
         assert_eq!(value["consent_summary"]["payload_kind"], "text");
         assert!(value["consent_summary"].get("payload").is_none());
+    }
+
+    #[test]
+    fn consent_summary_model_label_is_an_honest_provider_default_without_a_resolved_model() {
+        let shared = SharedState::new();
+        let cli_request = ConsentRequest::new(
+            ProviderId::new("codex-cli").expect("provider"),
+            None,
+            ProviderPayloadKind::Text,
+            1,
+            0,
+            0,
+        );
+        shared.set_consent_summary(&cli_request);
+        let value = shared.snapshot().to_json();
+        assert!(value["consent_summary"]["resolved_model"].is_null());
+        assert_eq!(
+            value["consent_summary"]["model_label"],
+            qaptr_workflow::PROVIDER_DEFAULT_MODEL_LABEL
+        );
+    }
+
+    #[test]
+    fn finish_report_records_resolved_provider_and_model_label_as_scalar_result_metadata() {
+        use qaptr_provider::RuntimeFailureKind;
+
+        let shared = SharedState::new();
+        let completed = AnalysisReport {
+            session_id: SessionId::new("result-metadata-completed").expect("session"),
+            captures_seen: 1,
+            prepared_captures: 1,
+            excluded_captures: 0,
+            observations_written: 1,
+            exclusion_notice: None,
+            provider: ProviderOutcome::Completed {
+                provider: ProviderId::new("openrouter").expect("provider"),
+                resolved_model: Some(ModelId::new("gpt-test").expect("model")),
+            },
+        };
+        shared.finish_report(&completed);
+        let value = shared.snapshot().to_json();
+        assert_eq!(value["result_provider"], "openrouter");
+        assert_eq!(value["result_model_label"], "gpt-test");
+
+        let failed = AnalysisReport {
+            session_id: SessionId::new("result-metadata-failed").expect("session"),
+            captures_seen: 1,
+            prepared_captures: 1,
+            excluded_captures: 0,
+            observations_written: 0,
+            exclusion_notice: None,
+            provider: ProviderOutcome::Failed {
+                provider: ProviderId::new("codex-cli").expect("provider"),
+                resolved_model: None,
+                error: ProviderError::RuntimeFailure {
+                    provider: ProviderId::new("codex-cli").expect("provider"),
+                    kind: RuntimeFailureKind::Invocation,
+                },
+            },
+        };
+        shared.finish_report(&failed);
+        let after_failure = shared.snapshot().to_json();
+        assert_eq!(after_failure["result_provider"], "codex-cli");
+        assert_eq!(
+            after_failure["result_model_label"],
+            qaptr_workflow::PROVIDER_DEFAULT_MODEL_LABEL
+        );
     }
 
     #[test]

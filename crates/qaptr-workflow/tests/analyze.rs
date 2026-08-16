@@ -154,6 +154,7 @@ struct FakeProvider {
     response: RawProviderResponse,
     failure: Option<ProviderError>,
     malformed_after_first: bool,
+    reject_model: bool,
     invocations: Cell<u32>,
 }
 
@@ -187,6 +188,7 @@ impl FakeProvider {
             ),
             failure,
             malformed_after_first: false,
+            reject_model: false,
             invocations: Cell::new(0),
         }
     }
@@ -208,6 +210,14 @@ impl FakeProvider {
         self.malformed_after_first = true;
         self
     }
+
+    /// Makes [`ProviderAdapter::validate_model`] reject every request-scoped
+    /// model, simulating an unavailable/invalid model configuration that must
+    /// block resolution before any invocation.
+    fn rejecting_model(mut self) -> Self {
+        self.reject_model = true;
+        self
+    }
 }
 
 impl ProviderAdapter for FakeProvider {
@@ -217,6 +227,16 @@ impl ProviderAdapter for FakeProvider {
 
     fn detect(&self) -> Result<ProviderDetection, ProviderError> {
         Ok(self.detection.clone())
+    }
+
+    fn validate_model(&self, _model: Option<&str>) -> Result<(), ProviderError> {
+        if self.reject_model {
+            return Err(ProviderError::RuntimeFailure {
+                provider: self.descriptor.id().clone(),
+                kind: RuntimeFailureKind::ModelUnavailable,
+            });
+        }
+        Ok(())
     }
 
     fn invoke(
@@ -630,6 +650,113 @@ fn consent_receives_request_scoped_resolved_model() {
         Some(expected),
         "consent must see the model resolved for this request"
     );
+}
+
+#[test]
+fn invalid_resolved_model_blocks_analysis_before_any_provider_request() {
+    let (harness, capture) = Harness::new("invalid-model", safe_context());
+    let provider = ProviderGate::new(FakeProvider::new(None).rejecting_model());
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let requested = ModelId::new("unavailable-model").expect("test model id");
+
+    let report = runner(&harness, Some(&provider), &consent)
+        .run_with_resolved_model(session(), &[capture], Some(requested))
+        .expect("analysis");
+
+    assert!(matches!(
+        report.provider,
+        ProviderOutcome::Unavailable {
+            reason: Some(ProviderError::RuntimeFailure {
+                kind: RuntimeFailureKind::ModelUnavailable,
+                ..
+            }),
+            ..
+        }
+    ));
+    assert_eq!(
+        provider.adapter().invocations.get(),
+        0,
+        "an invalid resolved model must cause zero provider requests"
+    );
+    assert_eq!(
+        consent.requests.get(),
+        0,
+        "consent must never be requested when the model configuration is invalid"
+    );
+    assert_eq!(report.observations_written, 0);
+    assert!(
+        harness
+            .store
+            .snapshot()
+            .expect("snapshot")
+            .observations
+            .is_empty()
+    );
+}
+
+#[test]
+fn resolved_model_is_immutable_scalar_result_metadata_on_completion() {
+    let (harness, capture) = Harness::new("resolved-model-result", safe_context());
+    let provider = ProviderGate::new(FakeProvider::new(None));
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let expected = ModelId::new("gpt-test").expect("test model id");
+
+    let report = runner(&harness, Some(&provider), &consent)
+        .run_with_resolved_model(session(), &[capture], Some(expected.clone()))
+        .expect("analysis");
+
+    match report.provider {
+        ProviderOutcome::Completed { resolved_model, .. } => {
+            assert_eq!(
+                resolved_model,
+                Some(expected),
+                "the model resolved before consent must be the same model recorded in the \
+                 completed result, not a value the provider could substitute later"
+            );
+        }
+        other => panic!("expected a completed outcome, got {other:?}"),
+    }
+}
+
+#[test]
+fn resolved_model_is_recorded_on_provider_failure_result_metadata() {
+    let (harness, capture) = Harness::new("resolved-model-failure", safe_context());
+    let provider = ProviderGate::new(FakeProvider::new(Some(failure())));
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let expected = ModelId::new("gpt-test").expect("test model id");
+
+    let report = runner(&harness, Some(&provider), &consent)
+        .run_with_resolved_model(session(), &[capture], Some(expected.clone()))
+        .expect("analysis");
+
+    match report.provider {
+        ProviderOutcome::Failed { resolved_model, .. } => {
+            assert_eq!(resolved_model, Some(expected));
+        }
+        other => panic!("expected a failed outcome, got {other:?}"),
+    }
+}
+
+#[test]
+fn no_resolved_model_reports_as_none_for_cli_provider_default() {
+    let (harness, capture) = Harness::new("no-resolved-model", safe_context());
+    let provider = ProviderGate::new(FakeProvider::new(None));
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+
+    let report = runner(&harness, Some(&provider), &consent)
+        .run(session(), &[capture])
+        .expect("analysis");
+
+    match report.provider {
+        ProviderOutcome::Completed { resolved_model, .. } => {
+            assert_eq!(
+                resolved_model, None,
+                "no explicit model was resolved, so the result must honestly report None \
+                 rather than inventing an identifier"
+            );
+        }
+        other => panic!("expected a completed outcome, got {other:?}"),
+    }
 }
 
 #[test]

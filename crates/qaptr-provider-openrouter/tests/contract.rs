@@ -255,6 +255,52 @@ fn catalog_fetch_maps_network_failure_and_missing_credentials_without_requesting
 }
 
 #[test]
+fn constructing_or_detecting_the_adapter_makes_no_catalog_transport_call() {
+    // Provider/model selection UI must be able to construct an adapter and
+    // run the shared gate's handshake (`detect`) without ever fetching the
+    // model catalog. Catalog fetch is consent-safe only when it requires an
+    // explicit, distinctly disclosed call such as `fetch_catalog` or
+    // `CatalogCache::get_or_fetch`.
+    let calls = Rc::new(std::cell::Cell::new(0));
+    let adapter = catalog_adapter(CATALOG_RESPONSE, Rc::clone(&calls));
+    assert_eq!(
+        calls.get(),
+        0,
+        "construction alone must not fetch the catalog"
+    );
+
+    ProviderGate::new(adapter)
+        .detect_and_verify()
+        .expect("fixed OpenRouter test configuration should verify");
+    assert_eq!(
+        calls.get(),
+        0,
+        "the shared gate's handshake must not fetch the catalog either"
+    );
+}
+
+#[test]
+fn catalog_cache_debug_output_and_stored_snapshot_carry_no_credential_material() {
+    // The cache and the `ModelCatalog` snapshot it stores are the persistable,
+    // non-secret configuration surface: only validated model identifiers and
+    // freshness metadata. The credential itself must never appear in debug
+    // output or be retained by the cache across calls.
+    let calls = Rc::new(std::cell::Cell::new(0));
+    let adapter = catalog_adapter(CATALOG_RESPONSE, Rc::clone(&calls));
+    let mut cache = CatalogCache::new();
+    let catalog = cache
+        .get_or_fetch(&adapter, instant(0), Duration::from_secs(900))
+        .expect("compatible catalog fixture should validate");
+
+    let cache_debug = format!("{cache:?}");
+    let catalog_debug = format!("{catalog:?}");
+    for debug in [&cache_debug, &catalog_debug] {
+        assert!(!debug.contains("test-key"));
+    }
+    assert!(catalog_debug.contains("provider/structured"));
+}
+
+#[test]
 fn catalog_cache_hits_without_network_until_expiry() {
     let calls = Rc::new(std::cell::Cell::new(0));
     let adapter = catalog_adapter(CATALOG_RESPONSE, Rc::clone(&calls));

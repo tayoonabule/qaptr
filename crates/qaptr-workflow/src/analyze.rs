@@ -132,11 +132,17 @@ pub enum ProviderOutcome {
     Completed {
         /// The provider that produced the responses.
         provider: ProviderId,
+        /// The model resolved and verified for this request, or `None` when
+        /// the provider's own documented default model was used.
+        resolved_model: Option<ModelId>,
     },
     /// The provider failed after local preparation. Capture metadata remains.
     Failed {
         /// The provider that failed.
         provider: ProviderId,
+        /// The model resolved and verified for this request, or `None` when
+        /// the provider's own documented default model was used.
+        resolved_model: Option<ModelId>,
         /// The typed provider failure.
         error: ProviderError,
     },
@@ -416,7 +422,7 @@ where
         };
         let consent_request = ConsentRequest::new(
             verified.descriptor().id().clone(),
-            resolved_model,
+            resolved_model.clone(),
             payload_kind,
             prepared.len(),
             image_count,
@@ -457,6 +463,7 @@ where
                         exclusion_notice,
                         provider: ProviderOutcome::Failed {
                             provider: verified.descriptor().id().clone(),
+                            resolved_model: resolved_model.clone(),
                             error,
                         },
                     });
@@ -524,6 +531,7 @@ where
             exclusion_notice,
             provider: ProviderOutcome::Completed {
                 provider: verified.descriptor().id().clone(),
+                resolved_model,
             },
         })
     }

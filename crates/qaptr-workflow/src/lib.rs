@@ -29,7 +29,9 @@ pub use analyze::{
     AnalysisError, AnalysisReport, AnalysisRunner, Cancellation, CaptureDecoder,
     CaptureRecordInput, DecodeError, ExclusionNotice, NeverCancelled, ProviderOutcome,
 };
-pub use consent::{ConsentDecision, ConsentPort, ConsentRequest};
+pub use consent::{
+    ConsentDecision, ConsentPort, ConsentRequest, PROVIDER_DEFAULT_MODEL_LABEL, model_label,
+};
 pub use document::{
     Artifact, ConfidenceAssessment, DecisionAlternative, DecisionPoint, Provenance, Result,
     ToolObserved, Workflow, WorkflowBuilder, WorkflowDocument, WorkflowError, WorkflowStep,

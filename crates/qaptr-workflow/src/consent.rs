@@ -3,6 +3,24 @@
 use qaptr_policy::ModelId;
 use qaptr_provider::{ProviderId, ProviderPayloadKind};
 
+/// The honest label shown when no caller-visible model identifier was
+/// resolved, because the provider adapter resolves its own documented
+/// default model (for example, a CLI provider with no explicit override).
+///
+/// This is deliberately never blank or null in a person-facing surface: a
+/// missing resolved model is a truthful "provider default" state, not an
+/// unknown or absent one.
+pub const PROVIDER_DEFAULT_MODEL_LABEL: &str = "provider default";
+
+/// Returns the model identifier to display, or [`PROVIDER_DEFAULT_MODEL_LABEL`]
+/// when no explicit model was resolved for this request.
+pub fn model_label(resolved_model: Option<&ModelId>) -> String {
+    resolved_model.map_or_else(
+        || PROVIDER_DEFAULT_MODEL_LABEL.to_owned(),
+        ToString::to_string,
+    )
+}
+
 /// The information shown before the first provider request in a session.
 ///
 /// The resolved model is immutable for the lifetime of one consent request:
@@ -57,6 +75,13 @@ impl ConsentRequest {
     /// consent decision governs.
     pub const fn resolved_model(&self) -> Option<&ModelId> {
         self.resolved_model.as_ref()
+    }
+
+    /// Returns the resolved model identifier, or the honest
+    /// [`PROVIDER_DEFAULT_MODEL_LABEL`] when the provider's own documented
+    /// default model will be used instead of a caller-visible identifier.
+    pub fn model_label(&self) -> String {
+        model_label(self.resolved_model())
     }
 
     /// Returns the sanitized payload kind requested from the provider.
@@ -133,6 +158,41 @@ mod tests {
         );
         assert_eq!(request.resolved_model(), None);
         assert_eq!(request.payload_kind(), ProviderPayloadKind::Images);
+    }
+
+    #[test]
+    fn model_label_reports_the_resolved_model_identifier() {
+        let resolved = model("gpt-test");
+        assert_eq!(model_label(Some(&resolved)), "gpt-test");
+    }
+
+    #[test]
+    fn model_label_reports_an_honest_provider_default_when_unresolved() {
+        assert_eq!(model_label(None), PROVIDER_DEFAULT_MODEL_LABEL);
+        assert_eq!(PROVIDER_DEFAULT_MODEL_LABEL, "provider default");
+    }
+
+    #[test]
+    fn consent_request_model_label_matches_the_free_function() {
+        let with_model = ConsentRequest::new(
+            provider("openrouter"),
+            Some(model("gpt-test")),
+            ProviderPayloadKind::Text,
+            1,
+            0,
+            0,
+        );
+        assert_eq!(with_model.model_label(), "gpt-test");
+
+        let cli_default = ConsentRequest::new(
+            provider("codex-cli"),
+            None,
+            ProviderPayloadKind::Text,
+            1,
+            0,
+            0,
+        );
+        assert_eq!(cli_default.model_label(), PROVIDER_DEFAULT_MODEL_LABEL);
     }
 
     #[test]
