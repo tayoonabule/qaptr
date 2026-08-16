@@ -73,11 +73,17 @@ bundle_executable() {
     printf '%s\n' "$bundle/Contents/MacOS/$executable"
 }
 
-codesign_args=(--force --options runtime --sign "$identity")
+# Hardened runtime turns on library validation. An ad-hoc signature carries no
+# Team ID, so a hardened ad-hoc app refuses to load its own embedded
+# `libqaptr_review_ffi.dylib` (amfid: "adhoc signed or signed by an unknown
+# certificate chain"). Hardened runtime is only required for notarization,
+# which already requires a Developer ID identity, so request it exactly when a
+# real identity is used and keep local ad-hoc packages loadable.
+codesign_args=(--force --sign "$identity")
 if [[ "$timestamp" == "none" ]]; then
     codesign_args+=(--timestamp=none)
 else
-    codesign_args+=(--timestamp)
+    codesign_args+=(--options runtime --timestamp)
 fi
 
 sign_macho_files() {

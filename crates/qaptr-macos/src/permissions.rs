@@ -65,12 +65,19 @@ impl MacPermissions {
             return Ok(PermissionState::Granted);
         }
 
+        // The public preflight API is authoritative for a granted decision but
+        // cannot distinguish "explicitly denied" from "never asked". The TCC
+        // database can, when it is readable. Reading it requires Full Disk
+        // Access, which Qaptr deliberately does not request, so an unreadable
+        // database must stay `NotDetermined`: reporting `Denied` would tell the
+        // person their answer was recorded as "no" when nothing was recorded.
         let service = service_name(permission);
-        let database = tcc_database_path()?;
+        let Ok(database) = tcc_database_path() else {
+            return Ok(PermissionState::NotDetermined);
+        };
         match query_tcc_state(&database, service, &self.bundle_identifier) {
             Ok(Some(auth_value)) => Ok(auth_value_to_state(auth_value, false)),
-            Ok(None) => Ok(PermissionState::NotDetermined),
-            Err(_) => Ok(PermissionState::Denied),
+            Ok(None) | Err(_) => Ok(PermissionState::NotDetermined),
         }
     }
 
