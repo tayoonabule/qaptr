@@ -227,61 +227,79 @@ struct SettingsView: View {
         RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
           .strokeBorder(Color.qaptrHairline, lineWidth: 1)
       }
-      if showsOpenRouterKeyNotice {
-        OpenRouterKeyReadinessNotice(action: { showsProviderSetup = true })
-      }
     }
   }
 
   private func providerRow(_ provider: ProviderChoice) -> some View {
     let selected = model.settings.provider == provider
-    return Button {
-      // `connectProvider` only requests the setup sheet itself when
-      // OpenRouter is selected and still needs a key.
-      model.connectProvider(provider)
-      if model.providerSetupRequest == .openRouter { showsProviderSetup = true }
-    } label: {
-      HStack(spacing: QaptrSpace.md) {
-        VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-          Text(provider.displayName)
-            .font(QaptrType.body(14.5))
-            .foregroundStyle(Color.qaptrInk)
-          Text(provider == .openRouter ? "API key" : "Command-line connection")
-            .font(QaptrType.caption(11))
-            .foregroundStyle(Color.qaptrInkMuted)
-        }
-        Spacer(minLength: QaptrSpace.sm)
-        if selected {
-          Text(model.providerConnection.title.uppercased())
+    let presentation = model.providerRowPresentation(for: provider)
+    return VStack(alignment: .leading, spacing: 0) {
+      Button {
+        // `connectProvider` only requests the setup sheet itself when
+        // OpenRouter is selected and still needs a key.
+        model.connectProvider(provider)
+        if model.providerSetupRequest == .openRouter { showsProviderSetup = true }
+      } label: {
+        HStack(spacing: QaptrSpace.md) {
+          VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+            Text(provider.displayName)
+              .font(QaptrType.body(14.5))
+              .foregroundStyle(Color.qaptrInk)
+            Text(provider == .openRouter ? "API key" : "Command-line connection")
+              .font(QaptrType.caption(11))
+              .foregroundStyle(Color.qaptrInkMuted)
+          }
+          Spacer(minLength: QaptrSpace.sm)
+          Text(presentation.statusLabel.uppercased())
             .font(QaptrType.meta(9.5))
             .tracking(0.55)
             .foregroundStyle(
-              model.providerConnection == .connected ? Color.qaptrSuccess : Color.qaptrAccentStrong
+              model.providerConnection == .connected && selected ? Color.qaptrSuccess : Color.qaptrAccentStrong
             )
             .padding(.horizontal, QaptrSpace.sm)
             .padding(.vertical, QaptrSpace.xs)
             .background(Color.qaptrSurface, in: Capsule())
+          Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 15, weight: .medium))
+            .foregroundStyle(selected ? Color.qaptrAccent : Color.qaptrBorderStrong)
         }
-        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-          .font(.system(size: 15, weight: .medium))
-          .foregroundStyle(selected ? Color.qaptrAccent : Color.qaptrBorderStrong)
+        .padding(.horizontal, QaptrSpace.md)
+        .padding(.vertical, QaptrSpace.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? Color.qaptrAccentTint : Color.clear)
+        .contentShape(Rectangle())
       }
-      .padding(.horizontal, QaptrSpace.md)
-      .padding(.vertical, QaptrSpace.sm)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(selected ? Color.qaptrAccentTint : Color.clear)
-      .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-    .accessibilityAddTraits(selected ? .isSelected : [])
-    .accessibilityLabel(provider.displayName)
-    .accessibilityValue(selected ? model.providerConnection.title : "Not selected")
-    .contextMenu {
-      if provider == .openRouter && selected && showsOpenRouterChangeKeyAction {
-        Button("Change key") {
-          model.openProviderSetup()
-          showsProviderSetup = true
+      .buttonStyle(.plain)
+      .accessibilityAddTraits(selected ? .isSelected : [])
+      .accessibilityLabel(provider.displayName)
+      .accessibilityValue(presentation.statusLabel)
+      .contextMenu {
+        if provider == .openRouter && selected && showsOpenRouterChangeKeyAction {
+          Button("Change key") {
+            model.openProviderSetup()
+            showsProviderSetup = true
+          }
         }
+      }
+
+      if let reason = presentation.reason {
+        HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.sm) {
+          Text(reason)
+            .font(QaptrType.caption(11))
+            .foregroundStyle(Color.qaptrInkSoft)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(reason)
+          Spacer(minLength: QaptrSpace.sm)
+          if let action = presentation.nextAction, provider == .openRouter {
+            Button(action == .addKey ? "Add key" : "Change key") {
+              model.openProviderSetup()
+              showsProviderSetup = true
+            }
+            .buttonStyle(.qaptrQuiet)
+          }
+        }
+        .padding(.horizontal, QaptrSpace.md)
+        .padding(.bottom, QaptrSpace.sm)
       }
     }
   }
@@ -442,28 +460,6 @@ private struct SettingsMetric: View {
     .background(
       Color.qaptrPaperMist,
       in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
-  }
-}
-
-/// A single, concise status/recovery row shown only when OpenRouter is the
-/// selected provider and no key has been saved. It reads solely from
-/// `ProviderConnectionState`, derived from Keychain presence, never from a
-/// network call.
-private struct OpenRouterKeyReadinessNotice: View {
-  let action: () -> Void
-
-  var body: some View {
-    HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.md) {
-      Text("OpenRouter needs a key before Qaptr can use it.")
-        .font(QaptrType.caption())
-        .foregroundStyle(Color.qaptrInkSoft)
-      Spacer(minLength: QaptrSpace.md)
-      Button("Add key", action: action)
-        .buttonStyle(.qaptrOutline)
-    }
-    .padding(.top, QaptrSpace.xs)
-    .accessibilityElement(children: .combine)
-    .accessibilityLabel("OpenRouter needs a key before Qaptr can use it.")
   }
 }
 

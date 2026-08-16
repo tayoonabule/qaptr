@@ -49,6 +49,10 @@ struct OnboardingView: View {
     .sheet(isPresented: $showsProviderSetup, onDismiss: model.dismissProviderSetup) {
       ProviderSetupSheet(model: model)
     }
+    .onAppear {
+      model.refreshSettings()
+      model.refreshCaptureProgress()
+    }
   }
 
   private var setupBand: some View {
@@ -296,8 +300,34 @@ struct OnboardingView: View {
       .font(QaptrType.body(13))
       .foregroundStyle(Color.qaptrInkSoft)
       .padding(.top, QaptrSpace.xs)
+      if let capturingText = liveCaptureDisplaysText {
+        Text(capturingText)
+          .font(QaptrType.caption())
+          .foregroundStyle(Color.qaptrInkSoft.opacity(0.85))
+      }
     }
     .accessibilityElement(children: .combine)
+  }
+
+  /// A truthful, live line about which screens the background helper is
+  /// actually capturing right now, distinct from the system's merely
+  /// *available* display count above. Returns `nil` before the helper has
+  /// ever reported a status, so this never invents a running-capture claim.
+  private var liveCaptureDisplaysText: String? {
+    Self.liveCaptureDisplaysText(
+      helperIsRunning: model.captureProgress.helperIsRunning,
+      selectedDisplayIDs: model.captureProgress.selectedDisplayIDs
+    )
+  }
+
+  /// Pure decision logic behind `liveCaptureDisplaysText`, directly testable
+  /// without a full `ReviewAppModel`.
+  nonisolated static func liveCaptureDisplaysText(helperIsRunning: Bool, selectedDisplayIDs: [String]) -> String? {
+    guard helperIsRunning else { return nil }
+    guard !selectedDisplayIDs.isEmpty else {
+      return "Capture is running but has not reported a selected screen yet."
+    }
+    return "Currently capturing \(selectedDisplayIDs.count) screen\(selectedDisplayIDs.count == 1 ? "" : "s")."
   }
 
   private var captureExplanationStage: some View {

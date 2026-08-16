@@ -50,6 +50,7 @@ final class ReviewAppModel {
     private(set) var reviewStatusError: String? = nil
     private(set) var settings: SettingsState = .placeholder
     private(set) var providerConnection = ProviderConnectionState.notConnected
+    private(set) var cliProviderReadiness: [String: ProviderReadiness] = [:]
     var providerSetupRequest: ProviderChoice?
     var onboardingCompleted: Bool
 
@@ -130,6 +131,41 @@ final class ReviewAppModel {
         }
     }
 
+    /// Generates (or regenerates) the canonical workflow for one durable
+    /// observation and refreshes the snapshot so the new/updated workflow is
+    /// immediately visible. Returns the generated summary on success so a
+    /// caller can offer an immediate export action, or a concise failure
+    /// reason otherwise. This drives scalar durable data only: it never opens
+    /// a vault bundle, invokes a provider, or launches anything.
+    @discardableResult
+    func generateWorkflow(fromObservationID observationID: String) -> Result<WorkflowSummary, DocumentActionError> {
+        guard let bridge else { return .failure(DocumentActionError("Qaptr is not ready yet.")) }
+        do {
+            let workflow = try bridge.generateWorkflow(observationID: observationID)
+            refresh()
+            return .success(workflow)
+        } catch {
+            return .failure(DocumentActionError(String(describing: error)))
+        }
+    }
+
+    /// Saves one canonical Markdown export variant for `workflowID` to a
+    /// caller-already-chosen `destination` (such as one returned by a native
+    /// save panel). Returns a concise failure reason on error.
+    func exportWorkflow(
+        workflowID: String,
+        variant: MarkdownExportVariant,
+        destination: URL
+    ) -> String? {
+        guard let bridge else { return "Qaptr is not ready yet." }
+        do {
+            try bridge.exportWorkflow(workflowID: workflowID, variant: variant, destination: destination)
+            return nil
+        } catch {
+            return String(describing: error)
+        }
+    }
+
     /// Reloads scalar helper progress independently from durable observations.
     /// Missing or corrupt status is shown as unavailable and never blocks the
     /// observation history from loading.
@@ -181,6 +217,39 @@ final class ReviewAppModel {
         }
         settings = next
         refreshProviderConnection()
+        refreshCliProviderReadiness()
+    }
+
+    /// Reloads the bounded, path-only CLI readiness snapshot. A detected
+    /// executable is never treated as usable; unavailable/failed reads leave
+    /// the previous readiness in place rather than inventing a state.
+    private func refreshCliProviderReadiness() {
+        if usesMockData { return }
+        guard let bridge, let snapshot = try? bridge.providerReadinessSnapshot() else { return }
+        cliProviderReadiness = Dictionary(
+            uniqueKeysWithValues: snapshot.providers.map { ($0.id, $0) }
+        )
+    }
+
+    /// The truthful, bounded row presentation (status, one reason, at most
+    /// one next action) for `provider`, driven only by already-known local
+    /// state -- never a fresh network or process call.
+    func providerRowPresentation(for provider: ProviderChoice) -> ProviderRowPresentation {
+        ProviderRowPresenter.present(
+            provider: provider,
+            connection: provider == settings.provider ? providerConnection : connectionState(for: provider),
+            cliReadiness: cliProviderReadiness[provider.rawValue]
+        )
+    }
+
+    /// The connection state for a provider that is not currently selected.
+    /// CLI providers have no persisted connection state distinct from
+    /// selection, so this always reports `.notConnected` for them; OpenRouter
+    /// still reflects whether a key is already saved even when it is not the
+    /// selected provider, so the row's status is truthful either way.
+    private func connectionState(for provider: ProviderChoice) -> ProviderConnectionState {
+        guard provider == .openRouter else { return .notConnected }
+        return credentialStore.containsOpenRouterKey() ? .configured : .needsKey
     }
 
     /// Requests Screen Recording through the native prompt.

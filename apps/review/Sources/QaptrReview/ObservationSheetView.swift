@@ -1,5 +1,7 @@
+import AppKit
 import QaptrReviewCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Hallmark · studied-DNA: Micro live-site · work plane: row ledger · no stacked dashboard cards
 
@@ -21,7 +23,7 @@ struct ObservationSheetView: View {
                     statusLedger
                         .padding(.top, QaptrSpace.xl)
                     if model.snapshot.observations.isEmpty {
-                        EmptyStateView(progress: model.captureProgress)
+                        EmptyStateView(progress: model.captureProgress, notices: model.snapshot.notices)
                             .padding(.top, QaptrSpace.xl)
                     } else {
                         Text("RECENT OBSERVATIONS")
@@ -46,7 +48,7 @@ struct ObservationSheetView: View {
         }
         .background(Color.qaptrSurface)
         .sheet(item: $selectedObservation) { observation in
-            ObservationDetailView(observation: observation)
+            ObservationDetailView(model: model, observation: observation)
         }
         .onAppear { model.refresh() }
         .task {
@@ -306,10 +308,18 @@ private struct ConfidenceTag: View {
     }
 }
 
-/// Read-only provenance and confidence for one durable observation.
+/// Read-only provenance and confidence for one durable observation, plus the
+/// two scalar-driven detail actions: generating the canonical workflow and
+/// exporting one of its four Markdown variants. Both actions read and write
+/// only durable `qaptr-store` records through `ReviewBridge`; neither opens
+/// the source vault bundle, invokes a provider, or launches anything.
 private struct ObservationDetailView: View {
+    @Bindable var model: ReviewAppModel
     let observation: QaptrObservation
     @Environment(\.dismiss) private var dismiss
+    @State private var generatedWorkflow: WorkflowSummary?
+    @State private var actionMessage: String?
+    @State private var isGenerating = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: QaptrSpace.xl) {
@@ -340,6 +350,10 @@ private struct ObservationDetailView: View {
                 )
             }
 
+            Divider().overlay(Color.qaptrHairline)
+
+            workflowActions
+
             Text("This view contains only durable scalar history. It does not open or export the original screenshot.")
                 .font(QaptrType.caption())
                 .foregroundStyle(Color.qaptrInkSoft)
@@ -347,6 +361,79 @@ private struct ObservationDetailView: View {
         .padding(QaptrSpace.xxxl)
         .frame(width: 480, alignment: .leading)
         .background(Color.qaptrSurface)
+    }
+
+    @ViewBuilder
+    private var workflowActions: some View {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+            Text("Workflow")
+                .font(QaptrType.title(13))
+                .foregroundStyle(Color.qaptrInk)
+
+            if let workflow = generatedWorkflow ?? existingWorkflow {
+                Text(workflow.title)
+                    .font(QaptrType.body(13))
+                    .foregroundStyle(Color.qaptrInkSoft)
+                HStack(spacing: QaptrSpace.sm) {
+                    Button("Regenerate", action: generateWorkflow)
+                        .buttonStyle(.qaptrOutline)
+                        .disabled(isGenerating)
+                    Menu("Export") {
+                        ForEach(MarkdownExportVariant.allCases, id: \.self) { variant in
+                            Button(variant.displayName) { exportWorkflow(workflow, variant: variant) }
+                        }
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.qaptrOutline)
+                }
+            } else {
+                Button("Generate workflow", action: generateWorkflow)
+                    .buttonStyle(.qaptrOutline)
+                    .disabled(isGenerating)
+            }
+
+            if let actionMessage {
+                Text(actionMessage)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrInkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(actionMessage)
+            }
+        }
+    }
+
+    /// A workflow already present in durable history for this observation's
+    /// session, so a person who reopens detail after generating once still
+    /// sees the Export action rather than being asked to regenerate.
+    private var existingWorkflow: WorkflowSummary? {
+        model.snapshot.workflows.first { $0.sessionID == observation.sessionID }
+    }
+
+    private func generateWorkflow() {
+        isGenerating = true
+        actionMessage = nil
+        let result = model.generateWorkflow(fromObservationID: observation.id)
+        isGenerating = false
+        switch result {
+        case .success(let workflow):
+            generatedWorkflow = workflow
+            actionMessage = nil
+        case .failure(let error):
+            actionMessage = error.message
+        }
+    }
+
+    private func exportWorkflow(_ workflow: WorkflowSummary, variant: MarkdownExportVariant) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = variant.suggestedFileName(workflowTitle: workflow.title)
+        panel.allowedContentTypes = [.text]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        if let error = model.exportWorkflow(workflowID: workflow.id, variant: variant, destination: destination) {
+            actionMessage = error
+        } else {
+            actionMessage = "Saved \(variant.displayName) to \(destination.lastPathComponent)."
+        }
     }
 
     private func detailLine(_ label: String, _ value: String) -> some View {
@@ -363,10 +450,16 @@ private struct ObservationDetailView: View {
     }
 }
 
-/// A quiet empty state: no illustration, no call to action that would
-/// suggest launching anything.
-private struct EmptyStateView: View {
+
+/// Honest empty states covering checklist 4.1 row 135: no captures yet, every
+/// capture excluded during local privacy preparation (no safely prepared
+/// captures), captures prepared but nothing worth reporting, and the
+/// existing analysis-unavailable state already shown by `reviewStatusSummary`.
+/// Each branch is driven only by already-known scalar state -- capture
+/// count/status and the durable exclusion notices -- never by a guess.
+struct EmptyStateView: View {
     let progress: CaptureProgressSnapshot
+    let notices: [ExclusionNotice]
 
     var body: some View {
         VStack(alignment: .leading, spacing: QaptrSpace.sm) {
@@ -379,10 +472,28 @@ private struct EmptyStateView: View {
         }
     }
 
-    private var title: String {
-        switch progress.captureCount {
+    private var title: String { Self.title(captureCount: progress.captureCount, notices: notices) }
+    private var detail: String {
+        Self.detail(captureCount: progress.captureCount, statusLabel: progress.statusLabel, notices: notices)
+    }
+
+    /// Whether every prepared capture was excluded rather than simply
+    /// producing no observation worth reporting. This is only ever true when
+    /// captures actually exist and at least one exclusion notice is present,
+    /// so it never claims exclusion before any capture has happened.
+    private nonisolated static func allCapturesExcluded(captureCount: Int?, notices: [ExclusionNotice]) -> Bool {
+        guard let count = captureCount, count > 0 else { return false }
+        return !notices.isEmpty
+    }
+
+    /// Pure decision logic behind the empty-state title, directly testable
+    /// without a full `CaptureProgressSnapshot`.
+    nonisolated static func title(captureCount: Int?, notices: [ExclusionNotice]) -> String {
+        switch captureCount {
         case .some(0):
             "No screenshots have been captured yet."
+        case .some where allCapturesExcluded(captureCount: captureCount, notices: notices):
+            "Every recent screenshot was excluded before analysis."
         case .some(let count) where count > 0:
             "\(count) screenshot\(count == 1 ? " is" : "s are") ready. Nothing new was found."
         default:
@@ -390,11 +501,15 @@ private struct EmptyStateView: View {
         }
     }
 
-    private var detail: String {
-        switch progress.captureCount {
+    /// Pure decision logic behind the empty-state detail line, directly
+    /// testable without a full `CaptureProgressSnapshot`.
+    nonisolated static func detail(captureCount: Int?, statusLabel: String, notices: [ExclusionNotice]) -> String {
+        switch captureCount {
         case .some(0):
-            "\(progress.statusLabel). Notes show up here after Qaptr checks a screenshot."
-        case .some where progress.captureCount ?? 0 > 0:
+            "\(statusLabel). Notes show up here after Qaptr checks a screenshot."
+        case .some where allCapturesExcluded(captureCount: captureCount, notices: notices):
+            "Local privacy preparation could not safely include any recent capture. See the notice below for the reason."
+        case .some where captureCount ?? 0 > 0:
             "Qaptr did not find a note to show."
         default:
             "Qaptr is still getting ready."

@@ -8,6 +8,7 @@ public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
     case storeUnavailable
     case snapshotUnavailable(String)
     case providerReadinessUnavailable(String)
+    case documentOperationFailed(String)
 
     public var description: String {
         switch self {
@@ -23,6 +24,8 @@ public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
             "durable history snapshot unavailable: \(reason)"
         case let .providerReadinessUnavailable(reason):
             "provider readiness unavailable: \(reason)"
+        case let .documentOperationFailed(reason):
+            "document operation failed: \(reason)"
         }
     }
 }
@@ -45,6 +48,17 @@ private typealias ReviewStatusFunction = @convention(c) (
     Int
 ) -> Int
 private typealias ProviderReadinessFunction = @convention(c) (
+    UnsafeMutableRawPointer?,
+    Int
+) -> Int
+/// Shared shape for `qaptr_observation_detail_json`,
+/// `qaptr_workflow_generate_json`, and `qaptr_workflow_export_json`: a store
+/// handle, a bounded JSON v1 request, and the same two-pass output contract
+/// as every other scalar JSON bridge call.
+private typealias DocumentBridgeFunction = @convention(c) (
+    UnsafeMutableRawPointer,
+    UnsafeRawPointer?,
+    Int,
     UnsafeMutableRawPointer?,
     Int
 ) -> Int
@@ -106,6 +120,9 @@ private final class ReviewFFILibrary: @unchecked Sendable {
     let storeLastError: StoreLastErrorFunction
     let reviewStatus: ReviewStatusFunction
     let providerReadiness: ProviderReadinessFunction
+    let observationDetail: DocumentBridgeFunction
+    let workflowGenerate: DocumentBridgeFunction
+    let workflowExport: DocumentBridgeFunction
     let keyBootstrap: KeyBootstrapFunction
     let permissionState: PermissionStateFunction
     let permissionRequest: PermissionRequestFunction
@@ -133,6 +150,9 @@ private final class ReviewFFILibrary: @unchecked Sendable {
             self.storeLastError = try Self.load("qaptr_store_last_error", from: handle)
             self.reviewStatus = try Self.load("qaptr_review_status_json", from: handle)
             self.providerReadiness = try Self.load("qaptr_provider_readiness_json", from: handle)
+            self.observationDetail = try Self.load("qaptr_observation_detail_json", from: handle)
+            self.workflowGenerate = try Self.load("qaptr_workflow_generate_json", from: handle)
+            self.workflowExport = try Self.load("qaptr_workflow_export_json", from: handle)
             self.keyBootstrap = try Self.load("qaptr_key_bootstrap_json", from: handle)
             self.permissionState = try Self.load("qaptr_permission_state", from: handle)
             self.permissionRequest = try Self.load("qaptr_permission_request", from: handle)
@@ -334,6 +354,110 @@ public final class ReviewBridge: @unchecked Sendable {
         }
         guard required > 0 else { return "unknown store error" }
         return String(decoding: output.prefix(min(required - 1, output.count)), as: UTF8.self)
+    }
+
+    /// Fetches durable scalar detail for one observation. This never opens
+    /// the source vault bundle: `observationID` is the same stable scalar
+    /// identifier already visible in `snapshot()`, and the response is the
+    /// same bounded observation fields returned there.
+    public func observationDetail(observationID: String) throws -> QaptrObservation {
+        let request: [String: Any] = ["version": 1, "observation_id": observationID]
+        let object = try runDocumentOperation(library.observationDetail, request: request)
+        guard let fields = object["observation"] as? [String: Any] else {
+            throw ReviewBridgeError.documentOperationFailed("response missing \"observation\"")
+        }
+        do {
+            return try ReviewSnapshotDecoder.decodeObservation(fields)
+        } catch {
+            throw ReviewBridgeError.documentOperationFailed(String(describing: error))
+        }
+    }
+
+    /// Generates (or regenerates, replacing the same stable row) the
+    /// canonical workflow for one durable observation, using only
+    /// already-observed scalar material. Missing sequence detail stays
+    /// visibly missing; nothing is inferred.
+    public func generateWorkflow(observationID: String) throws -> WorkflowSummary {
+        let request: [String: Any] = ["version": 1, "observation_id": observationID]
+        let object = try runDocumentOperation(library.workflowGenerate, request: request)
+        guard let fields = object["workflow"] as? [String: Any] else {
+            throw ReviewBridgeError.documentOperationFailed("response missing \"workflow\"")
+        }
+        do {
+            return try ReviewSnapshotDecoder.decodeWorkflow(fields)
+        } catch {
+            throw ReviewBridgeError.documentOperationFailed(String(describing: error))
+        }
+    }
+
+    /// Saves one canonical Markdown export variant to a caller-chosen
+    /// destination, such as a path already chosen through a native save
+    /// panel. This bridge never picks a developer path, creates parent
+    /// directories, or launches another app, agent, or automation.
+    public func exportWorkflow(
+        workflowID: String,
+        variant: MarkdownExportVariant,
+        destination: URL
+    ) throws {
+        let request: [String: Any] = [
+            "version": 1,
+            "workflow_id": workflowID,
+            "variant": variant.wireValue,
+            "destination": destination.path,
+        ]
+        _ = try runDocumentOperation(library.workflowExport, request: request)
+    }
+
+    /// Executes one bounded document-bridge request (observation detail,
+    /// workflow generation, or export) and returns its decoded JSON object,
+    /// or throws a typed error for a terse `ok:false` result or malformed
+    /// output. Shared by all three so each caller only handles its own
+    /// payload shape.
+    private func runDocumentOperation(
+        _ function: DocumentBridgeFunction,
+        request: [String: Any]
+    ) throws -> [String: Any] {
+        let requestData = try JSONSerialization.data(withJSONObject: request)
+        var capacity = 1_024
+        let maximumCapacity = 8_192
+        while true {
+            var buffer = [UInt8](repeating: 0, count: capacity)
+            let required = requestData.withUnsafeBytes { requestBytes in
+                buffer.withUnsafeMutableBytes { outputBytes in
+                    function(
+                        storeHandle,
+                        requestBytes.baseAddress,
+                        requestData.count,
+                        outputBytes.baseAddress,
+                        capacity
+                    )
+                }
+            }
+            guard required > 0 else {
+                throw ReviewBridgeError.documentOperationFailed("native call returned no result")
+            }
+            guard required <= maximumCapacity else {
+                throw ReviewBridgeError.documentOperationFailed("native call exceeded its output limit")
+            }
+            if required <= capacity {
+                let data = Data(buffer.prefix(required - 1))
+                let object: [String: Any]
+                do {
+                    guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                        throw ReviewBridgeError.documentOperationFailed("response is not a JSON object")
+                    }
+                    object = parsed
+                } catch {
+                    throw ReviewBridgeError.documentOperationFailed(String(describing: error))
+                }
+                guard object["ok"] as? Bool == true else {
+                    let reason = object["error"] as? String ?? "unknown document operation failure"
+                    throw ReviewBridgeError.documentOperationFailed(reason)
+                }
+                return object
+            }
+            capacity = required
+        }
     }
 
     /// Reads a permission's state without prompting.

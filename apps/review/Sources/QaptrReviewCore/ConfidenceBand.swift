@@ -56,7 +56,7 @@ public enum ReviewSnapshotDecoder {
         return ReviewSnapshot(observations: observations, workflows: workflows, notices: notices)
     }
 
-    private static func decodeObservation(_ fields: [String: Any]) throws -> QaptrObservation {
+    static func decodeObservation(_ fields: [String: Any]) throws -> QaptrObservation {
         guard
             let id = fields["id"] as? String,
             let sessionID = fields["session_id"] as? String,
@@ -78,7 +78,7 @@ public enum ReviewSnapshotDecoder {
         )
     }
 
-    private static func decodeWorkflow(_ fields: [String: Any]) throws -> WorkflowSummary {
+    static func decodeWorkflow(_ fields: [String: Any]) throws -> WorkflowSummary {
         guard
             let id = fields["id"] as? String,
             let sessionID = fields["session_id"] as? String,
