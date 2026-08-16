@@ -1017,11 +1017,14 @@ import ArcDial from "../components/ArcDial.astro";
 
     /* Final distillation: the product story is a sequence, not a card wall. */
     .product-bento__intro {
-      border: 0;
       border-top: 1px solid var(--color-ash);
-      border-bottom: 1px solid var(--color-ash);
+      border-bottom: 0;
       border-radius: 0;
       background: transparent;
+      grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
+      gap: clamp(var(--spacing-24), 6vw, var(--spacing-80));
+      max-width: none;
+      padding: var(--spacing-32) 0;
       box-shadow: none;
     }
 
@@ -1062,6 +1065,10 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     @media (max-width: 639px) {
+      .product-bento__intro {
+        grid-template-columns: 1fr;
+      }
+
       .product-card,
       .product-card--capture,
       .product-card--privacy,
