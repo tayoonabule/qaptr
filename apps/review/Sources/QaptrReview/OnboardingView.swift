@@ -342,12 +342,12 @@ struct OnboardingView: View {
         .font(QaptrType.body(13))
         .foregroundStyle(Color.qaptrInkSoft)
       if model.loadError != nil {
-        Text("Setup could not finish. Try again after reopening Qaptr.")
+        Text("Setup could not finish: \(model.loadError ?? "unknown setup error").")
           .font(QaptrType.title(13))
           .foregroundStyle(Color.qaptrError)
           .padding(.top, QaptrSpace.xs)
           .accessibilityLabel(
-            "Setup error: setup could not finish. Try again after reopening Qaptr.")
+            "Setup error: \(model.loadError ?? "unknown setup error")")
       }
     }
     .accessibilityElement(children: .combine)
