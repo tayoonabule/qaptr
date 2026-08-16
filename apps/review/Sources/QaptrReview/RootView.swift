@@ -32,47 +32,53 @@ struct ContentView: View {
   }
 
   private var rail: some View {
-    VStack(alignment: .leading, spacing: QaptrSpace.xxl) {
-      VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-        HStack(spacing: QaptrSpace.xs) {
-          Circle()
-            .fill(Color.qaptrAccent)
-            .frame(width: 7, height: 7)
-          Text("QAPTR")
-            .font(QaptrType.meta(12))
-            .tracking(1.2)
-            .foregroundStyle(Color.qaptrInk)
-        }
-        Text("REVIEW / MAC")
-          .font(QaptrType.meta(9.5))
-          .tracking(0.8)
-          .foregroundStyle(Color.qaptrInkMuted)
-      }
+    ZStack(alignment: .topLeading) {
+      // The rail owns the titlebar-facing background so the surface remains
+      // continuous when the window uses full-size content.
+      Color.qaptrPaperMist.opacity(0.42)
+        .ignoresSafeArea(.container, edges: .top)
 
-      VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-        railButton("Review", systemImage: "list.bullet.rectangle", selected: !showsSettings) {
-          setSurface(false)
+      VStack(alignment: .leading, spacing: QaptrSpace.xxl) {
+        VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+          HStack(spacing: QaptrSpace.xs) {
+            Circle()
+              .fill(Color.qaptrAccent)
+              .frame(width: 7, height: 7)
+            Text("QAPTR")
+              .font(QaptrType.meta(12))
+              .tracking(1.2)
+              .foregroundStyle(Color.qaptrInk)
+          }
+          Text("REVIEW / MAC")
+            .font(QaptrType.meta(9.5))
+            .tracking(0.8)
+            .foregroundStyle(Color.qaptrInkMuted)
         }
-        railButton("Settings", systemImage: "slider.horizontal.3", selected: showsSettings) {
-          setSurface(true)
+
+        VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+          railButton("Review", systemImage: "list.bullet.rectangle", selected: !showsSettings) {
+            setSurface(false)
+          }
+          railButton("Settings", systemImage: "slider.horizontal.3", selected: showsSettings) {
+            setSurface(true)
+          }
+        }
+
+        Spacer()
+
+        VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+          CaptureSignalBar(isActive: model.captureProgress.helperIsRunning)
+          Text(model.captureProgress.helperIsRunning ? "CAPTURE LIVE" : "CAPTURE PAUSED")
+            .font(QaptrType.meta(9))
+            .tracking(0.7)
+            .foregroundStyle(
+              model.captureProgress.helperIsRunning ? Color.qaptrTeal : Color.qaptrInkMuted)
         }
       }
-
-      Spacer()
-
-      VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-        CaptureSignalBar(isActive: model.captureProgress.helperIsRunning)
-        Text(model.captureProgress.helperIsRunning ? "CAPTURE LIVE" : "CAPTURE PAUSED")
-          .font(QaptrType.meta(9))
-          .tracking(0.7)
-          .foregroundStyle(
-            model.captureProgress.helperIsRunning ? Color.qaptrTeal : Color.qaptrInkMuted)
-      }
+      .padding(.horizontal, QaptrSpace.lg)
+      .padding(.vertical, QaptrSpace.xl)
+      .frame(maxHeight: .infinity, alignment: .topLeading)
     }
-    .padding(.horizontal, QaptrSpace.lg)
-    .padding(.vertical, QaptrSpace.xl)
-    .frame(maxHeight: .infinity, alignment: .topLeading)
-    .background(Color.qaptrPaperMist.opacity(0.42))
   }
 
   private func railButton(

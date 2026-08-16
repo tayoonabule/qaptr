@@ -41,7 +41,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         let content = NSHostingView(rootView: RootView(model: model))
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1040, height: 720),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            // Let the SwiftUI surface render beneath the transparent titlebar.
+            // This keeps the rail's fill and divider continuous through the
+            // traffic-light area instead of stopping at the content-layout
+            // boundary below it.
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
