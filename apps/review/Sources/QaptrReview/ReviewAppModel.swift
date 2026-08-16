@@ -1,4 +1,6 @@
 import Foundation
+import Darwin
+import AppKit
 import QaptrReviewCore
 import Observation
 
@@ -32,6 +34,39 @@ func defaultCaptureControlPath() -> URL {
     let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
     return base.appendingPathComponent("Qaptr", isDirectory: true).appendingPathComponent("capture-control.json")
+}
+
+private struct HelperAccessibilityPermissionStatus: Decodable {
+    let granted: Bool
+    let processID: Int
+    let updatedAtMillis: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case granted
+        case processID = "process_id"
+        case updatedAtMillis = "updated_at_ms"
+    }
+}
+
+private func defaultAccessibilityPermissionPath() -> URL {
+    if let override = ProcessInfo.processInfo.environment["QAPTR_ACCESSIBILITY_PERMISSION_PATH"], !override.isEmpty {
+        return URL(fileURLWithPath: override)
+    }
+    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+    return base.appendingPathComponent("Qaptr", isDirectory: true)
+        .appendingPathComponent("accessibility-permission.json")
+}
+
+private func helperAccessibilityPermissionStatus() -> PermissionStatus? {
+    guard let data = try? Data(contentsOf: defaultAccessibilityPermissionPath()),
+          let status = try? JSONDecoder().decode(HelperAccessibilityPermissionStatus.self, from: data),
+          status.updatedAtMillis > Int64(Date().timeIntervalSince1970 * 1_000) - 10_000,
+          kill(Int32(status.processID), 0) == 0
+    else {
+        return nil
+    }
+    return status.granted ? .granted : .denied
 }
 
 /// The single observable source of truth driving every SwiftUI view.
@@ -212,7 +247,8 @@ final class ReviewAppModel {
         next.excludedWindowTitles = preferences.excludedWindowTitles
         if let bridge {
             next.screenRecordingStatus = bridge.permissionState(.screenCapture)
-            next.accessibilityContextStatus = bridge.permissionState(.accessibilityContext)
+            next.accessibilityContextStatus = helperAccessibilityPermissionStatus()
+                ?? bridge.permissionState(.accessibilityContext)
             next.loginItemEnabled = bridge.loginItemEnabled()
         }
         settings = next
@@ -265,11 +301,17 @@ final class ReviewAppModel {
 
     /// Requests the optional accessibility-context permission.
     func requestAccessibilityContext() {
-        guard let bridge else { return }
         settings.accessibilityContextStatus = .notDetermined
-        let requestedStatus = bridge.requestPermission(.accessibilityContext)
-        if requestedStatus != .unavailable {
-            settings.accessibilityContextStatus = requestedStatus
+        let helperIsRunning = !NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.qaptr.helper"
+        ).isEmpty
+        if helperIsRunning {
+            DistributedNotificationCenter.default().post(
+                name: Notification.Name("com.qaptr.review.command.requestAccessibility"),
+                object: nil
+            )
+        } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
         }
         refreshPermissionAfterSystemPrompt(.accessibilityContext)
     }
@@ -281,7 +323,9 @@ final class ReviewAppModel {
         Task { [weak self] in
             for delay in [250_000_000, 750_000_000, 1_500_000_000] {
                 try? await Task.sleep(nanoseconds: UInt64(delay))
-                let status = bridge.permissionState(permission)
+                let status = permission == .accessibilityContext
+                    ? (helperAccessibilityPermissionStatus() ?? bridge.permissionState(permission))
+                    : bridge.permissionState(permission)
                 if status == .granted || delay == 1_500_000_000 {
                     guard let self else { return }
                     switch permission {

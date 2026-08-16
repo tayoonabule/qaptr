@@ -4,6 +4,10 @@ import Foundation
 import QaptrHelperCore
 
 struct PointInTimeContextSampler {
+    var accessibilityPermissionGranted: Bool {
+        AXIsProcessTrusted()
+    }
+
     func sample() -> SampledContext {
         let frontmost = NSWorkspace.shared.frontmostApplication
         let windowTitle = frontmost.flatMap(focusedWindowTitle(for:))

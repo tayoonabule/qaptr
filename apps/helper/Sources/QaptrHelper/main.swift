@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 import QaptrHelperCore
 
@@ -79,6 +80,7 @@ private struct Options {
 
 private enum ReviewCommandNotification {
     static let openSettings = Notification.Name("com.qaptr.review.command.openSettings")
+    static let requestAccessibility = Notification.Name("com.qaptr.review.command.requestAccessibility")
 }
 
 @MainActor
@@ -124,6 +126,13 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = notification
         NSApp.setActivationPolicy(.accessory)
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(requestAccessibilityPermission(_:)),
+            name: ReviewCommandNotification.requestAccessibility,
+            object: nil
+        )
+        writeAccessibilityPermissionStatus()
         configureStatusItem()
         let timestamp = Self.currentTimestamp()
         let startupResult = startupCoordinator.prepare(
@@ -149,6 +158,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         _ = notification
+        DistributedNotificationCenter.default().removeObserver(self)
         timer?.cancel()
         timer = nil
         progressTracker.stop(
@@ -204,6 +214,13 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         NSApp.terminate(sender)
     }
 
+    @objc private func requestAccessibilityPermission(_ notification: Notification) {
+        _ = notification
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        writeAccessibilityPermissionStatus()
+    }
+
     /// The helper is an accessory app, so these shortcuts are available while
     /// its status menu is open. This intentionally does not install a global
     /// hotkey or claim one: global registration needs a separate permissions
@@ -257,6 +274,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
                 guard let self else {
                     return
                 }
+                self.writeAccessibilityPermissionStatus()
                 if let control = try? self.controlStore.read(),
                    let interval = try? CaptureInterval(seconds: control.intervalSeconds),
                    interval != self.activeInterval {
@@ -380,6 +398,28 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The helper, rather than the review app, owns the Accessibility trust
+    /// used by `PointInTimeContextSampler`. Publish that live state so the
+    /// onboarding UI does not report the review process's unrelated TCC entry.
+    private func writeAccessibilityPermissionStatus() {
+        let url = Self.accessibilityPermissionURL()
+        let payload: [String: Any] = [
+            "granted": context.accessibilityPermissionGranted,
+            "process_id": Int(ProcessInfo.processInfo.processIdentifier),
+            "updated_at_ms": Self.currentTimestamp()
+        ]
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: url, options: .atomic)
+        } catch {
+            print("event=skip reason=accessibility_permission_status_unavailable detail=\(error)")
+        }
+    }
+
     private static func captureProgressURL() -> URL {
         captureProgressURLOverride()
     }
@@ -391,6 +431,15 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
             .appendingPathComponent("capture-control.json")
+    }
+
+    private static func accessibilityPermissionURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_ACCESSIBILITY_PERMISSION_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
+            .appendingPathComponent("accessibility-permission.json")
     }
 
     private static func currentTimestamp() -> Int64 {
