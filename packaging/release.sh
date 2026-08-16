@@ -140,7 +140,8 @@ if !NSWorkspace.shared.open(reviewApp) {
     exit(1)
 }
 EOF
-swiftc -O -framework AppKit -o "$outer/Contents/MacOS/Qaptr" "$build_root/QaptrLauncher.swift"
+swiftc -O -target arm64-apple-macos14.0 -framework AppKit \
+    -o "$outer/Contents/MacOS/Qaptr" "$build_root/QaptrLauncher.swift"
 
 cat > "$outer/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
