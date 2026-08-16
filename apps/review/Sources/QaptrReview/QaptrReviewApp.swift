@@ -85,6 +85,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         recordFirstPaintIfRequested()
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        _ = notification
+        model.refreshSettings()
+        model.refreshCaptureProgress()
+    }
+
     func showMainWindow() {
         guard let window else { return }
         NSApp.activate(ignoringOtherApps: true)

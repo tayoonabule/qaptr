@@ -16,6 +16,7 @@ struct OnboardingView: View {
   @State private var direction: StageDirection = .forward
   @State private var showsProviderSetup = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -52,6 +53,12 @@ struct OnboardingView: View {
     .onAppear {
       model.refreshSettings()
       model.refreshCaptureProgress()
+    }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active {
+        model.refreshSettings()
+        model.refreshCaptureProgress()
+      }
     }
   }
 
