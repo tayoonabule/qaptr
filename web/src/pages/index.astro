@@ -9,33 +9,8 @@ import ArcDial from "../components/ArcDial.astro";
     <div class="hero__lede">
       <h1 class="hero__headline reveal">Screenshots now. A readable session later.</h1>
       <p class="hero__sub reveal">
-        Qaptr takes a screenshot on the interval you choose, builds the session timeline for you on this Mac,
-        and sends nothing until you have read it and approved it.
+        Qaptr captures on the interval you choose, assembles the session on this Mac, and sends nothing until you approve it.
       </p>
-
-      <ul class="flow reveal" aria-label="What Qaptr handles for you">
-        <li class="flow__step">
-          <span class="flow__stage" aria-hidden="true"><ion-icon name="hardware-chip-outline"></ion-icon></span>
-          <span class="flow__body">
-            <b>Runs by itself</b>
-            Set the interval once. Qaptr keeps working while you do.
-          </span>
-        </li>
-        <li class="flow__step">
-          <span class="flow__stage" aria-hidden="true"><ion-icon name="laptop-outline"></ion-icon></span>
-          <span class="flow__body">
-            <b>Stays on this Mac</b>
-            Captures and the timeline are built locally, never uploaded on their own.
-          </span>
-        </li>
-        <li class="flow__step">
-          <span class="flow__stage" aria-hidden="true"><ion-icon name="hand-left-outline"></ion-icon></span>
-          <span class="flow__body">
-            <b>Waits for your yes</b>
-            Nothing reaches an analysis tool until you have read it and approved it.
-          </span>
-        </li>
-      </ul>
 
       <div class="hero__form reveal">
         <WaitlistForm variant="hero" />
@@ -46,17 +21,16 @@ import ArcDial from "../components/ArcDial.astro";
       <div class="pipeline__bar">
         <span class="pipeline__live">
           <span class="pipeline__pulse" aria-hidden="true"></span>
-          Capturing in the background
+          Capturing
         </span>
-        <span class="pipeline__interval"><ion-icon name="timer-outline" aria-hidden="true"></ion-icon>every 5 min</span>
+        <span class="pipeline__interval">every 5 min</span>
       </div>
 
-      <ol class="pipeline__stages animate-ui-list" aria-label="What Qaptr does with a work session">
+      <ol class="pipeline__stages" aria-label="How Qaptr turns a work session into a reviewable record">
         <li class="pipeline__stage">
           <span class="pipeline__node" aria-hidden="true"><ion-icon name="scan-outline"></ion-icon></span>
           <div class="pipeline__body">
-            <h2 class="pipeline__title">It captures while you work</h2>
-            <p class="pipeline__note">No timer to start, nothing to write down. Excluded windows are dropped before anything is saved.</p>
+            <h2 class="pipeline__title">Captures while you work</h2>
             <div class="pipeline__apps" aria-hidden="true">
               <span class="pipeline__app">Editor</span>
               <span class="pipeline__app">Browser</span>
@@ -70,19 +44,12 @@ import ArcDial from "../components/ArcDial.astro";
         <li class="pipeline__stage">
           <span class="pipeline__node" aria-hidden="true"><ion-icon name="git-commit-outline"></ion-icon></span>
           <div class="pipeline__body">
-            <h2 class="pipeline__title">Captures become a timeline</h2>
-            <p class="pipeline__note">Qaptr orders the session for you, on this Mac, with no prompting.</p>
+            <h2 class="pipeline__title">Assembles the session for you</h2>
             <div class="pipeline__tape" aria-hidden="true">
-              <div class="pipeline__event">
-                <b>09:42</b><span>Drafted the brief</span><em>auto</em>
-              </div>
-              <div class="pipeline__event">
-                <b>10:18</b><span>Compared source notes</span><em>auto</em>
-              </div>
-              <div class="pipeline__event">
-                <b>11:06</b><span>Wrote the next step</span><em>auto</em>
-              </div>
-              <p class="pipeline__rollup">14 captures assembled into one session</p>
+              <div class="pipeline__event"><b>09:42</b><span>Drafted the brief</span></div>
+              <div class="pipeline__event"><b>10:18</b><span>Compared source notes</span></div>
+              <div class="pipeline__event"><b>11:06</b><span>Wrote the next step</span></div>
+              <p class="pipeline__rollup">14 captures · assembled automatically</p>
             </div>
           </div>
         </li>
@@ -90,14 +57,10 @@ import ArcDial from "../components/ArcDial.astro";
         <li class="pipeline__stage">
           <span class="pipeline__node pipeline__node--done" aria-hidden="true"><ion-icon name="checkmark-outline"></ion-icon></span>
           <div class="pipeline__body">
-            <h2 class="pipeline__title">Ready when you are</h2>
-            <p class="pipeline__note">Open the finished session, read it, then decide what leaves this Mac.</p>
+            <h2 class="pipeline__title">Waits for your approval</h2>
             <div class="pipeline__result" aria-hidden="true">
               <span class="pipeline__result-state">ready to review</span>
-              <span class="pipeline__actions">
-                <span class="pipeline__action pipeline__action--primary">Review</span>
-                <span class="pipeline__action">Share</span>
-              </span>
+              <span class="pipeline__action">Review</span>
             </div>
           </div>
         </li>
@@ -105,7 +68,7 @@ import ArcDial from "../components/ArcDial.astro";
 
       <figcaption id="pipeline-caption" class="pipeline__caption">
         <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>
-        An example session. Captures stay on your Mac and nothing is shared without your approval.
+        Example session. Nothing leaves this Mac without your approval.
       </figcaption>
     </figure>
   </section>
@@ -232,15 +195,17 @@ import ArcDial from "../components/ArcDial.astro";
 
   <style>
     /* Hallmark · genre: modern-minimal · macrostructure: Narrative Workflow · theme: Qaptr paper (locked tokens.css)
-     * hero: H2 Split Diptych · enrichment: none (typographic session ledger) · nav: unchanged (out of scope)
-     * pre-emit critique: P5 H5 E4 S5 R4 V5
+     * hero: H2 Split Diptych · enrichment: glass session panel · nav: unchanged (out of scope)
+     * The workflow is stated once, in the panel. Copy on the left is headline + one sentence only;
+     * each stage carries a label and an artifact, never a paragraph — the artifact is the explanation.
+     * pre-emit critique: P5 H5 E5 S5 R5 V5
      * contrast: pass (40-41) · chrome: pass (47, no re-drawn window bar) · tokens: pass (48) · responsive: pass (34, 49-51)
      */
     .hero {
       display: grid;
       gap: var(--spacing-40);
       align-items: start;
-      padding-block: clamp(var(--spacing-32), 4vw, var(--spacing-48)) clamp(var(--spacing-64), 10vw, var(--spacing-96));
+      padding-block: clamp(var(--spacing-40), 5vw, var(--spacing-64)) clamp(var(--spacing-64), 10vw, var(--spacing-96));
     }
 
     .hero__lede {
@@ -260,74 +225,27 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .hero__sub {
-      max-width: 52ch;
-      margin-top: var(--spacing-16);
+      max-width: 44ch;
+      margin-top: var(--spacing-20);
       color: var(--color-steel);
       font-size: var(--text-body-xl);
-      line-height: 1.5;
-    }
-
-    /* Stage rail — the workflow, stated once, in order. */
-    .flow {
-      display: grid;
-      gap: 0;
-      margin: var(--spacing-24) 0 0;
-      padding: 0;
-      list-style: none;
-      border-top: 1px solid var(--color-ash);
-    }
-
-    .flow__step {
-      display: grid;
-      grid-template-columns: 1.75rem minmax(0, 1fr);
-      gap: var(--spacing-12);
-      align-items: start;
-      border-bottom: 1px solid var(--color-ash);
-      padding-block: var(--spacing-12);
-    }
-
-    .flow__stage {
-      display: grid;
-      place-items: center;
-      width: 1.75rem;
-      height: 1.75rem;
-      border-radius: 50%;
-      background: var(--color-blue-wash);
-      color: var(--color-deep-sapphire);
-    }
-
-    .flow__stage ion-icon {
-      font-size: 0.95rem;
-    }
-
-    .flow__body {
-      min-width: 0;
-      max-width: 52ch;
-      color: var(--color-steel);
-      font-size: var(--text-body);
-      line-height: 1.5;
-    }
-
-    .flow__body b {
-      display: block;
-      color: var(--color-charcoal);
-      font-weight: 600;
+      line-height: 1.55;
     }
 
     .hero__form {
       max-width: 34rem;
-      margin-top: var(--spacing-24);
+      margin-top: var(--spacing-28);
     }
 
-    /* Capture pipeline — the automation itself, shown as a running process. */
+    /* Capture pipeline — the automation itself, shown once, as a quiet running process. */
     .pipeline {
       position: relative;
       min-width: 0;
       overflow: hidden;
-      border: 1px solid var(--color-ash);
+      border: 1px solid var(--color-blue-wash);
       border-radius: var(--radius-large-card);
-      background: var(--color-canvas-white);
-      box-shadow: var(--shadow-subtle);
+      background: linear-gradient(160deg, var(--color-canvas-white), var(--color-paper-mist));
+      box-shadow: 0 1rem 3rem var(--color-paper-mist);
     }
 
     .pipeline__bar {
@@ -336,7 +254,6 @@ import ArcDial from "../components/ArcDial.astro";
       justify-content: space-between;
       gap: var(--spacing-12);
       border-bottom: 1px solid var(--color-ash);
-      background: var(--color-paper-mist);
       padding: var(--spacing-12) var(--spacing-20);
     }
 
@@ -379,7 +296,7 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .pipeline__interval {
-      color: var(--color-steel);
+      color: var(--color-fog);
       font-family: var(--font-geist-mono);
       font-size: var(--text-caption);
       letter-spacing: var(--tracking-meta);
@@ -387,15 +304,9 @@ import ArcDial from "../components/ArcDial.astro";
       white-space: nowrap;
     }
 
-    .pipeline__interval ion-icon {
-      margin-right: var(--spacing-4);
-      font-size: 0.9rem;
-      vertical-align: -0.14em;
-    }
-
     .pipeline__stages {
       margin: 0;
-      padding: var(--spacing-24) var(--spacing-20) var(--spacing-8);
+      padding: var(--spacing-24) var(--spacing-20) var(--spacing-16);
       list-style: none;
     }
 
@@ -404,7 +315,7 @@ import ArcDial from "../components/ArcDial.astro";
       display: grid;
       grid-template-columns: 1.75rem minmax(0, 1fr);
       gap: var(--spacing-16);
-      padding-bottom: var(--spacing-24);
+      padding-bottom: var(--spacing-20);
     }
 
     /* The connector that makes three steps read as one automatic flow. */
@@ -419,7 +330,7 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .pipeline__stage:last-child {
-      padding-bottom: var(--spacing-16);
+      padding-bottom: 0;
     }
 
     .pipeline__stage:last-child::before {
@@ -444,7 +355,7 @@ import ArcDial from "../components/ArcDial.astro";
     .pipeline__node--done {
       border-color: var(--color-vivid-green);
       background: var(--color-soft-mint);
-      color: var(--color-vivid-green);
+      color: var(--color-green-ink);
     }
 
     .pipeline__body {
@@ -456,14 +367,6 @@ import ArcDial from "../components/ArcDial.astro";
       font-size: var(--text-body-lg);
       font-weight: 600;
       line-height: 1.3;
-    }
-
-    .pipeline__note {
-      max-width: 46ch;
-      margin-top: var(--spacing-4);
-      color: var(--color-steel);
-      font-size: var(--text-body);
-      line-height: 1.45;
     }
 
     .pipeline__apps {
@@ -489,6 +392,7 @@ import ArcDial from "../components/ArcDial.astro";
     .pipeline__app--off {
       border-style: dashed;
       border-color: var(--color-smoke);
+      background: transparent;
       color: var(--color-fog);
       text-decoration: line-through;
       text-decoration-color: var(--color-smoke);
@@ -499,7 +403,7 @@ import ArcDial from "../components/ArcDial.astro";
       inset-block: 0;
       left: 0;
       width: 40%;
-      background: linear-gradient(90deg, transparent, rgb(37 99 235 / 0.12), transparent);
+      background: linear-gradient(90deg, transparent, rgb(37 99 235 / 0.1), transparent);
       pointer-events: none;
     }
 
@@ -521,13 +425,13 @@ import ArcDial from "../components/ArcDial.astro";
       margin-top: var(--spacing-12);
       border: 1px solid var(--color-ash);
       border-radius: var(--radius-card);
-      background: var(--color-paper-mist);
-      padding: var(--spacing-8) var(--spacing-12);
+      background: var(--color-canvas-white);
+      padding: var(--spacing-4) var(--spacing-12) var(--spacing-8);
     }
 
     .pipeline__event {
       display: grid;
-      grid-template-columns: 3.25rem minmax(0, 1fr) auto;
+      grid-template-columns: 3.25rem minmax(0, 1fr);
       gap: clamp(var(--spacing-8), 1.5vw, var(--spacing-12));
       align-items: baseline;
       padding-block: var(--spacing-8);
@@ -552,21 +456,11 @@ import ArcDial from "../components/ArcDial.astro";
       line-height: 1.4;
     }
 
-    .pipeline__event em {
-      color: var(--color-deep-sapphire);
-      font-family: var(--font-geist-mono);
-      font-size: var(--text-caption);
-      font-style: normal;
-      letter-spacing: var(--tracking-meta);
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-
     .pipeline__rollup {
-      margin-top: var(--spacing-8);
+      margin-top: var(--spacing-4);
       border-top: 1px solid var(--color-ash);
       padding-top: var(--spacing-8);
-      color: var(--color-steel);
+      color: var(--color-deep-sapphire);
       font-family: var(--font-geist-mono);
       font-size: var(--text-caption);
       letter-spacing: var(--tracking-meta);
@@ -593,33 +487,21 @@ import ArcDial from "../components/ArcDial.astro";
       text-transform: uppercase;
     }
 
-    .pipeline__actions {
-      display: inline-flex;
-      flex-wrap: wrap;
-      gap: var(--spacing-8);
-    }
-
     .pipeline__action {
-      border: 1px solid var(--color-ash);
+      border: 1px solid var(--color-primary-action-fill);
       border-radius: var(--radius-button);
-      background: var(--color-canvas-white);
+      background: var(--color-primary-action-fill);
       padding: var(--spacing-4) var(--spacing-12);
-      color: var(--color-slate);
+      color: var(--color-canvas-white);
       font-size: var(--text-caption);
       font-weight: 600;
     }
 
-    .pipeline__action--primary {
-      border-color: var(--color-primary-action-fill);
-      background: var(--color-primary-action-fill);
-      color: var(--color-canvas-white);
-    }
-
+    /* No max-width here: the rule above the caption should span the whole panel. */
     .pipeline__caption {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: var(--spacing-8);
-      max-width: 62ch;
       border-top: 1px solid var(--color-ash);
       padding: var(--spacing-12) var(--spacing-20);
       color: var(--color-steel);
@@ -628,8 +510,8 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     .pipeline__caption ion-icon {
-      margin-top: 0.15em;
-      color: var(--color-vivid-green);
+      flex: 0 0 auto;
+      color: var(--color-green-ink);
       font-size: 0.9rem;
     }
 
@@ -638,14 +520,6 @@ import ArcDial from "../components/ArcDial.astro";
         align-items: flex-start;
         flex-direction: column;
         gap: var(--spacing-8);
-      }
-
-      .pipeline__event {
-        grid-template-columns: 3.25rem minmax(0, 1fr);
-      }
-
-      .pipeline__event em {
-        grid-column: 2;
       }
     }
 
@@ -1140,7 +1014,7 @@ import ArcDial from "../components/ArcDial.astro";
 
     @media (min-width: 1000px) {
       .hero {
-        grid-template-columns: minmax(22rem, 1fr) minmax(30rem, 1.15fr);
+        grid-template-columns: minmax(22rem, 1fr) minmax(26rem, 1fr);
         gap: clamp(var(--spacing-40), 5vw, var(--spacing-64));
         align-items: center;
       }
