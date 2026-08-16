@@ -89,6 +89,40 @@ done
 codesign --verify --deep --strict "$packaged_app" >/dev/null
 open -Ra "$helper_app" >/dev/null 2>&1
 
+# Row 197 partial closure: prove the packaged review app's helper-visibility
+# path is real code, not an idle-app assumption. This compiles a tiny probe
+# against the packaged `libqaptr_review_ffi.dylib` and calls the exact
+# `qaptr_login_item_status` symbol the Swift review app calls from
+# `ReviewBridge.loginItemEnabled()`. It proves the scalar status call is
+# reachable and returns one of the documented codes (granted/denied/error)
+# through the real packaged library on this machine. It does NOT prove
+# SMAppService registration succeeds, since that requires a Developer-ID
+# signed, Team-ID-matched build outside this ad-hoc-signed dry-run package;
+# that remains an external row-197 claim tracked separately.
+login_item_probe_dir="$output_dir/login-item-probe"
+mkdir -p "$login_item_probe_dir"
+login_item_probe_src="$login_item_probe_dir/probe.c"
+login_item_probe_bin="$login_item_probe_dir/probe"
+cat > "$login_item_probe_src" <<'PROBE_EOF'
+#include <stdint.h>
+#include <stdio.h>
+extern int32_t qaptr_login_item_status(void);
+int main(void) {
+    int32_t code = qaptr_login_item_status();
+    /* Documented contract: 1=granted, 0=denied, -2=query failure. */
+    if (code != 1 && code != 0 && code != -2) {
+        fprintf(stderr, "unexpected login item status code: %d\n", code);
+        return 1;
+    }
+    printf("login_item_status_code=%d\n", code);
+    return 0;
+}
+PROBE_EOF
+clang -o "$login_item_probe_bin" "$login_item_probe_src" \
+    -L "$(dirname "$review_ffi")" -lqaptr_review_ffi
+login_item_status_line=$(DYLD_LIBRARY_PATH="$(dirname "$review_ffi")" "$login_item_probe_bin")
+echo "$login_item_status_line"
+
 fixture_root="$repo_root/fixtures/packaged-smoke"
 progress_fixture="$fixture_root/capture-progress.json"
 review_fixture="$fixture_root/review-result.json"
@@ -176,5 +210,5 @@ done
     exit 1
 }
 
-printf 'packaged_fixture_smoke PASS package=%s manifest_captures=%s scalar_capture_count=%s review_observations=%s review_workflows=%s exports=%s log=%s\n' \
-    "$packaged_app" "$manifest_rows" "$progress_count" "$review_observations" "$review_workflows" "$review_exports" "$log_file"
+printf 'packaged_fixture_smoke PASS package=%s manifest_captures=%s scalar_capture_count=%s review_observations=%s review_workflows=%s exports=%s %s log=%s\n' \
+    "$packaged_app" "$manifest_rows" "$progress_count" "$review_observations" "$review_workflows" "$review_exports" "$login_item_status_line" "$log_file"
