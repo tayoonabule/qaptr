@@ -265,7 +265,7 @@ where
     where
         F: FnMut(ReviewProgress),
     {
-        self.start_with_resolved_model_mode(session_id, captures, resolved_model, progress, false)
+        self.start_with_resolved_model_mode(session_id, captures, resolved_model, progress)
     }
 
     fn start_with_resolved_model_mode<F>(
@@ -274,23 +274,25 @@ where
         captures: &[CaptureRecordInput],
         resolved_model: Option<ModelId>,
         mut progress: F,
-        allow_reprocessing: bool,
     ) -> Result<AnalysisReport, ReviewSessionError>
     where
         F: FnMut(ReviewProgress),
     {
         self.last_session = Some(session_id.clone());
         let mut eligible = deduplicate(captures);
-        if !allow_reprocessing {
-            let represented = self
-                .store
-                .snapshot()?
-                .captures
-                .into_iter()
-                .map(|capture| capture.id)
-                .collect::<BTreeSet<_>>();
-            eligible.retain(|capture| !represented.contains(capture.capture_id()));
-        }
+        // Capture metadata is ingested before analysis and therefore is not
+        // proof that a prior attempt completed. Only captures with a durable
+        // scalar observation are safe to skip after a process restart;
+        // failed, cancelled, declined, and privacy-excluded attempts remain
+        // eligible instead of becoming false successful no-ops.
+        let completed = self
+            .store
+            .snapshot()?
+            .observations
+            .into_iter()
+            .filter_map(|observation| observation.capture_id)
+            .collect::<BTreeSet<_>>();
+        eligible.retain(|capture| !completed.contains(capture.capture_id()));
         self.last_captures = Some(eligible.clone());
         progress(ReviewProgress::Ingesting {
             captures_seen: eligible.len(),
@@ -375,10 +377,9 @@ where
 
     /// Retries a caller-owned capture set after an incomplete attempt.
     ///
-    /// This path deliberately bypasses durable capture deduplication. Callers
-    /// must use it only for a failed or cancelled attempt whose capture set is
-    /// still incomplete. A normal `start` remains deduplicated and therefore
-    /// never reprocesses captures that already have durable observations.
+    /// This path reuses a caller-owned capture set after an incomplete attempt.
+    /// It still skips captures with durable scalar observations, so a retry
+    /// after process restart cannot reprocess completed work.
     pub fn retry_with_captures<F>(
         &mut self,
         session_id: SessionId,
@@ -389,7 +390,7 @@ where
         F: FnMut(ReviewProgress),
     {
         self.cancellation.reset();
-        self.start_with_resolved_model_mode(session_id, captures, None, progress, true)
+        self.start_with_resolved_model_mode(session_id, captures, None, progress)
     }
 
     /// Returns the last deduplicated input set, without exposing vault data.
