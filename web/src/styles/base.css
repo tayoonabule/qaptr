@@ -113,38 +113,6 @@ ion-icon {
   .animate-ui-button, .animate-ui-list > * { animation: none; transition: none; }
 }
 
-.feature-pill ion-icon {
-  color: var(--color-tangerine);
-  font-size: 0.9rem;
-}
-
-.feature-pill--green ion-icon { color: var(--color-vivid-green); }
-.feature-pill--violet ion-icon { color: var(--color-lavender); }
-
-.workspace-preview__mode ion-icon,
-.workspace-preview__nav ion-icon,
-.workspace-preview__status ion-icon,
-.workspace-preview__sample ion-icon {
-  margin-right: var(--spacing-4);
-  font-size: 0.95rem;
-  vertical-align: -0.14em;
-}
-
-.workspace-preview__summary-mark {
-  display: grid;
-  place-items: center;
-}
-
-.workspace-preview__summary-mark ion-icon {
-  color: var(--color-electric-blue);
-  font-size: 1.15rem;
-}
-
-.workspace-preview__row-marker {
-  color: var(--color-vivid-green);
-  font-size: 1rem;
-}
-
 .radiant-fluid {
   position: relative;
   isolation: isolate;
