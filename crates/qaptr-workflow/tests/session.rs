@@ -475,6 +475,100 @@ fn retry_reprocesses_failed_capture_but_completed_start_remains_deduplicated() {
 }
 
 #[test]
+fn retry_eligibility_survives_sqlite_reopen() {
+    let (harness, capture) = Harness::new("coordinator-reopen", safe_context());
+    let Harness {
+        _temp,
+        vault,
+        credentials,
+        store,
+        privacy,
+        ocr,
+        vision,
+        clock,
+        decoder,
+    } = harness;
+    let store_path = _temp.path().join("history.sqlite3");
+
+    {
+        let provider = ProviderGate::new(RecordingProvider::failing_once());
+        let consent = FakeConsent::new(ConsentDecision::Granted);
+        let runner = qaptr_workflow::AnalysisRunner::new(
+            &vault,
+            &credentials,
+            &store,
+            &privacy,
+            &ocr,
+            &vision,
+            Some(&provider),
+            &decoder,
+            &consent,
+            &clock,
+        );
+        let mut coordinator =
+            ReviewSessionCoordinator::new(&runner, &vault, &credentials, &store, &clock);
+        let report = coordinator
+            .start(
+                session_id("coordinator-reopen"),
+                std::slice::from_ref(&capture),
+                |_| {},
+            )
+            .expect("failed attempt is represented");
+        assert!(matches!(report.provider, ProviderOutcome::Failed { .. }));
+        assert!(
+            store
+                .snapshot()
+                .expect("failed history")
+                .observations
+                .is_empty()
+        );
+    }
+    drop(store);
+
+    let reopened_store = Store::open(&store_path).expect("reopen store");
+    let provider = ProviderGate::new(RecordingProvider::new());
+    let consent = FakeConsent::new(ConsentDecision::Granted);
+    let runner = qaptr_workflow::AnalysisRunner::new(
+        &vault,
+        &credentials,
+        &reopened_store,
+        &privacy,
+        &ocr,
+        &vision,
+        Some(&provider),
+        &decoder,
+        &consent,
+        &clock,
+    );
+    let mut coordinator =
+        ReviewSessionCoordinator::new(&runner, &vault, &credentials, &reopened_store, &clock);
+
+    let retried = coordinator
+        .start(
+            session_id("coordinator-reopen-retry"),
+            std::slice::from_ref(&capture),
+            |_| {},
+        )
+        .expect("failed capture remains eligible after reopen");
+    assert!(matches!(
+        retried.provider,
+        ProviderOutcome::Completed { .. }
+    ));
+    assert_eq!(retried.observations_written, 1);
+    assert_eq!(provider.adapter().invocations.get(), 1);
+
+    let completed = coordinator
+        .start(
+            session_id("coordinator-reopen-completed"),
+            std::slice::from_ref(&capture),
+            |_| {},
+        )
+        .expect("completed capture is deduplicated after reopen");
+    assert!(matches!(completed.provider, ProviderOutcome::NotAttempted));
+    assert_eq!(provider.adapter().invocations.get(), 1);
+}
+
+#[test]
 fn repeated_coordinator_session_skips_captures_already_in_history() {
     let (harness, capture) = Harness::new("coordinator-repeat", safe_context());
     let provider = ProviderGate::new(RecordingProvider::new());

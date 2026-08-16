@@ -96,6 +96,9 @@ pub unsafe extern "C" fn qaptr_review_session_destroy(handle: *mut ReviewSession
 ///
 /// The return value is the required output capacity including a trailing NUL.
 /// A caller can pass a null output pointer or zero capacity to query the size.
+/// Mutating requests must provide a non-zero token that is unique to the
+/// logical request and reused unchanged for every size and output pass. The
+/// token is independent of the calling thread.
 ///
 /// # Safety
 ///
@@ -105,6 +108,7 @@ pub unsafe extern "C" fn qaptr_review_session_destroy(handle: *mut ReviewSession
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn qaptr_review_session_json(
     handle: *mut ReviewSessionDriver,
+    request_token: u64,
     request: *const u8,
     request_len: usize,
     output: *mut u8,
@@ -124,10 +128,10 @@ pub unsafe extern "C" fn qaptr_review_session_json(
             output_capacity,
         );
     };
-    let response = handle.request_once(request).to_string();
+    let response = handle.request_once(request_token, request).to_string();
     let required = copy_string(&response, output, output_capacity);
     if required <= output_capacity && !output.is_null() {
-        handle.finish_pending_mutation(request);
+        handle.finish_pending_mutation(request_token, request);
     }
     required
 }
@@ -509,6 +513,7 @@ mod tests {
         let required = unsafe {
             qaptr_review_session_json(
                 handle,
+                0,
                 request.as_ptr(),
                 request.len(),
                 output.as_mut_ptr(),
