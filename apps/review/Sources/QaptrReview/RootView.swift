@@ -41,13 +41,7 @@ struct ContentView: View {
       VStack(alignment: .leading, spacing: QaptrSpace.xxl) {
         VStack(alignment: .leading, spacing: QaptrSpace.xs) {
           HStack(spacing: QaptrSpace.xs) {
-            Circle()
-              .fill(Color.qaptrAccent)
-              .frame(width: 7, height: 7)
-            Text("QAPTR")
-              .font(QaptrType.meta(12))
-              .tracking(1.2)
-              .foregroundStyle(Color.qaptrInk)
+            QaptrBrandLogo(iconSize: 20, textSize: 17)
           }
           Text("REVIEW / MAC")
             .font(QaptrType.meta(9.5))
@@ -117,7 +111,8 @@ struct CaptureSignalBar: View {
 
   var body: some View {
     TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-      let cycle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.6) / 3.6
+      let cycle =
+        context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.6) / 3.6
       let breathing = isActive && !reduceMotion ? 1 + (sin(cycle * .pi * 2) * 0.07) : 1
       let shimmer = isActive && !reduceMotion ? cycle : 0
 

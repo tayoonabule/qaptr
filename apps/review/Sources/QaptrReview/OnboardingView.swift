@@ -25,7 +25,7 @@ struct OnboardingView: View {
 
       HStack(alignment: .top, spacing: QaptrSpace.xl) {
         setupMap
-          .frame(width: 176, alignment: .leading)
+          .frame(width: 220, alignment: .leading)
 
         VStack(alignment: .leading, spacing: 0) {
           if reduceMotion {
@@ -64,6 +64,8 @@ struct OnboardingView: View {
 
   private var setupBand: some View {
     HStack(alignment: .center, spacing: QaptrSpace.lg) {
+      QaptrBrandLogo(iconSize: 27, textSize: 23)
+
       VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
         Text("QAPTR / SETUP DESK")
           .font(QaptrType.meta())
@@ -98,43 +100,37 @@ struct OnboardingView: View {
         .foregroundStyle(Color.qaptrInkMuted)
 
       ForEach(OnboardingStage.allCases, id: \.self) { candidate in
-        HStack(alignment: .top, spacing: QaptrSpace.sm) {
-          ZStack {
-            Circle()
-              .fill(mapMarker(for: candidate))
-              .frame(width: 20, height: 20)
-            if candidate.rawValue < stage.rawValue {
-              Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Color.qaptrSurface)
-            } else {
-              Text("\(candidate.rawValue + 1)")
-                .font(QaptrType.meta(9.5))
-                .foregroundStyle(candidate == stage ? Color.qaptrSurface : Color.qaptrInkSoft)
+        Button {
+          go(to: candidate, direction: candidate.rawValue >= stage.rawValue ? .forward : .backward)
+        } label: {
+          HStack(alignment: .center, spacing: QaptrSpace.sm) {
+            ZStack {
+              Circle()
+                .fill(mapMarker(for: candidate))
+                .frame(width: 20, height: 20)
+              if candidate.rawValue < stage.rawValue {
+                Image(systemName: "checkmark")
+                  .font(.system(size: 9, weight: .bold))
+                  .foregroundStyle(Color.qaptrSurface)
+              } else {
+                Text("\(candidate.rawValue + 1)")
+                  .font(QaptrType.meta(9.5))
+                  .foregroundStyle(candidate == stage ? Color.qaptrSurface : Color.qaptrInkSoft)
+              }
             }
-          }
-          VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
             Text(candidate.title)
-              .font(QaptrType.title(13))
+              .font(candidate == stage ? QaptrType.headline(13) : QaptrType.title(13))
               .foregroundStyle(candidate == stage ? Color.qaptrInk : Color.qaptrInkSoft)
-            if candidate == stage {
-              Text("IN FOCUS")
-                .font(QaptrType.meta(9.5))
-                .tracking(0.7)
-                .foregroundStyle(Color.qaptrAccentStrong)
-            }
           }
+          .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
         }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(candidate.title), \(mapAccessibilityValue(for: candidate))")
       }
     }
     .padding(.trailing, QaptrSpace.xl)
-    .overlay(alignment: .trailing) {
-      Rectangle()
-        .fill(Color.qaptrHairline)
-        .frame(width: 1)
-    }
   }
 
   private var stageCanvas: some View {
@@ -200,7 +196,7 @@ struct OnboardingView: View {
   private func mapAccessibilityValue(for candidate: OnboardingStage) -> String {
     if candidate == stage { return "current step" }
     if candidate.rawValue < stage.rawValue { return "completed" }
-    return "upcoming"
+    return "available"
   }
 
   private enum StageDirection {
@@ -329,19 +325,55 @@ struct OnboardingView: View {
 
   /// Pure decision logic behind `liveCaptureDisplaysText`, directly testable
   /// without a full `ReviewAppModel`.
-  nonisolated static func liveCaptureDisplaysText(helperIsRunning: Bool, selectedDisplayIDs: [String]) -> String? {
+  nonisolated static func liveCaptureDisplaysText(
+    helperIsRunning: Bool, selectedDisplayIDs: [String]
+  ) -> String? {
     guard helperIsRunning else { return nil }
     guard !selectedDisplayIDs.isEmpty else {
       return "Capture is running but has not reported a selected screen yet."
     }
-    return "Currently capturing \(selectedDisplayIDs.count) screen\(selectedDisplayIDs.count == 1 ? "" : "s")."
+    return
+      "Currently capturing \(selectedDisplayIDs.count) screen\(selectedDisplayIDs.count == 1 ? "" : "s")."
   }
 
   private var captureExplanationStage: some View {
     VStack(alignment: .leading, spacing: QaptrSpace.sm) {
-      Text(OnboardingCopy.periodicCaptureStatement(intervalSeconds: model.settings.intervalSeconds))
-        .font(QaptrType.title())
-        .foregroundStyle(Color.qaptrInk)
+      HStack(alignment: .firstTextBaseline, spacing: 0) {
+        Text("Qaptr takes one screenshot every ")
+        Menu {
+          ForEach(CaptureIntervalPreset.allCases, id: \.self) { preset in
+            Button {
+              model.setCaptureIntervalSeconds(preset.seconds)
+            } label: {
+              HStack {
+                Text(preset.displayName)
+                if preset.seconds == model.settings.intervalSeconds {
+                  Image(systemName: "checkmark")
+                }
+              }
+            }
+          }
+        } label: {
+          HStack(spacing: QaptrSpace.xxs) {
+            Text(CaptureIntervalPolicy.humanized(model.settings.intervalSeconds))
+            Image(systemName: "chevron.down")
+              .font(.system(size: 9, weight: .bold))
+          }
+          .foregroundStyle(Color.qaptrAccentStrong)
+          .padding(.horizontal, QaptrSpace.xs)
+          .padding(.vertical, QaptrSpace.xxs)
+          .background(
+            Color.qaptrAccentTint,
+            in: RoundedRectangle(cornerRadius: QaptrRadius.input, style: .continuous)
+          )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        Text(". We'll let you change the frequency.")
+      }
+      .font(QaptrType.title())
+      .foregroundStyle(Color.qaptrInk)
+      .fixedSize(horizontal: false, vertical: true)
       Text(OnboardingCopy.captureBoundaryStatement)
         .font(QaptrType.body(13))
         .foregroundStyle(Color.qaptrInkSoft)

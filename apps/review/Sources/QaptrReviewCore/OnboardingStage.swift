@@ -33,7 +33,7 @@ public enum OnboardingStage: Int, CaseIterable, Equatable, Sendable {
         switch self {
         case .permissions: "Screen Recording"
         case .displays: "Displays"
-        case .captureExplanation: "How capture works"
+        case .captureExplanation: "How Qaptr works"
         case .providerSelection: "Choose a provider"
         case .privacyConsent: "Privacy"
         }

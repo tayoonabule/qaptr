@@ -17,6 +17,9 @@ let package = Package(
         .executableTarget(
             name: "QaptrReview",
             dependencies: ["QaptrReviewCore"],
+            resources: [
+                .process("Resources")
+            ],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug))
             ]
