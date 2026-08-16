@@ -386,7 +386,8 @@ where
             });
         };
 
-        let verified = match provider.detect_and_verify() {
+        let verified = match provider.revalidate_model(resolved_model.as_ref().map(ModelId::as_str))
+        {
             Ok(verified) => verified,
             Err(reason) => {
                 return Ok(AnalysisReport {

@@ -59,6 +59,7 @@ struct FakeProvider {
     detection: ProviderDetection,
     response: RawProviderResponse,
     detect_failure: Option<ProviderError>,
+    model_failure: Option<ProviderError>,
     invocation_count: Cell<u32>,
 }
 
@@ -86,6 +87,7 @@ impl FakeProvider {
                 None,
             ),
             detect_failure: None,
+            model_failure: None,
             invocation_count: Cell::new(0),
         }
     }
@@ -121,6 +123,19 @@ impl ProviderAdapter for FakeProvider {
         Ok(self.detection.clone())
     }
 
+    fn validate_model(&self, _model: Option<&str>) -> Result<(), ProviderError> {
+        if let Some(error) = &self.model_failure {
+            return Err(match error {
+                ProviderError::RuntimeFailure { provider, kind } => ProviderError::RuntimeFailure {
+                    provider: provider.clone(),
+                    kind: kind.clone(),
+                },
+                _ => panic!("test model failure must be a runtime failure"),
+            });
+        }
+        Ok(())
+    }
+
     fn invoke(
         &self,
         invocation: qaptr_provider::ProviderInvocation<'_>,
@@ -143,6 +158,31 @@ fn handshake_accepts_authenticated_new_enough_provider() {
 
     assert_eq!(verified.version(), ProviderVersion::new(1, 2, 3));
     assert!(!verified.descriptor().capabilities().accepts_images());
+}
+
+#[test]
+fn model_revalidation_returns_a_fresh_proof_and_blocks_unavailable_model() {
+    let fake = FakeProvider::new(CapabilityDescriptor::text_only());
+    let gate = ProviderGate::new(fake);
+    let verified = gate
+        .revalidate_model(Some("preferred"))
+        .expect("available model should revalidate");
+    assert_eq!(verified.version(), ProviderVersion::new(1, 2, 3));
+
+    let unavailable = FakeProvider {
+        model_failure: Some(ProviderError::RuntimeFailure {
+            provider: ProviderId::new("fake").expect("test provider id is valid"),
+            kind: RuntimeFailureKind::ModelUnavailable,
+        }),
+        ..FakeProvider::new(CapabilityDescriptor::text_only())
+    };
+    assert!(matches!(
+        ProviderGate::new(unavailable).revalidate_model(Some("preferred")),
+        Err(ProviderError::RuntimeFailure {
+            kind: RuntimeFailureKind::ModelUnavailable,
+            ..
+        })
+    ));
 }
 
 #[test]

@@ -404,6 +404,15 @@ pub trait ProviderAdapter {
     /// Detects the provider without returning any login token to Qaptr.
     fn detect(&self) -> Result<ProviderDetection, ProviderError>;
 
+    /// Revalidates the request-scoped model after local preparation.
+    ///
+    /// `None` means the provider's documented default model is requested. An
+    /// adapter with a catalog or model-resolution boundary can reject a stale
+    /// or unavailable model here without exposing credentials or payloads.
+    fn validate_model(&self, _model: Option<&str>) -> Result<(), ProviderError> {
+        Ok(())
+    }
+
     /// Invokes the provider after the gate has created an invocation proof.
     fn invoke(
         &self,
@@ -477,6 +486,15 @@ where
             location,
             version,
         })
+    }
+
+    /// Revalidates provider readiness and model availability immediately before
+    /// consent. The returned proof comes from the fresh provider check, so a
+    /// retry never reuses a stale verification decision.
+    pub fn revalidate_model(&self, model: Option<&str>) -> Result<VerifiedProvider, ProviderError> {
+        let verified = self.detect_and_verify()?;
+        self.adapter.validate_model(model)?;
+        Ok(verified)
     }
 
     /// Invokes a verified provider using only a payload that passed the privacy
@@ -586,6 +604,9 @@ pub enum RuntimeFailureKind {
     /// The provider process or request failed during invocation.
     #[error("invocation failed")]
     Invocation,
+    /// The request-scoped model is no longer available or valid.
+    #[error("model unavailable")]
+    ModelUnavailable,
     /// The provider could not be reached or its transport failed.
     #[error("network failure")]
     Network,
