@@ -243,9 +243,6 @@ ion-icon {
 
 .blueprint-surface {
   background-color: var(--color-paper-mist);
-  background-image: radial-gradient(circle, rgb(37 99 235 / 0.18) 1px, transparent 1px);
-  background-position: 0 0;
-  background-size: 16px 16px;
 }
 
 .status {

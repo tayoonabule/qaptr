@@ -1,5 +1,5 @@
 ---
-// Inline SVG arc dial: shows the configured 5-second to 30-minute capture interval.
+// Inline SVG arc dial: shows the configured 5–300 second capture interval.
 // Tier A construction (pure SVG + CSS transform), no canvas/WebGL, no
 // external asset. The needle rotates once on first scroll into view via
 // a CSS class toggled by the page's IntersectionObserver; with JS absent
@@ -7,7 +7,7 @@
 ---
 
 <div class="arc-dial reveal" data-arc-dial>
-    <svg viewBox="0 0 400 220" role="img" aria-label="Capture interval dial from 5 seconds to 30 minutes">
+  <svg viewBox="0 0 400 220" role="img" aria-label="Capture interval dial from 5 to 300 seconds">
 
     <path
       d="M 40 200 A 160 160 0 0 1 360 200"
