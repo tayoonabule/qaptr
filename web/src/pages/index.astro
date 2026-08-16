@@ -46,9 +46,6 @@ import ArcDial from "../components/ArcDial.astro";
           <span class="workspace-preview__nav workspace-preview__nav--active"><ion-icon name="albums-outline" aria-hidden="true"></ion-icon>Sessions</span>
           <span class="workspace-preview__nav"><ion-icon name="list-outline" aria-hidden="true"></ion-icon>Review</span>
           <span class="workspace-preview__nav"><ion-icon name="settings-outline" aria-hidden="true"></ion-icon>Settings</span>
-          <div class="workspace-preview__sidebar-foot">
-            <ion-icon name="shield-outline" aria-hidden="true"></ion-icon>Private on this Mac
-          </div>
         </aside>
 
         <div class="workspace-preview__main">
@@ -353,16 +350,6 @@ import ArcDial from "../components/ArcDial.astro";
       background: var(--color-blue-wash);
       color: var(--color-deep-sapphire);
       font-weight: 600;
-    }
-
-    .workspace-preview__sidebar-foot {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-8);
-      margin-top: auto;
-      padding-top: var(--spacing-16);
-      color: var(--color-steel);
-      font-size: var(--text-caption);
     }
 
     .workspace-preview__main {
@@ -945,14 +932,8 @@ import ArcDial from "../components/ArcDial.astro";
         border-bottom: 1px solid var(--color-ash);
       }
 
-      .workspace-preview__sidebar-label,
-      .workspace-preview__sidebar-foot {
+      .workspace-preview__sidebar-label {
         grid-column: 1 / -1;
-      }
-
-      .workspace-preview__sidebar-foot {
-        margin-top: var(--spacing-8);
-        padding-top: var(--spacing-8);
       }
 
       .product-bento__intro {
