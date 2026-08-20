@@ -17,7 +17,25 @@ EOF
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 packaging_dir="$repo_root/packaging"
 build_root="${QAPTR_BUILD_DIR:-$packaging_dir/.build}"
-version="${QAPTR_VERSION:-0.1.0}"
+# Derive the default version from the workspace manifest rather than repeating
+# it here. A hardcoded default silently drifts from Cargo.toml, and the two are
+# the same product version, so the manifest is the single source. An explicit
+# QAPTR_VERSION still wins, which is what the reproducibility comparison and any
+# one-off build rely on.
+workspace_version=$(awk '
+    /^\[workspace\.package\]/ { in_section = 1; next }
+    /^\[/ { in_section = 0 }
+    in_section && /^version[[:space:]]*=/ {
+        gsub(/^version[[:space:]]*=[[:space:]]*"|"[[:space:]]*$/, "")
+        print
+        exit
+    }
+' "$repo_root/Cargo.toml")
+[[ -n "$workspace_version" ]] || {
+    echo "could not read version from [workspace.package] in Cargo.toml" >&2
+    exit 1
+}
+version="${QAPTR_VERSION:-$workspace_version}"
 build_version="${QAPTR_BUILD_VERSION:-1}"
 dry_run=false
 reproducibility=false

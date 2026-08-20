@@ -25,6 +25,14 @@ bash packaging/release.sh --dry-run --skip-reproducibility
 The packaged app is written to `packaging/.build/Qaptr.app`. Build output and
 release evidence are generated locally and are not tracked.
 
+## Releases
+
+[`CHANGELOG.md`](CHANGELOG.md) records what changed in each release, and
+[`docs/release-process.md`](docs/release-process.md) is the procedure for
+cutting one. Every merge to `main` that changes shipped behavior gets a release,
+with a monotonic build number, because a bug report carries the build number
+rather than the commit.
+
 ## Codebase map
 
 The workspace is indexed as a knowledge graph so navigation does not depend on

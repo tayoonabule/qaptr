@@ -70,4 +70,30 @@ cargo test --workspace
 cargo doc --workspace --no-deps
 ```
 
-The Swift helper has its own suite: `swift test --package-path apps/helper`.
+The Swift packages have their own suites, which the Rust gates above do not
+cover:
+
+```sh
+swift test --package-path apps/helper
+swift test --package-path apps/review
+```
+
+## Releases
+
+Merging to `main` with a change to shipped behavior means cutting a release.
+`docs/release-process.md` is the procedure: update `CHANGELOG.md`, build and
+sign with an incremented `QAPTR_BUILD_VERSION`, install locally, confirm the
+installed build has no code diff against the commit being tagged, then push an
+annotated `vX.Y.Z` tag.
+
+Two conventions matter more than the rest:
+
+- Build numbers are monotonic and never reused, because a bug report carries the
+  build number rather than the commit.
+- A green test suite is not an observation of the shipped app. When a changelog
+  entry claims a fix works, name what was observed against the installed signed
+  build. The env-gated probes
+  (`QAPTR_REVIEW_PAINT_FILE`, `QAPTR_REVIEW_SURFACE_FILE`,
+  `QAPTR_REVIEW_CONTENT_FILE`) exist so UI states are checkable without a
+  visible screen; pair one with a negative control, since a probe that only ever
+  emits one value proves nothing.
