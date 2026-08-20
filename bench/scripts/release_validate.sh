@@ -9,7 +9,7 @@ repo_root=$(cd "$(dirname "$0")/../.." && pwd)
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 output_dir="${U23_OUTPUT_DIR:-$repo_root/bench/results/release_validation_$timestamp}"
 log_dir="$output_dir/logs"
-report_path="${U23_REPORT_PATH:-$repo_root/bench/release_validation.md}"
+report_path="${U23_REPORT_PATH:-$output_dir/release_validation.md}"
 helper_hours="${U23_HELPER_HOURS:-0.01}"
 helper_interval="${U23_HELPER_INTERVAL_SECONDS:-5}"
 review_smoke_seconds="${U23_REVIEW_SMOKE_SECONDS:-20}"
@@ -270,10 +270,6 @@ run_provider_detection() {
     if cargo test -p qaptr-provider-cli --test "$test" -- --ignored --nocapture "$real_detection_test" >"$log" 2>&1; then
         local version
         version=$(grep -Eo '(codex-cli|jcode v|Claude Code)[^[:cntrl:]]*' "$log" | head -n1 || true)
-        case "$provider" in
-            codex) version="Codex CLI 0.147.0" ;;
-            jcode) version="Jcode CLI 0.75.23" ;;
-        esac
         if [[ "$provider" == "claude" ]] && grep -q 'CLAUDE_SANDBOX_AUTH_UNVERIFIED' "$log"; then
             record "provider_${provider}_real_detection" UNVERIFIED "genuine Claude CLI and version reached; sandbox cannot verify Keychain-backed auth without granting Keychain access log=$log"
         else

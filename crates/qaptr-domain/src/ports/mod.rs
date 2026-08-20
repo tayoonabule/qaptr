@@ -8,7 +8,6 @@ pub mod capture;
 pub mod context;
 pub mod credentials;
 pub mod ocr;
-pub mod permissions;
 pub mod vision;
 
 use crate::Result;
@@ -17,7 +16,6 @@ pub use capture::{CapturePort, CaptureRequest, CaptureSample, DisplayId};
 pub use context::{AccessibilityContextPort, ContextRequest, ContextSnapshot};
 pub use credentials::{CredentialKey, CredentialPort, CredentialValue};
 pub use ocr::{OcrPort, OcrResult, TextRegion};
-pub use permissions::{Permission, PermissionPort, PermissionState};
 pub use vision::{VisionFinding, VisionKind, VisionPort, VisionResult};
 
 /// The result of a port operation that may have produced incomplete data.

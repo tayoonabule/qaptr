@@ -229,35 +229,52 @@ public enum CaptureProgressState: String, Codable, Equatable, Sendable {
     case starting
     case waiting
     case capturing
+    case paused
     case permissionRequired
     case noDisplays
     case error
     case stopped
 }
 
-/// The only mutable capture setting exposed to the review app.
+/// The requested lifecycle intent shared by the review app and helper.
+public enum CaptureControlIntent: String, Codable, Equatable, Sendable {
+    case running
+    case paused
+}
+
+/// The mutable capture settings exposed to the review app.
 public struct CaptureControl: Codable, Equatable, Sendable {
     public let intervalSeconds: Int
+    public let intent: CaptureControlIntent
 
-    private init(uncheckedIntervalSeconds: Int) {
+    private init(uncheckedIntervalSeconds: Int, intent: CaptureControlIntent) {
         self.intervalSeconds = uncheckedIntervalSeconds
+        self.intent = intent
     }
 
-    public init(intervalSeconds: Int = CaptureInterval.defaultSeconds) throws {
+    public init(
+        intervalSeconds: Int = CaptureInterval.defaultSeconds,
+        intent: CaptureControlIntent = .running
+    ) throws {
         _ = try CaptureInterval(seconds: intervalSeconds)
-        self.init(uncheckedIntervalSeconds: intervalSeconds)
+        self.init(uncheckedIntervalSeconds: intervalSeconds, intent: intent)
     }
 
-    public static let `default` = CaptureControl(uncheckedIntervalSeconds: CaptureInterval.defaultSeconds)
+    public static let `default` = CaptureControl(
+        uncheckedIntervalSeconds: CaptureInterval.defaultSeconds,
+        intent: .running
+    )
 
     private enum CodingKeys: String, CodingKey {
         case intervalSeconds = "interval_seconds"
+        case intent
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let interval = try container.decodeIfPresent(Int.self, forKey: .intervalSeconds) {
-            guard let control = try? CaptureControl(intervalSeconds: interval) else {
+            let intent = try container.decodeIfPresent(CaptureControlIntent.self, forKey: .intent) ?? .running
+            guard let control = try? CaptureControl(intervalSeconds: interval, intent: intent) else {
                 throw DecodingError.dataCorruptedError(
                     forKey: .intervalSeconds,
                     in: container,
@@ -276,6 +293,7 @@ public struct CaptureControl: Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(intervalSeconds, forKey: .intervalSeconds)
+        try container.encode(intent, forKey: .intent)
     }
 }
 
@@ -565,6 +583,20 @@ public struct CaptureProgressTracker: Sendable {
             selectedDisplayIDs: selectedDisplayIDs,
             activeIntervalSeconds: activeIntervalSeconds,
             failureReason: failureReason
+        )
+    }
+
+    public mutating func pause(
+        at timestamp: Int64,
+        selectedDisplayIDs: [String]? = nil,
+        activeIntervalSeconds: Int? = nil
+    ) {
+        progress = replacing(
+            state: .paused,
+            updatedAtMillis: timestamp,
+            selectedDisplayIDs: selectedDisplayIDs,
+            activeIntervalSeconds: activeIntervalSeconds,
+            failureReason: nil
         )
     }
 

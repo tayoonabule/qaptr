@@ -1170,16 +1170,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "qaptr-ffi"
+version = "0.1.0"
+dependencies = [
+ "qaptr-domain",
+ "qaptr-vault",
+ "tempfile",
+]
+
+[[package]]
 name = "qaptr-macos"
 version = "0.1.0"
 dependencies = [
  "cc",
- "core-foundation",
- "core-foundation-sys",
  "png",
  "qaptr-domain",
  "qaptr-privacy",
- "rusqlite",
  "security-framework",
  "thiserror 2.0.20",
 ]
@@ -1235,6 +1241,27 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "ureq",
+]
+
+[[package]]
+name = "qaptr-review-ffi"
+version = "0.1.0"
+dependencies = [
+ "age",
+ "fs2",
+ "png",
+ "qaptr-domain",
+ "qaptr-macos",
+ "qaptr-policy",
+ "qaptr-privacy",
+ "qaptr-provider",
+ "qaptr-provider-cli",
+ "qaptr-store",
+ "qaptr-vault",
+ "qaptr-workflow",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

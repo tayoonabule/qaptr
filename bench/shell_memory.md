@@ -92,4 +92,4 @@ Re-open the choice only after both production-shaped candidates run the plan's f
 - Tauri, rebuilt as a properly Developer ID-signed nested app with the bundle identifier and code requirement fixed, demonstrates a materially better production cold paint and equal-or-better process-tree memory while preserving Screen Recording consent across restart and rebuild on a clean user profile.
 - A clean-profile TCC test shows a shell-specific persistence or signing failure that the current authorized-state test could not expose.
 
-Until that evidence exists, production review UI work must proceed with SwiftUI and the Rust core untouched by this shell decision. The probe sources remain under `bench/probes/` and their generated bundles are ignored as disposable artifacts.
+Until that evidence exists, production review UI work must proceed with SwiftUI and the Rust core untouched by this shell decision. The disposable prototype sources were removed after this decision was recorded; any reconsideration must start from production-shaped candidates rather than reviving stale probes.

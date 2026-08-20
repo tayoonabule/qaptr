@@ -15,6 +15,17 @@
 # Tauri and Apple build output
 /src-tauri/target/
 /DerivedData/
+**/.swiftpm/
+**/xcuserdata/
+*.xcresult
+
+# Python, coverage, and editor state
+**/__pycache__/
+*.py[cod]
+.coverage
+coverage/
+.idea/
+.vscode/
 
 # Local planning exports and reference captures
 /docs/plans/*.pdf

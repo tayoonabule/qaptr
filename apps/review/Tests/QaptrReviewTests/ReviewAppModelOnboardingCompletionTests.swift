@@ -89,21 +89,23 @@ final class ReviewAppModelOnboardingCompletionTests: XCTestCase {
         XCTAssertFalse(inputs.hasUsableProvider)
     }
 
-    func testCliProvidersDoNotBlockCompletionSinceNoReadinessCheckExistsYet() {
-        // This is a truthfully reported gap, not a fake pass: no CLI
-        // readiness check exists anywhere in the codebase yet (a separate,
-        // still-open checklist 5.1 item), so treating a CLI provider
-        // selection as blocking would durably brick onboarding with no
-        // recovery UI. Matching the provider's pre-existing behavior (no
-        // block) is the truthful choice until that check exists.
+    func testCliProvidersAreUsableOnlyAfterTheirConnectionCheckSucceeds() {
         for provider: ProviderChoice in [.claudeCLI, .codexCLI, .jcodeCLI] {
-            let inputs = ReviewAppModel.onboardingCompletionInputs(
+            let connected = ReviewAppModel.onboardingCompletionInputs(
+                screenRecordingStatus: .granted,
+                availableDisplayCount: 1,
+                provider: provider,
+                providerConnectionKind: .connected
+            )
+            XCTAssertTrue(connected.hasUsableProvider, "\(provider) should be usable after verification")
+
+            let notConnected = ReviewAppModel.onboardingCompletionInputs(
                 screenRecordingStatus: .granted,
                 availableDisplayCount: 1,
                 provider: provider,
                 providerConnectionKind: .notConnected
             )
-            XCTAssertTrue(inputs.hasUsableProvider, "\(provider) should not block onboarding completion")
+            XCTAssertFalse(notConnected.hasUsableProvider, "\(provider) must not be usable before verification")
         }
     }
 

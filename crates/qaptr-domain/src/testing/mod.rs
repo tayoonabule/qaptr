@@ -8,7 +8,7 @@ mod doubles;
 
 pub use doubles::{
     InMemoryAccessibilityContext, InMemoryCapture, InMemoryCredentials, InMemoryLoginItem,
-    InMemoryOcr, InMemoryPermissions, InMemoryVision,
+    InMemoryOcr, InMemoryVision,
 };
 
 /// Translates a configured response into a domain result.

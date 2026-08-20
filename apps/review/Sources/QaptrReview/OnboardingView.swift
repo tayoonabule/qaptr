@@ -60,6 +60,16 @@ struct OnboardingView: View {
         model.refreshCaptureProgress()
       }
     }
+    .task {
+      while !Task.isCancelled {
+        model.refreshPermissions()
+        do {
+          try await Task.sleep(nanoseconds: 1_000_000_000)
+        } catch {
+          return
+        }
+      }
+    }
   }
 
   private var setupBand: some View {
@@ -275,7 +285,8 @@ struct OnboardingView: View {
         title: "Screen Recording",
         detail: PermissionRationale.screenRecording,
         status: model.settings.screenRecordingStatus,
-        actionTitle: "Allow",
+        actionTitle: model.settings.screenRecordingStatus == .denied
+          ? "Open System Settings" : "Allow",
         action: model.requestScreenRecording
       )
       Divider().overlay(Color.qaptrHairline).padding(.vertical, QaptrSpace.md)
@@ -283,7 +294,8 @@ struct OnboardingView: View {
         title: "App and window names",
         detail: PermissionRationale.accessibilityContext,
         status: model.settings.accessibilityContextStatus,
-        actionTitle: "Allow",
+        actionTitle: model.settings.accessibilityContextStatus == .denied
+          ? "Open System Settings" : "Allow",
         action: model.requestAccessibilityContext
       )
     }

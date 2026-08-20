@@ -11,6 +11,7 @@ public enum CaptureProgressState: String, Equatable, Sendable {
     case starting
     case waiting
     case capturing
+    case paused
     case permissionRequired
     case noDisplays
     case error
@@ -129,30 +130,45 @@ public enum CaptureControlError: Error, Equatable, Sendable {
     case invalidInterval(Int)
 }
 
+public enum CaptureControlIntent: String, Codable, Equatable, Sendable {
+    case running
+    case paused
+}
+
 public struct CaptureControl: Codable, Equatable, Sendable {
     public let intervalSeconds: Int
+    public let intent: CaptureControlIntent
 
-    private init(uncheckedIntervalSeconds: Int) {
+    private init(uncheckedIntervalSeconds: Int, intent: CaptureControlIntent) {
         self.intervalSeconds = uncheckedIntervalSeconds
+        self.intent = intent
     }
 
-    public init(intervalSeconds: Int = CaptureIntervalPolicy.defaultSeconds) throws {
+    public init(
+        intervalSeconds: Int = CaptureIntervalPolicy.defaultSeconds,
+        intent: CaptureControlIntent = .running
+    ) throws {
         guard CaptureIntervalPolicy.isValid(intervalSeconds) else {
             throw CaptureControlError.invalidInterval(intervalSeconds)
         }
-        self.init(uncheckedIntervalSeconds: intervalSeconds)
+        self.init(uncheckedIntervalSeconds: intervalSeconds, intent: intent)
     }
 
-    public static let `default` = CaptureControl(uncheckedIntervalSeconds: CaptureIntervalPolicy.defaultSeconds)
+    public static let `default` = CaptureControl(
+        uncheckedIntervalSeconds: CaptureIntervalPolicy.defaultSeconds,
+        intent: .running
+    )
 
     private enum CodingKeys: String, CodingKey {
         case intervalSeconds = "interval_seconds"
+        case intent
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let interval = try container.decodeIfPresent(Int.self, forKey: .intervalSeconds) {
-            guard let control = try? CaptureControl(intervalSeconds: interval) else {
+            let intent = try container.decodeIfPresent(CaptureControlIntent.self, forKey: .intent) ?? .running
+            guard let control = try? CaptureControl(intervalSeconds: interval, intent: intent) else {
                 throw DecodingError.dataCorruptedError(
                     forKey: .intervalSeconds,
                     in: container,
@@ -171,6 +187,7 @@ public struct CaptureControl: Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(intervalSeconds, forKey: .intervalSeconds)
+        try container.encode(intent, forKey: .intent)
     }
 }
 
@@ -305,7 +322,7 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
     /// helper process that wrote it still exists. This prevents a stale file
     /// after a crash from claiming that background capture is running.
     public var helperIsRunning: Bool {
-        guard state != .stopped, let processID, processID > 0 else {
+        guard state != .stopped, state != .paused, let processID, processID > 0 else {
             return false
         }
         return Darwin.kill(pid_t(processID), 0) == 0
@@ -319,6 +336,8 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
             helperIsRunning ? "Background capture active" : "Helper not running"
         case .capturing:
             helperIsRunning ? "Capturing now" : "Capture interrupted"
+        case .paused:
+            "Capture paused"
         case .permissionRequired:
             "Screen Recording permission required"
         case .noDisplays:
@@ -337,7 +356,7 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
         return Date(timeIntervalSince1970: Double(lastCaptureAtMillis) / 1_000)
     }
 
-    /// The six truthful capture states the review app is allowed to show.
+    /// The truthful capture states the review app is allowed to show.
     /// Every combination of the raw helper `state` and derived evidence
     /// (missing file, stale process, capture history) maps to exactly one of
     /// these. There is no seventh "unknown but probably fine" bucket.
@@ -354,7 +373,7 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
             return helperIsRunning ? .capturing : .captureFailed
         case .starting:
             return .waitingForFirstTick
-        case .waiting, .stopped:
+        case .waiting, .paused, .stopped:
             return (captureCount ?? 0) > 0 ? .captureReady : .waitingForFirstTick
         case .unknown:
             // A state string this build does not recognize (e.g. written by
@@ -391,7 +410,7 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
     }
 }
 
-/// The six truthful, mutually exclusive capture states the review app shows.
+/// The truthful, mutually exclusive capture states the review app shows.
 /// This is intentionally closed: every `CaptureProgressSnapshot` maps to
 /// exactly one case through `readiness`, so the UI never needs a fallback
 /// "unknown" branch.

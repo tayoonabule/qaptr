@@ -4,7 +4,8 @@
 //! its credential adapter, access the Keychain, or call any private-key method.
 //! Under KTD6, the helper receives only public generation material through the
 //! vault hand-off. The review app alone owns Keychain credentials and private
-//! generation keys, permission requests, and login-item registration.
+//! generation keys and login-item registration. Process-scoped TCC permission
+//! checks live in the Swift helper process that actually uses those APIs.
 //!
 //! The default test suite is hermetic: Keychain writes, login-item mutations,
 //! and permission prompts are confined to ignored OS-integration tests. The
@@ -23,8 +24,6 @@ mod login_item;
 #[cfg(target_os = "macos")]
 mod ocr;
 #[cfg(target_os = "macos")]
-mod permissions;
-#[cfg(target_os = "macos")]
 mod recognition;
 #[cfg(target_os = "macos")]
 mod vision;
@@ -39,7 +38,5 @@ pub use image::MacImageRecognizer;
 pub use login_item::MacLoginItem;
 #[cfg(target_os = "macos")]
 pub use ocr::MacOcr;
-#[cfg(target_os = "macos")]
-pub use permissions::MacPermissions;
 #[cfg(target_os = "macos")]
 pub use vision::MacVision;

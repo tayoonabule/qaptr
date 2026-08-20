@@ -5,7 +5,7 @@ import XCTest
 /// Direct tests for `EmptyStateView.title`/`.detail`, the pure decision
 /// behind checklist 4.1 row 135: honest, distinct empty states for no
 /// captures yet, every capture excluded during local privacy preparation,
-/// and captures prepared with nothing worth reporting.
+/// captures waiting for analysis, and unavailable analysis.
 final class EmptyStateViewTests: XCTestCase {
     func testNoCapturesYet() {
         XCTAssertEqual(
@@ -18,21 +18,30 @@ final class EmptyStateViewTests: XCTestCase {
         )
     }
 
-    func testCapturesPreparedButNothingWorthReportingWhenNoExclusionExists() {
+    func testCapturesWaitForAnalysisRatherThanClaimingNothingWasFound() {
         XCTAssertEqual(
             EmptyStateView.title(captureCount: 5, notices: []),
-            "5 screenshots are ready. Nothing new was found."
+            "5 screenshots are waiting for analysis."
         )
         XCTAssertEqual(
             EmptyStateView.detail(captureCount: 5, statusLabel: "Background capture active", notices: []),
-            "Qaptr did not find a note to show."
+            "Qaptr has not produced an observation yet."
         )
     }
 
-    func testSingularCaptureCountPhrasing() {
+    func testUnavailableAnalysisExplainsWhyCapturedScreenshotsProduceNoObservations() {
         XCTAssertEqual(
-            EmptyStateView.title(captureCount: 1, notices: []),
-            "1 screenshot is ready. Nothing new was found."
+            EmptyStateView.title(captureCount: 1, notices: [], analysisState: "unavailable"),
+            "1 screenshot captured. Analysis is unavailable."
+        )
+        XCTAssertEqual(
+            EmptyStateView.detail(
+                captureCount: 1,
+                statusLabel: "Background capture active",
+                notices: [],
+                analysisState: "unavailable"
+            ),
+            "This build can capture screenshots, but it cannot turn them into observations yet."
         )
     }
 

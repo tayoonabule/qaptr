@@ -58,4 +58,30 @@ final class ProviderReadinessDecoderTests: XCTestCase {
         let snapshot = try ProviderReadinessDecoder.decode(Data(json.utf8))
         XCTAssertTrue(snapshot.providers.isEmpty)
     }
+
+    func testDecodesConnectedCLIProviderResult() throws {
+        let result = try CLIProviderConnectionDecoder.decode(
+            Data(#"{"version":1,"state":"connected"}"#.utf8)
+        )
+        XCTAssertEqual(result, .connected)
+    }
+
+    func testDecodesCoarseCLIProviderFailure() throws {
+        let result = try CLIProviderConnectionDecoder.decode(
+            Data(#"{"version":1,"state":"error","reason":"not_authenticated"}"#.utf8)
+        )
+        XCTAssertEqual(result, .failed(.notAuthenticated))
+        XCTAssertEqual(
+            CLIProviderConnectionFailure.notAuthenticated.message,
+            "Sign in with this CLI, then select it again."
+        )
+    }
+
+    func testRejectsUnknownCLIProviderFailureReason() {
+        XCTAssertThrowsError(
+            try CLIProviderConnectionDecoder.decode(
+                Data(#"{"version":1,"state":"error","reason":"raw stderr"}"#.utf8)
+            )
+        )
+    }
 }

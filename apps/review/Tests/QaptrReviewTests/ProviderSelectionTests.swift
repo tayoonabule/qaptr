@@ -7,8 +7,12 @@ import XCTest
 /// macOS Keychain.
 private final class FakeProviderCredentialStore: ProviderCredentialStoring {
     var storedKey: String?
+    private(set) var containsCallCount = 0
 
-    func containsOpenRouterKey() -> Bool { storedKey != nil }
+    func containsOpenRouterKey() -> Bool {
+        containsCallCount += 1
+        return storedKey != nil
+    }
 
     func saveOpenRouterKey(_ key: String) throws {
         storedKey = key
@@ -31,6 +35,15 @@ private struct FakeOpenRouterChecker: OpenRouterChecking {
     }
 }
 
+private struct FakeCLIProviderChecker: CLIProviderChecking {
+    var result: CLIProviderConnectionResult = .connected
+
+    func check(providerID: String) async -> CLIProviderConnectionResult {
+        _ = providerID
+        return result
+    }
+}
+
 /// Direct tests for `ReviewAppModel.connectProvider` / `openProviderSetup`,
 /// the provider-selection behavior reported by the user: selecting
 /// OpenRouter must refresh truthful saved/verified state, but must only
@@ -39,14 +52,18 @@ private struct FakeOpenRouterChecker: OpenRouterChecking {
 /// "Change key" action (`openProviderSetup`) does that.
 @MainActor
 final class ProviderSelectionTests: XCTestCase {
-    private func makeModel(storedKey: String? = nil) -> (ReviewAppModel, FakeProviderCredentialStore) {
+    private func makeModel(
+        storedKey: String? = nil,
+        cliResult: CLIProviderConnectionResult = .connected
+    ) -> (ReviewAppModel, FakeProviderCredentialStore) {
         let credentialStore = FakeProviderCredentialStore()
         credentialStore.storedKey = storedKey
         let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
         let model = ReviewAppModel(
             preferences: preferences,
             credentialStore: credentialStore,
-            openRouterChecker: FakeOpenRouterChecker()
+            openRouterChecker: FakeOpenRouterChecker(),
+            cliProviderChecker: FakeCLIProviderChecker(result: cliResult)
         )
         return (model, credentialStore)
     }
@@ -59,6 +76,16 @@ final class ProviderSelectionTests: XCTestCase {
         XCTAssertEqual(model.settings.provider, .openRouter)
         XCTAssertEqual(model.providerConnection, .needsKey)
         XCTAssertEqual(model.providerSetupRequest, .openRouter, "No key exists yet, so setup must open automatically")
+    }
+
+    func testOnboardingAndPassiveRowsDoNotReadKeychain() {
+        let (model, credentialStore) = makeModel(storedKey: "sk-existing")
+
+        _ = model.providerRowPresentation(for: .openRouter)
+        _ = model.providerRowPresentation(for: .claudeCLI)
+
+        XCTAssertEqual(credentialStore.containsCallCount, 0)
+        XCTAssertEqual(model.providerConnection, .notConnected)
     }
 
     func testSelectingOpenRouterWithASavedKeyDoesNotAutoOpenSetup() {
@@ -110,6 +137,44 @@ final class ProviderSelectionTests: XCTestCase {
             model.connectProvider(provider)
             XCTAssertNil(model.providerSetupRequest, "\(provider) must never request the OpenRouter setup sheet")
         }
+    }
+
+    func testSelectedCLIShowsConnectedOnlyAfterItsVerificationSucceeds() async {
+        let (model, _) = makeModel()
+
+        model.connectProvider(.codexCLI)
+        XCTAssertEqual(model.providerConnection, .checking)
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertEqual(model.providerConnection, .connected)
+        XCTAssertEqual(model.settings.provider, .codexCLI)
+    }
+
+    func testSelectedCLIFailureStaysAnErrorWithSafeRecoveryCopy() async {
+        let (model, _) = makeModel(cliResult: .failed(.notAuthenticated))
+
+        model.connectProvider(.claudeCLI)
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertEqual(model.providerConnection, .failed(.cli(.notAuthenticated)))
+        XCTAssertEqual(
+            model.providerRowPresentation(for: .claudeCLI).reason,
+            "Sign in with this CLI, then select it again."
+        )
+    }
+
+    func testSwitchingToACLIAndBackPreservesTheSavedOpenRouterKey() async {
+        let (model, credentialStore) = makeModel(storedKey: "sk-existing")
+
+        model.connectProvider(.jcodeCLI)
+        await Task.yield()
+        model.connectProvider(.openRouter)
+
+        XCTAssertEqual(credentialStore.storedKey, "sk-existing")
+        XCTAssertEqual(model.providerConnection, .configured)
+        XCTAssertNil(model.providerSetupRequest)
     }
 
     func testKeySavedStateIsDistinctFromConnectedState() {

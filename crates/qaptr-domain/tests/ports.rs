@@ -6,12 +6,11 @@ use qaptr_domain::ports::capture::{CapturePort, CaptureRequest, CaptureSample, D
 use qaptr_domain::ports::context::{AccessibilityContextPort, ContextRequest, ContextSnapshot};
 use qaptr_domain::ports::credentials::{CredentialKey, CredentialPort, CredentialValue};
 use qaptr_domain::ports::ocr::{OcrPort, OcrResult};
-use qaptr_domain::ports::permissions::{Permission, PermissionPort, PermissionState};
 use qaptr_domain::ports::vision::{VisionPort, VisionResult};
 use qaptr_domain::ports::{LoginItemPort, LoginItemState, PortOutcome};
 use qaptr_domain::testing::{
     InMemoryAccessibilityContext, InMemoryCapture, InMemoryCredentials, InMemoryLoginItem,
-    InMemoryOcr, InMemoryPermissions, InMemoryVision,
+    InMemoryOcr, InMemoryVision,
 };
 use qaptr_domain::{CaptureId, Confidence};
 
@@ -45,7 +44,6 @@ fn every_port_has_a_compiling_in_memory_double() {
     fn assert_vision<T: VisionPort>() {}
     fn assert_context<T: AccessibilityContextPort>() {}
     fn assert_credentials<T: CredentialPort>() {}
-    fn assert_permissions<T: PermissionPort>() {}
     fn assert_login_item<T: LoginItemPort>() {}
 
     assert_capture::<InMemoryCapture>();
@@ -53,7 +51,6 @@ fn every_port_has_a_compiling_in_memory_double() {
     assert_vision::<InMemoryVision>();
     assert_context::<InMemoryAccessibilityContext>();
     assert_credentials::<InMemoryCredentials>();
-    assert_permissions::<InMemoryPermissions>();
     assert_login_item::<InMemoryLoginItem>();
 }
 
@@ -135,7 +132,7 @@ fn processing_and_context_doubles_simulate_denial_and_timeout() {
 }
 
 #[test]
-fn credential_permission_and_login_doubles_cover_all_outcomes() {
+fn credential_and_login_doubles_cover_all_outcomes() {
     let key = CredentialKey::new("provider").expect("test key is valid");
     let value = CredentialValue::new("secret");
     assert!(matches!(
@@ -164,29 +161,6 @@ fn credential_permission_and_login_doubles_cover_all_outcomes() {
             .expect_err("credential timeout should be returned"),
         qaptr_domain::DomainError::TimedOut {
             operation: "credential delete"
-        }
-    );
-
-    assert!(
-        InMemoryPermissions::partial(PermissionState::Granted)
-            .state(Permission::ScreenCapture)
-            .expect("partial permission state should succeed")
-            .is_partial()
-    );
-    assert_eq!(
-        InMemoryPermissions::denied()
-            .request(Permission::AccessibilityContext)
-            .expect_err("permission denial should be returned"),
-        qaptr_domain::DomainError::Denied {
-            operation: "permission request"
-        }
-    );
-    assert_eq!(
-        InMemoryPermissions::timed_out()
-            .state(Permission::ScreenCapture)
-            .expect_err("permission timeout should be returned"),
-        qaptr_domain::DomainError::TimedOut {
-            operation: "permission state"
         }
     );
 
@@ -223,7 +197,6 @@ fn port_sources_are_platform_neutral() {
         include_str!("../src/ports/vision.rs"),
         include_str!("../src/ports/context.rs"),
         include_str!("../src/ports/credentials.rs"),
-        include_str!("../src/ports/permissions.rs"),
     ];
     for source in sources {
         assert!(!source.contains("std::os"));

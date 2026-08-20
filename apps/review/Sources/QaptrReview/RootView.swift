@@ -1,24 +1,39 @@
 import QaptrReviewCore
+import Observation
 import SwiftUI
 
 // Hallmark · studied-DNA: Micro live-site · persistent rail + ledger work plane
+
+enum ReviewSurface: Equatable {
+  case review
+  case settings
+}
+
+@MainActor
+@Observable
+final class ReviewNavigation {
+  var surface: ReviewSurface = .review
+}
 
 /// The post-onboarding product shell. Navigation is persistent and quiet: the
 /// left rail stays put while Review and Settings share one warm work plane.
 struct ContentView: View {
   @Bindable var model: ReviewAppModel
-  @State private var showsSettings = false
+  @Bindable var navigation: ReviewNavigation
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     HStack(spacing: 0) {
       rail
         .frame(width: 208)
-      Rectangle()
-        .fill(Color.qaptrHairline)
-        .frame(width: 1)
+        .overlay(alignment: .trailing) {
+          Rectangle()
+            .fill(Color.qaptrHairline)
+            .frame(width: 1)
+            .ignoresSafeArea(.container, edges: .top)
+        }
       ZStack {
-        if showsSettings {
+        if navigation.surface == .settings {
           SettingsView(model: model)
             .transition(.opacity)
         } else {
@@ -50,23 +65,22 @@ struct ContentView: View {
         }
 
         VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-          railButton("Review", systemImage: "list.bullet.rectangle", selected: !showsSettings) {
-            setSurface(false)
+          railButton("Review", systemImage: "list.bullet.rectangle", selected: navigation.surface == .review) {
+            setSurface(.review)
           }
-          railButton("Settings", systemImage: "slider.horizontal.3", selected: showsSettings) {
-            setSurface(true)
+          railButton("Settings", systemImage: "slider.horizontal.3", selected: navigation.surface == .settings) {
+            setSurface(.settings)
           }
         }
 
         Spacer()
 
         VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-          CaptureSignalBar(isActive: model.captureProgress.helperIsRunning)
-          Text(model.captureProgress.helperIsRunning ? "CAPTURE LIVE" : "CAPTURE PAUSED")
+          CaptureSignalBar(isActive: captureIsActive)
+          Text(captureStatusLabel)
             .font(QaptrType.meta(9))
             .tracking(0.7)
-            .foregroundStyle(
-              model.captureProgress.helperIsRunning ? Color.qaptrTeal : Color.qaptrInkMuted)
+            .foregroundStyle(captureIsActive ? Color.qaptrTeal : Color.qaptrInkMuted)
         }
       }
       .padding(.horizontal, QaptrSpace.lg)
@@ -89,17 +103,28 @@ struct ContentView: View {
           selected ? Color.qaptrAccentTint : Color.clear,
           in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
         )
+        .contentShape(RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
     }
     .buttonStyle(.plain)
+    .frame(maxWidth: .infinity)
     .accessibilityAddTraits(selected ? .isSelected : [])
   }
 
-  private func setSurface(_ settings: Bool) {
+  private var captureIsActive: Bool {
+    model.captureControlIntent == .running && model.captureProgress.helperIsRunning
+  }
+
+  private var captureStatusLabel: String {
+    if model.captureControlIntent == .paused { return "CAPTURE PAUSED" }
+    return model.captureProgress.helperIsRunning ? "CAPTURE LIVE" : "CAPTURE NEEDS ATTENTION"
+  }
+
+  private func setSurface(_ surface: ReviewSurface) {
     if reduceMotion {
-      showsSettings = settings
+      navigation.surface = surface
     } else {
       withAnimation(QaptrMotion.easeOut(0.22)) {
-        showsSettings = settings
+        navigation.surface = surface
       }
     }
   }
@@ -146,11 +171,12 @@ struct CaptureSignalBar: View {
 /// The root view: onboarding until completed, then the main content.
 struct RootView: View {
   @Bindable var model: ReviewAppModel
+  @Bindable var navigation: ReviewNavigation
 
   var body: some View {
     Group {
       if model.onboardingCompleted {
-        ContentView(model: model)
+        ContentView(model: model, navigation: navigation)
       } else {
         OnboardingView(model: model)
       }

@@ -6,6 +6,7 @@ use qaptr_domain::DomainError;
 use qaptr_domain::ports::credentials::{CredentialKey, CredentialPort, CredentialValue};
 use qaptr_domain::ports::{PortOutcome, PortResult};
 use security_framework::base::Error as SecurityError;
+use security_framework::item::{ItemClass, ItemSearchOptions};
 use security_framework::passwords::{generic_password, set_generic_password_options};
 use security_framework::passwords_options::PasswordOptions;
 
@@ -28,6 +29,29 @@ impl MacCredentials {
     #[must_use]
     pub const fn new() -> Self {
         Self
+    }
+
+    /// Checks whether a credential exists without loading its secret value.
+    ///
+    /// Keychain ACLs can require an interactive password prompt when an updated
+    /// build reads an existing secret. Startup and capture-key readiness only
+    /// need to know that the private half exists, so they must use this
+    /// metadata-only query and defer secret access until decryption is actually
+    /// requested.
+    pub fn contains_value(&self, key: &CredentialKey) -> Result<bool, MacosError> {
+        let mut query = ItemSearchOptions::new();
+        query
+            .class(ItemClass::generic_password())
+            .service(KEYCHAIN_SERVICE)
+            .account(key.as_str())
+            .load_attributes(true)
+            .limit(1_i64);
+
+        match query.search() {
+            Ok(items) => Ok(!items.is_empty()),
+            Err(error) if error.code() == -25300 => Ok(false),
+            Err(error) => Err(keychain_error("check", error)),
+        }
     }
 
     /// Reads a credential, returning `None` when no item exists.

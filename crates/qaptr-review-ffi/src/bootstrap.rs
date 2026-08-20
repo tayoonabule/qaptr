@@ -24,12 +24,17 @@ pub(crate) enum BootstrapDisposition {
 }
 
 trait SecureCredentials {
+    fn contains(&self, key: &CredentialKey) -> Result<bool, String>;
     fn read(&self, key: &CredentialKey) -> Result<Option<CredentialValue>, String>;
     fn write(&self, key: &CredentialKey, value: &CredentialValue) -> Result<(), String>;
     fn delete(&self, key: &CredentialKey) -> Result<(), String>;
 }
 
 impl SecureCredentials for MacCredentials {
+    fn contains(&self, key: &CredentialKey) -> Result<bool, String> {
+        self.contains_value(key).map_err(|error| error.to_string())
+    }
+
     fn read(&self, key: &CredentialKey) -> Result<Option<CredentialValue>, String> {
         self.read_value(key).map_err(|error| error.to_string())
     }
@@ -71,30 +76,29 @@ fn reconcile_generation<C: SecureCredentials>(
 ) -> Result<BootstrapDisposition, String> {
     let credential_key =
         Vault::generation_credential_key(generation).map_err(|error| error.to_string())?;
-    let private_value = credentials.read(&credential_key)?;
+    let private_key_exists = credentials.contains(&credential_key)?;
     let public_key = read_public_key(vault, generation)?;
 
-    match (private_value, public_key) {
-        (Some(private_value), Some(public_key)) => {
-            let derived = public_key_from_private(&private_value)?;
-            if derived != public_key {
-                return Err(
-                    "generation public key does not match the private key in Keychain".to_owned(),
-                );
-            }
-            Ok(BootstrapDisposition::Existing)
-        }
-        (Some(private_value), None) => {
+    match (private_key_exists, public_key) {
+        // Normal startup only needs capture readiness. Loading the private value
+        // here can trigger a login-keychain password prompt whenever a local app
+        // build receives a new signature. The vault open path still reads and
+        // cryptographically validates the private key before decrypting data.
+        (true, Some(_)) => Ok(BootstrapDisposition::Existing),
+        (true, None) => {
+            let private_value = credentials.read(&credential_key)?.ok_or_else(|| {
+                "generation private key disappeared while restoring its public half".to_owned()
+            })?;
             let public_key = public_key_from_private(&private_value)?;
             vault
                 .register_public_key(generation, &public_key)
                 .map_err(|error| error.to_string())?;
             Ok(BootstrapDisposition::PublicKeyRestored)
         }
-        (None, Some(_)) => Err(
+        (false, Some(_)) => Err(
             "generation public key exists but its private key is missing from Keychain".to_owned(),
         ),
-        (None, None) => {
+        (false, None) => {
             let keypair = GenerationKeypair::generate(generation.clone());
             let private_value = keypair.private_key().to_credential_value();
             credentials.write(&credential_key, &private_value)?;
@@ -138,17 +142,27 @@ fn public_key_from_private(value: &CredentialValue) -> Result<GenerationPublicKe
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, collections::HashMap, fs};
+    use std::{
+        cell::{Cell, RefCell},
+        collections::HashMap,
+        fs,
+    };
 
     use super::*;
 
     #[derive(Default)]
     struct MemoryCredentials {
         values: RefCell<HashMap<String, CredentialValue>>,
+        reads: Cell<usize>,
     }
 
     impl SecureCredentials for MemoryCredentials {
+        fn contains(&self, key: &CredentialKey) -> Result<bool, String> {
+            Ok(self.values.borrow().contains_key(key.as_str()))
+        }
+
         fn read(&self, key: &CredentialKey) -> Result<Option<CredentialValue>, String> {
+            self.reads.set(self.reads.get() + 1);
             Ok(self.values.borrow().get(key.as_str()).cloned())
         }
 
@@ -249,24 +263,21 @@ mod tests {
     }
 
     #[test]
-    fn mismatched_key_halves_fail_closed() {
+    fn normal_startup_reuses_existing_halves_without_loading_private_material() {
         let (_root, vault, generation, credentials) = fixture();
-        let private_pair = GenerationKeypair::generate(generation.clone());
-        let public_pair = GenerationKeypair::generate(generation.clone());
+        let keypair = GenerationKeypair::generate(generation.clone());
         let key = Vault::generation_credential_key(&generation).unwrap();
         credentials
-            .write(&key, &private_pair.private_key().to_credential_value())
+            .write(&key, &keypair.private_key().to_credential_value())
             .unwrap();
         vault
-            .register_public_key(&generation, public_pair.public_key())
+            .register_public_key(&generation, keypair.public_key())
             .unwrap();
 
-        let error = reconcile_generation(&vault, &generation, &credentials).unwrap_err();
-
-        assert!(error.contains("does not match"));
         assert_eq!(
-            vault.public_key(&generation).unwrap(),
-            *public_pair.public_key()
+            reconcile_generation(&vault, &generation, &credentials).unwrap(),
+            BootstrapDisposition::Existing
         );
+        assert_eq!(credentials.reads.get(), 0);
     }
 }

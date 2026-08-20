@@ -52,13 +52,25 @@ impl MacLoginItem {
 
     /// Sets registration state and returns the state confirmed by the OS.
     ///
-    /// Registering an already-enabled item and unregistering an already-disabled
-    /// item are both successful no-ops. This is important because onboarding and
-    /// settings may repeat the same request after a process restart.
+    /// Unregistering an already-disabled item is a successful no-op. Enabling an
+    /// already-enabled item deliberately unregisters and registers again so an
+    /// upgrade replaces any stale registration that still points at an older
+    /// copy of Qaptr.
     pub fn set_enabled_value(&self, enabled: bool) -> Result<LoginItemState, MacosError> {
         let current = self.status_value()?;
-        if current == desired_state(enabled) {
+        if !enabled && current == LoginItemState::Disabled {
             return Ok(current);
+        }
+
+        if enabled && current == LoginItemState::Enabled {
+            let mut error_code = 0_i64;
+            let succeeded = unsafe { qaptr_smappservice_unregister(&mut error_code) != 0 };
+            if !succeeded && self.status_value()? != LoginItemState::Disabled {
+                return Err(MacosError::LoginItem {
+                    operation: "unregister stale registration",
+                    code: error_code,
+                });
+            }
         }
 
         let mut error_code = 0_i64;

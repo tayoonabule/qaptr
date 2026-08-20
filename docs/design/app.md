@@ -1,5 +1,17 @@
 # Review app design rationale (U20)
 
+> Historical implementation record. The current product surface is defined by
+> the shipped SwiftUI source and the newer redesign plan below, not by every
+> constraint captured during U20.
+
+> Current implementation note: the Observation Sheet now includes an explicit
+> analysis control backed by the native review-session driver. It prepares
+> captures locally, presents a separate just-in-time consent summary, and then
+> invokes a selected verified CLI provider only after approval. This supersedes
+> the historical “no action that executes anything” limitation below without
+> changing the product rule that Qaptr describes work and never performs the
+> observed workflow.
+
 This records the design decisions for the opened review app before treating
 the implementation as final, matching the discipline `docs/design/website.md`
 already established for U21.

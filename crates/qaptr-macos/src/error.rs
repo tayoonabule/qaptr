@@ -21,15 +21,6 @@ pub enum MacosError {
         /// The operation being performed.
         operation: &'static str,
     },
-    /// The current process could not be associated with a TCC client.
-    #[error("the macOS bundle identifier is missing")]
-    MissingBundleIdentifier,
-    /// The current process has no home directory for the per-user TCC database.
-    #[error("the user's home directory is missing")]
-    MissingHomeDirectory,
-    /// The TCC database could not be queried.
-    #[error("TCC status query failed: {0}")]
-    TccDatabase(String),
     /// A login-item operation failed.
     #[error("login-item {operation} failed with status {code}")]
     LoginItem {

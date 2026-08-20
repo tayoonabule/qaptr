@@ -2,11 +2,11 @@
 
 A lightweight, privacy-first macOS app that helps people capture how work gets done and turn it into reusable workflow documents for automation, sharing, onboarding, and SOPs.
 
-Qaptr is currently in staged implementation. See [`docs/plans/qaptr-v1.md`](docs/plans/qaptr-v1.md) for the ambiguity-resolved v1 product contract.
+See [`docs/plans/qaptr-v1.md`](docs/plans/qaptr-v1.md) for the ambiguity-resolved v1 product contract.
 
 ## Status
 
-Private pre-development project targeting Apple-silicon macOS with a Rust-first architecture. U1 establishes the pinned Rust workspace, CI quality gates, and the platform-independent `qaptr-domain` vocabulary. Later units add ports and platform adapters without putting macOS or I/O types in the domain crate.
+Active Apple-silicon macOS implementation with a Rust core, a native Swift capture helper, a native SwiftUI review app, deterministic packaging, and a small Astro website. The helper owns process-scoped Screen Recording and Accessibility consent. The review app owns credentials, settings, workflow review, and login-item registration. Images stay out of the review database and provider requests remain explicit.
 
 ## Development
 
@@ -17,7 +17,13 @@ cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
+swift test --package-path apps/helper
+swift test --package-path apps/review
+bash packaging/release.sh --dry-run --skip-reproducibility
 ```
+
+The packaged app is written to `packaging/.build/Qaptr.app`. Build output and
+release evidence are generated locally and are not tracked.
 
 ## Codebase map
 

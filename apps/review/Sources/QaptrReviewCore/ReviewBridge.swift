@@ -8,6 +8,7 @@ public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
     case storeUnavailable
     case snapshotUnavailable(String)
     case providerReadinessUnavailable(String)
+    case reviewSessionUnavailable(String)
     case documentOperationFailed(String)
 
     public var description: String {
@@ -24,9 +25,101 @@ public enum ReviewBridgeError: Error, CustomStringConvertible, Equatable {
             "durable history snapshot unavailable: \(reason)"
         case let .providerReadinessUnavailable(reason):
             "provider readiness unavailable: \(reason)"
+        case let .reviewSessionUnavailable(reason):
+            "review session unavailable: \(reason)"
         case let .documentOperationFailed(reason):
             "document operation failed: \(reason)"
         }
+    }
+}
+
+/// A retained handle onto one provider-immutable native review session.
+///
+/// Calls exchange bounded scalar JSON only. Captured images, provider payloads,
+/// credentials, and raw provider output never cross this boundary.
+public final class ReviewSession: @unchecked Sendable {
+    private let library: ReviewFFILibrary
+    private let handle: UnsafeMutableRawPointer
+    private let tokenLock = NSLock()
+    private var nextMutationToken: UInt64 = 1
+
+    fileprivate init(library: ReviewFFILibrary, handle: UnsafeMutableRawPointer) {
+        self.library = library
+        self.handle = handle
+    }
+
+    deinit {
+        library.reviewSessionDestroy(handle)
+    }
+
+    public func state() throws -> ReviewSessionState {
+        try perform(["version": 1, "operation": "state"], mutating: false)
+    }
+
+    public func start(sessionID: String) throws -> ReviewSessionState {
+        try perform(
+            ["version": 1, "operation": "start", "session_id": sessionID],
+            mutating: true
+        )
+    }
+
+    public func decideConsent(granted: Bool) throws -> ReviewSessionState {
+        try perform(
+            [
+                "version": 1,
+                "operation": "decide_consent",
+                "decision": granted ? "grant" : "decline",
+            ],
+            mutating: true
+        )
+    }
+
+    public func cancel() throws -> ReviewSessionState {
+        try perform(["version": 1, "operation": "cancel"], mutating: true)
+    }
+
+    public func retry() throws -> ReviewSessionState {
+        try perform(["version": 1, "operation": "retry"], mutating: true)
+    }
+
+    private func perform(_ request: [String: Any], mutating: Bool) throws -> ReviewSessionState {
+        let requestData = try JSONSerialization.data(withJSONObject: request)
+        let token = mutating ? mutationToken() : 0
+        var capacity = 2_048
+        let maximumCapacity = 16_384
+        while true {
+            var buffer = [UInt8](repeating: 0, count: capacity)
+            let required = requestData.withUnsafeBytes { requestBytes in
+                buffer.withUnsafeMutableBytes { outputBytes in
+                    library.reviewSessionJSON(
+                        handle,
+                        token,
+                        requestBytes.baseAddress,
+                        requestData.count,
+                        outputBytes.baseAddress,
+                        capacity
+                    )
+                }
+            }
+            guard required > 0 else {
+                throw ReviewBridgeError.reviewSessionUnavailable("native session returned no result")
+            }
+            guard required <= maximumCapacity else {
+                throw ReviewBridgeError.reviewSessionUnavailable("native session result exceeded its output limit")
+            }
+            if required <= capacity {
+                return try ReviewSessionStateDecoder.decode(Data(buffer.prefix(required - 1)))
+            }
+            capacity = required
+        }
+    }
+
+    private func mutationToken() -> UInt64 {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        let token = nextMutationToken
+        nextMutationToken = nextMutationToken == UInt64.max ? 1 : nextMutationToken + 1
+        return token
     }
 }
 
@@ -51,6 +144,26 @@ private typealias ProviderReadinessFunction = @convention(c) (
     UnsafeMutableRawPointer?,
     Int
 ) -> Int
+private typealias ProviderConnectionFunction = @convention(c) (
+    UnsafeRawPointer?,
+    Int,
+    UnsafeMutableRawPointer?,
+    Int
+) -> Int
+private typealias ReviewSessionOpenWithProviderFunction = @convention(c) (
+    UnsafeRawPointer?, Int,
+    UnsafeRawPointer?, Int,
+    UnsafeRawPointer?, Int
+) -> UnsafeMutableRawPointer?
+private typealias ReviewSessionDestroyFunction = @convention(c) (UnsafeMutableRawPointer) -> Void
+private typealias ReviewSessionJSONFunction = @convention(c) (
+    UnsafeMutableRawPointer,
+    UInt64,
+    UnsafeRawPointer?,
+    Int,
+    UnsafeMutableRawPointer?,
+    Int
+) -> Int
 /// Shared shape for `qaptr_observation_detail_json`,
 /// `qaptr_workflow_generate_json`, and `qaptr_workflow_export_json`: a store
 /// handle, a bounded JSON v1 request, and the same two-pass output contract
@@ -70,16 +183,6 @@ private typealias KeyBootstrapFunction = @convention(c) (
     UnsafeMutableRawPointer?,
     Int
 ) -> Int
-private typealias PermissionStateFunction = @convention(c) (
-    UnsafeRawPointer?,
-    Int,
-    Int32
-) -> Int32
-private typealias PermissionRequestFunction = @convention(c) (
-    UnsafeRawPointer?,
-    Int,
-    Int32
-) -> Int32
 private typealias LoginItemStatusFunction = @convention(c) () -> Int32
 private typealias LoginItemSetEnabledFunction = @convention(c) (Int32) -> Int32
 
@@ -118,7 +221,7 @@ enum ReviewFFILibraryPath {
 }
 
 /// A loaded handle onto the native review-ffi library's exported symbols.
-private final class ReviewFFILibrary: @unchecked Sendable {
+fileprivate final class ReviewFFILibrary: @unchecked Sendable {
     let handle: UnsafeMutableRawPointer
     let storeOpen: StoreOpenFunction
     let storeDestroy: StoreDestroyFunction
@@ -126,12 +229,14 @@ private final class ReviewFFILibrary: @unchecked Sendable {
     let storeLastError: StoreLastErrorFunction
     let reviewStatus: ReviewStatusFunction
     let providerReadiness: ProviderReadinessFunction
+    let providerConnection: ProviderConnectionFunction
+    let reviewSessionOpenWithProvider: ReviewSessionOpenWithProviderFunction
+    let reviewSessionDestroy: ReviewSessionDestroyFunction
+    let reviewSessionJSON: ReviewSessionJSONFunction
     let observationDetail: DocumentBridgeFunction
     let workflowGenerate: DocumentBridgeFunction
     let workflowExport: DocumentBridgeFunction
     let keyBootstrap: KeyBootstrapFunction
-    let permissionState: PermissionStateFunction
-    let permissionRequest: PermissionRequestFunction
     let loginItemStatus: LoginItemStatusFunction
     let loginItemSetEnabled: LoginItemSetEnabledFunction
 
@@ -156,12 +261,16 @@ private final class ReviewFFILibrary: @unchecked Sendable {
             self.storeLastError = try Self.load("qaptr_store_last_error", from: handle)
             self.reviewStatus = try Self.load("qaptr_review_status_json", from: handle)
             self.providerReadiness = try Self.load("qaptr_provider_readiness_json", from: handle)
+            self.providerConnection = try Self.load("qaptr_provider_connection_json", from: handle)
+            self.reviewSessionOpenWithProvider = try Self.load(
+                "qaptr_review_session_open_with_provider", from: handle
+            )
+            self.reviewSessionDestroy = try Self.load("qaptr_review_session_destroy", from: handle)
+            self.reviewSessionJSON = try Self.load("qaptr_review_session_json", from: handle)
             self.observationDetail = try Self.load("qaptr_observation_detail_json", from: handle)
             self.workflowGenerate = try Self.load("qaptr_workflow_generate_json", from: handle)
             self.workflowExport = try Self.load("qaptr_workflow_export_json", from: handle)
             self.keyBootstrap = try Self.load("qaptr_key_bootstrap_json", from: handle)
-            self.permissionState = try Self.load("qaptr_permission_state", from: handle)
-            self.permissionRequest = try Self.load("qaptr_permission_request", from: handle)
             self.loginItemStatus = try Self.load("qaptr_login_item_status", from: handle)
             self.loginItemSetEnabled = try Self.load("qaptr_login_item_set_enabled", from: handle)
         } catch {
@@ -182,28 +291,23 @@ private final class ReviewFFILibrary: @unchecked Sendable {
     }
 }
 
-/// The permission codes shared with `crates/qaptr-review-ffi/src/system.rs`.
-public enum BridgePermission: Int32 {
-    case screenCapture = 0
-    case accessibilityContext = 1
-}
-
 /// The native durable-history and system-status bridge used by the review app.
 public final class ReviewBridge: @unchecked Sendable {
     private let library: ReviewFFILibrary
     private let storeHandle: UnsafeMutableRawPointer
-    private let bundleIdentifier: Data
+    private let storePath: URL
+    private let vaultPath: URL
 
     public init(
         storePath: URL,
-        bundleIdentifier: String,
         vaultPath: URL? = nil,
         generationID: String = "generation-1"
     ) throws {
         let library = try ReviewFFILibrary()
+        let resolvedVaultPath = vaultPath ?? Self.defaultVaultPath(for: storePath)
         try Self.bootstrap(
             library: library,
-            vaultPath: vaultPath ?? Self.defaultVaultPath(for: storePath),
+            vaultPath: resolvedVaultPath,
             generationID: generationID
         )
         let pathData = Data(storePath.path.utf8)
@@ -218,7 +322,8 @@ public final class ReviewBridge: @unchecked Sendable {
         }
         self.library = library
         self.storeHandle = handle
-        self.bundleIdentifier = Data(bundleIdentifier.utf8)
+        self.storePath = storePath
+        self.vaultPath = resolvedVaultPath
     }
 
     static func defaultVaultPath(for storePath: URL) -> URL {
@@ -299,9 +404,9 @@ public final class ReviewBridge: @unchecked Sendable {
     }
 
     /// Reads a compact review status: durable-history availability and
-    /// counts, plus live-analysis availability. This never reports a live
-    /// capture session or provider result; use `snapshot()` for durable
-    /// content.
+    /// counts, plus whether the native analysis entrypoint is available. This
+    /// never reports a live capture session or provider result; use `snapshot()`
+    /// for durable content and `ReviewSession` for live analysis state.
     public func reviewStatus() throws -> ReviewStatus {
         var capacity = 1_024
         while true {
@@ -350,6 +455,70 @@ public final class ReviewBridge: @unchecked Sendable {
             }
             capacity = required
         }
+    }
+
+    /// Verifies one explicitly selected local CLI provider using the native
+    /// adapter's bounded version and authentication probes. This is never called
+    /// by passive Settings refreshes and returns only a coarse safe result.
+    public func connectCLIProvider(id: String) throws -> CLIProviderConnectionResult {
+        let providerData = Data(id.utf8)
+        let maximumCapacity = 2_048
+        var capacity = 256
+        while true {
+            var buffer = [UInt8](repeating: 0, count: capacity)
+            let required = providerData.withUnsafeBytes { providerBytes in
+                buffer.withUnsafeMutableBytes { outputBytes in
+                    library.providerConnection(
+                        providerBytes.baseAddress,
+                        providerData.count,
+                        outputBytes.baseAddress,
+                        capacity
+                    )
+                }
+            }
+            guard required > 0 else {
+                throw ReviewBridgeError.providerReadinessUnavailable("native connection check returned no result")
+            }
+            guard required <= maximumCapacity else {
+                throw ReviewBridgeError.providerReadinessUnavailable("native connection check exceeded its output limit")
+            }
+            if required <= capacity {
+                let data = Data(buffer.prefix(required - 1))
+                do {
+                    return try CLIProviderConnectionDecoder.decode(data)
+                } catch {
+                    throw ReviewBridgeError.providerReadinessUnavailable(String(describing: error))
+                }
+            }
+            capacity = required
+        }
+    }
+
+    /// Creates one provider-immutable native review session for an explicitly
+    /// selected local CLI. The native driver performs its own fresh provider
+    /// verification immediately before consent and invocation.
+    public func makeReviewSession(providerID: String) throws -> ReviewSession {
+        let vaultData = Data(vaultPath.path.utf8)
+        let storeData = Data(storePath.path.utf8)
+        let providerData = Data(providerID.utf8)
+        let handle: UnsafeMutableRawPointer? = vaultData.withUnsafeBytes { vaultBytes in
+            storeData.withUnsafeBytes { storeBytes in
+                providerData.withUnsafeBytes { providerBytes in
+                    library.reviewSessionOpenWithProvider(
+                        vaultBytes.baseAddress,
+                        vaultData.count,
+                        storeBytes.baseAddress,
+                        storeData.count,
+                        providerBytes.baseAddress,
+                        providerData.count
+                    )
+                }
+            }
+        }
+        guard let handle else {
+            throw ReviewBridgeError.reviewSessionUnavailable("the selected provider is unsupported")
+        }
+        return ReviewSession(library: library, handle: handle)
     }
 
     private func lastStoreError() -> String {
@@ -464,22 +633,6 @@ public final class ReviewBridge: @unchecked Sendable {
             }
             capacity = required
         }
-    }
-
-    /// Reads a permission's state without prompting.
-    public func permissionState(_ permission: BridgePermission) -> PermissionStatus {
-        let code = bundleIdentifier.withUnsafeBytes { bytes in
-            library.permissionState(bytes.baseAddress, bundleIdentifier.count, permission.rawValue)
-        }
-        return PermissionStatus(bridgeCode: code)
-    }
-
-    /// Requests a permission through the native prompt, then reports its state.
-    public func requestPermission(_ permission: BridgePermission) -> PermissionStatus {
-        let code = bundleIdentifier.withUnsafeBytes { bytes in
-            library.permissionRequest(bytes.baseAddress, bundleIdentifier.count, permission.rawValue)
-        }
-        return PermissionStatus(bridgeCode: code)
     }
 
     /// Reads whether Qaptr is registered to start at login.

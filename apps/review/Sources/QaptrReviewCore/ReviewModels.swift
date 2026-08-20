@@ -141,9 +141,9 @@ public struct ReviewSessionStatus: Equatable, Sendable {
 
 /// Live-analysis availability.
 ///
-/// `qaptr-review-ffi` never exposes live provider analysis: `provider` is
-/// always absent and `reason` explains why, never inventing an active
-/// session or a provider name.
+/// The passive status endpoint reports whether the provider-aware session ABI
+/// is present. `provider` remains absent until a separate live session selects
+/// one, so this snapshot never invents an active session or provider name.
 public struct ReviewAnalysisStatus: Equatable, Sendable {
     public let state: String
     public let provider: String?

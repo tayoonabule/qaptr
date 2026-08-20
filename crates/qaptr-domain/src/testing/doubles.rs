@@ -5,7 +5,6 @@ use crate::ports::capture::{CapturePort, CaptureRequest, CaptureSample};
 use crate::ports::context::{AccessibilityContextPort, ContextRequest, ContextSnapshot};
 use crate::ports::credentials::{CredentialKey, CredentialPort, CredentialValue};
 use crate::ports::ocr::{OcrPort, OcrResult};
-use crate::ports::permissions::{Permission, PermissionPort, PermissionState};
 use crate::ports::vision::{VisionPort, VisionResult};
 use crate::ports::{LoginItemPort, LoginItemState, PortResult};
 
@@ -238,59 +237,6 @@ impl CredentialPort for InMemoryCredentials {
         self.delete_response
             .clone()
             .into_result("credential delete")
-    }
-}
-
-/// An in-memory permission adapter with independently configured operations.
-#[derive(Clone, Debug)]
-pub struct InMemoryPermissions {
-    state_response: Response<PermissionState>,
-    request_response: Response<PermissionState>,
-}
-
-impl InMemoryPermissions {
-    /// Creates a permission double with one state for reads and requests.
-    pub fn ready(state: PermissionState) -> Self {
-        Self {
-            state_response: Response::Complete(state),
-            request_response: Response::Complete(state),
-        }
-    }
-
-    /// Creates a permission double that returns partial states.
-    pub fn partial(state: PermissionState) -> Self {
-        Self {
-            state_response: Response::Partial(state),
-            request_response: Response::Partial(state),
-        }
-    }
-
-    /// Creates a permission double that simulates denial.
-    pub fn denied() -> Self {
-        Self {
-            state_response: Response::Denied,
-            request_response: Response::Denied,
-        }
-    }
-
-    /// Creates a permission double that simulates a timeout.
-    pub fn timed_out() -> Self {
-        Self {
-            state_response: Response::TimedOut,
-            request_response: Response::TimedOut,
-        }
-    }
-}
-
-impl PermissionPort for InMemoryPermissions {
-    fn state(&self, _permission: Permission) -> PortResult<PermissionState> {
-        self.state_response.clone().into_result("permission state")
-    }
-
-    fn request(&self, _permission: Permission) -> PortResult<PermissionState> {
-        self.request_response
-            .clone()
-            .into_result("permission request")
     }
 }
 

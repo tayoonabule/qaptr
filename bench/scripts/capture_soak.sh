@@ -79,11 +79,16 @@ summary_file="$output_dir/summary.txt"
 printf 'epoch_seconds,total_phys_footprint_bytes,process_count\n' > "$samples_file"
 
 "$repo_root/apps/helper/build_app.sh" release >/dev/null
-helper_executable="$repo_root/apps/helper/.build/release/QaptrCaptureSpike.app/Contents/MacOS/QaptrCaptureSpike"
+helper_executable="$repo_root/apps/helper/.build/release/QaptrHelper.app/Contents/MacOS/QaptrHelper"
 
+QAPTR_HELPER_LOCK_PATH="$output_dir/helper.lock" \
+QAPTR_CAPTURE_PROGRESS_PATH="$output_dir/capture-progress.json" \
+QAPTR_CAPTURE_CONTROL_PATH="$output_dir/capture-control.json" \
+QAPTR_PERMISSION_STATUS_PATH="$output_dir/permission-status.json" \
 "$helper_executable" \
     --interval-seconds "$capture_interval_seconds" \
     --max-dimension "$max_dimension" \
+    --vault-root "$output_dir/vault" \
     > "$helper_log" 2>&1 &
 helper_pid=$!
 

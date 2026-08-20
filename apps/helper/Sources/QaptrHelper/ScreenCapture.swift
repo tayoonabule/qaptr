@@ -10,6 +10,10 @@ struct ScreenCaptureAdapter: ImageCapture, CaptureStartupPreflight {
         CGPreflightScreenCaptureAccess()
     }
 
+    func requestScreenRecordingAccess() -> Bool {
+        CGRequestScreenCaptureAccess()
+    }
+
     func capture(displayID: String, maxDimension: Int) throws -> CapturedFrame {
         let content = try currentShareableContent()
         guard let numericID = CGDirectDisplayID(displayID),

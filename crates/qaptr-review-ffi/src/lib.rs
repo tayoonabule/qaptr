@@ -6,9 +6,10 @@
 //!   generation. Private key material is created or read only through the
 //!   review app's non-synchronizing Keychain adapter; only the matching public
 //!   key is written to the vault for the helper.
-//! - The bridge never opens a vault bundle and has no operation that returns an
-//!   image, credential, or provider response. History output remains scalar:
-//!   observations, workflow summaries, and quiet exclusion notices.
+//! - The review-session worker may open and decrypt a vault bundle internally,
+//!   then performs local privacy preparation before any provider request. No
+//!   operation returns an image, credential, or raw provider response. History
+//!   and session output remain bounded scalar state.
 //! - All values crossing this boundary are already scalar (ids, text,
 //!   confidence, and millisecond timestamps). No image bytes ever cross this
 //!   ABI, mirroring `qaptr-ffi`'s helper-side invariant in the opposite
@@ -25,15 +26,18 @@ pub mod local;
 mod support;
 mod system;
 
+use std::time::Duration;
+
+use qaptr_provider::{ProviderError, ProviderGate};
+use qaptr_provider_cli::{
+    CliDetectionStatus, CliProvider, CliRuntime, OutputLimit, RuntimeLimits, Timeout,
+    adapters::{CodexAdapter, JcodeAdapter, claude::ClaudeAdapter},
+    detect_cli_installation,
+};
 use qaptr_store::Store;
 use serde_json::{Value, json};
 
-use qaptr_provider_cli::{CliDetectionStatus, CliProvider, detect_cli_installation};
-
-pub use system::{
-    qaptr_login_item_set_enabled, qaptr_login_item_status, qaptr_permission_request,
-    qaptr_permission_state,
-};
+pub use system::{qaptr_login_item_set_enabled, qaptr_login_item_status};
 
 use support::{copy_string, read_utf8};
 
@@ -42,8 +46,10 @@ pub use driver::ReviewSessionDriver;
 
 /// Opens an app-owned review-session driver.
 ///
-/// The driver creates no provider adapter. It owns only the supplied vault and
-/// scalar history paths and reports provider availability truthfully at start.
+/// This legacy entry point creates an unavailable provider adapter. It owns the
+/// supplied vault and scalar history paths but cannot dispatch analysis. New
+/// callers should use [`qaptr_review_session_open_with_provider`] to bind one
+/// supported local CLI provider immutably to the session driver.
 ///
 /// # Safety
 ///
@@ -72,12 +78,59 @@ pub unsafe extern "C" fn qaptr_review_session_open(
     )))
 }
 
-/// Destroys a review-session driver returned by [`qaptr_review_session_open`].
+/// Opens an app-owned review-session driver bound to one supported local CLI.
+///
+/// The selected provider is immutable for the lifetime of the returned driver.
+/// Provider availability is still revalidated after local preparation and
+/// immediately before the explicit consent request, so an earlier connection
+/// check is never reused as proof. Unsupported provider identifiers fail closed.
+///
+/// # Safety
+///
+/// Each pointer must reference its declared UTF-8 byte length for the duration
+/// of the call, or be null when its length is zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_review_session_open_with_provider(
+    vault_root: *const u8,
+    vault_root_len: usize,
+    store_path: *const u8,
+    store_path_len: usize,
+    provider_id: *const u8,
+    provider_id_len: usize,
+) -> *mut ReviewSessionDriver {
+    let (Some(vault_root), Some(store_path), Some(provider_id)) = (
+        unsafe { read_utf8(vault_root, vault_root_len) },
+        unsafe { read_utf8(store_path, store_path_len) },
+        unsafe { read_utf8(provider_id, provider_id_len) },
+    ) else {
+        return std::ptr::null_mut();
+    };
+    if vault_root.is_empty()
+        || store_path.is_empty()
+        || provider_id.is_empty()
+        || provider_id.len() > driver::MAX_ID_BYTES
+    {
+        return std::ptr::null_mut();
+    }
+    let Some(provider) = provider_from_id(provider_id) else {
+        return std::ptr::null_mut();
+    };
+    Box::into_raw(Box::new(ReviewSessionDriver::new_with_cli_provider(
+        vault_root.into(),
+        store_path.into(),
+        provider,
+    )))
+}
+
+/// Destroys a review-session driver returned by either review-session open
+/// function.
 ///
 /// # Safety
 ///
 /// `handle` must be null or a live pointer returned by
-/// [`qaptr_review_session_open`] that has not already been destroyed.
+/// [`qaptr_review_session_open`] or
+/// [`qaptr_review_session_open_with_provider`] that has not already been
+/// destroyed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn qaptr_review_session_destroy(handle: *mut ReviewSessionDriver) {
     if !handle.is_null() {
@@ -136,9 +189,6 @@ pub unsafe extern "C" fn qaptr_review_session_json(
     }
     required
 }
-
-const LIVE_ANALYSIS_UNAVAILABLE_REASON: &str =
-    "live provider analysis is not exposed by qaptr-review-ffi";
 
 /// Reconciles the review app's private generation key with the public key used
 /// by the capture helper and returns a small, non-sensitive JSON result.
@@ -266,9 +316,9 @@ pub unsafe extern "C" fn qaptr_store_snapshot_json(
 
 /// Copies a compact review status into a caller-provided buffer.
 ///
-/// This endpoint reports durable-history availability and explicitly reports
-/// live analysis as unavailable. It never invents a provider, an active
-/// session, or an analysis result. The return value is the required buffer
+/// This endpoint reports durable-history availability and the presence of the
+/// provider-aware review-session ABI. It never invents a selected provider, an
+/// active session, or an analysis result. The return value is the required buffer
 /// size, including the trailing NUL. A zero return means the handle was
 /// invalid or the durable view could not be read; call
 /// [`qaptr_store_last_error`] for details.
@@ -305,9 +355,9 @@ pub unsafe extern "C" fn qaptr_review_status_json(
             "notice_count": notices.len(),
         },
         "analysis": {
-            "state": "unavailable",
+            "state": "ready",
             "provider": Value::Null,
-            "reason": LIVE_ANALYSIS_UNAVAILABLE_REASON,
+            "reason": Value::Null,
         },
     });
     copy_string(&json.to_string(), output, output_capacity)
@@ -333,6 +383,44 @@ pub unsafe extern "C" fn qaptr_provider_readiness_json(
 ) -> usize {
     let json = provider_readiness_to_json();
     copy_string(&json.to_string(), output, output_capacity)
+}
+
+/// Verifies one explicitly selected local CLI provider using its bounded,
+/// sandboxed version and authentication probes.
+///
+/// This endpoint is deliberately separate from the passive installation
+/// snapshot above: opening Settings never starts a provider process, while a
+/// person's explicit provider selection may verify that provider. The response
+/// contains only a coarse state and safe recovery reason. It never includes an
+/// executable path, environment value, credential, stdout, or stderr.
+///
+/// The return value is the required output size, including a trailing NUL. A
+/// null output or zero capacity is a size query.
+///
+/// # Safety
+///
+/// `provider_id` must reference `provider_id_len` readable UTF-8 bytes. `output`
+/// must reference a writable buffer of `output_capacity` bytes when the
+/// capacity is non-zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qaptr_provider_connection_json(
+    provider_id: *const u8,
+    provider_id_len: usize,
+    output: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let Some(provider_id) = (unsafe { read_utf8(provider_id, provider_id_len) }) else {
+        return copy_string(
+            r#"{"version":1,"state":"error","reason":"invalid_provider"}"#,
+            output,
+            output_capacity,
+        );
+    };
+    let response = match provider_from_id(provider_id) {
+        Some(provider) => verify_cli_provider(provider),
+        None => json!({"version": 1, "state": "error", "reason": "unsupported_provider"}),
+    };
+    copy_string(&response.to_string(), output, output_capacity)
 }
 
 /// Copies the most recent error into a caller-provided buffer.
@@ -535,6 +623,72 @@ fn provider_readiness_entry(provider: CliProvider, detection: CliDetectionStatus
     })
 }
 
+fn provider_from_id(id: &str) -> Option<CliProvider> {
+    match id {
+        "claude-cli" => Some(CliProvider::Claude),
+        "codex" => Some(CliProvider::Codex),
+        "jcode" => Some(CliProvider::Jcode),
+        _ => None,
+    }
+}
+
+fn verify_cli_provider(provider: CliProvider) -> Value {
+    let timeout = match Timeout::new(Duration::from_secs(5)) {
+        Ok(timeout) => timeout,
+        Err(_) => return provider_connection_entry(Err("unavailable")),
+    };
+    let output = match OutputLimit::new(32 * 1024) {
+        Ok(output) => output,
+        Err(_) => return provider_connection_entry(Err("unavailable")),
+    };
+    let limits = RuntimeLimits::new(timeout, output);
+    let result = match provider {
+        CliProvider::Claude => ClaudeAdapter::new(CliRuntime::new(limits))
+            .map_err(|_| "unavailable")
+            .and_then(|adapter| {
+                ProviderGate::new(adapter)
+                    .detect_and_verify()
+                    .map(|_| ())
+                    .map_err(provider_failure_reason)
+            }),
+        CliProvider::Codex => CodexAdapter::new(CliRuntime::new(limits))
+            .map_err(|_| "unavailable")
+            .and_then(|adapter| {
+                ProviderGate::new(adapter)
+                    .detect_and_verify()
+                    .map(|_| ())
+                    .map_err(provider_failure_reason)
+            }),
+        CliProvider::Jcode => JcodeAdapter::new(CliRuntime::new(limits))
+            .map_err(|_| "unavailable")
+            .and_then(|adapter| {
+                ProviderGate::new(adapter)
+                    .detect_and_verify()
+                    .map(|_| ())
+                    .map_err(provider_failure_reason)
+            }),
+    };
+    provider_connection_entry(result)
+}
+
+fn provider_failure_reason(error: ProviderError) -> &'static str {
+    match error {
+        ProviderError::NotInstalled { .. } => "not_installed",
+        ProviderError::NotAuthenticated { .. } => "not_authenticated",
+        ProviderError::TooOld { .. } => "update_required",
+        ProviderError::CapabilityMissing { .. } | ProviderError::RuntimeFailure { .. } => {
+            "unavailable"
+        }
+    }
+}
+
+fn provider_connection_entry(result: Result<(), &'static str>) -> Value {
+    match result {
+        Ok(()) => json!({"version": 1, "state": "connected"}),
+        Err(reason) => json!({"version": 1, "state": "error", "reason": reason}),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use qaptr_domain::{CaptureId, Confidence, ObservationId, SessionId, WorkflowId};
@@ -584,6 +738,45 @@ mod tests {
         for forbidden in ["path", "env", "credential", "stdout", "stderr"] {
             assert!(!serialized.contains(forbidden), "found {forbidden}");
         }
+    }
+
+    #[test]
+    fn provider_connection_result_exposes_only_coarse_safe_state() {
+        assert_eq!(provider_connection_entry(Ok(()))["state"], "connected");
+        let failed = provider_connection_entry(Err("not_authenticated"));
+        assert_eq!(failed["state"], "error");
+        assert_eq!(failed["reason"], "not_authenticated");
+        let serialized = failed.to_string();
+        for forbidden in ["path", "env", "credential", "stdout", "stderr", "token"] {
+            assert!(!serialized.contains(forbidden), "found {forbidden}");
+        }
+    }
+
+    #[test]
+    fn provider_connection_rejects_unknown_provider_without_running_a_process() {
+        let provider = b"unknown";
+        let required = unsafe {
+            qaptr_provider_connection_json(
+                provider.as_ptr(),
+                provider.len(),
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        let mut output = vec![0_u8; required];
+        let returned = unsafe {
+            qaptr_provider_connection_json(
+                provider.as_ptr(),
+                provider.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        };
+        assert_eq!(returned, required);
+        let value: Value =
+            serde_json::from_slice(&output[..returned - 1]).expect("connection JSON");
+        assert_eq!(value["state"], "error");
+        assert_eq!(value["reason"], "unsupported_provider");
     }
 
     #[test]
@@ -644,6 +837,45 @@ mod tests {
         assert!(value.to_string().find("image_bytes").is_none());
 
         unsafe { qaptr_review_session_destroy(handle) };
+    }
+
+    #[test]
+    fn provider_aware_session_open_accepts_only_supported_cli_ids() {
+        let root = tempfile::tempdir().expect("temporary root");
+        let vault = root.path().join("vault").to_string_lossy().into_owned();
+        let store = root
+            .path()
+            .join("history.sqlite3")
+            .to_string_lossy()
+            .into_owned();
+
+        for provider in ["claude-cli", "codex", "jcode"] {
+            let handle = unsafe {
+                qaptr_review_session_open_with_provider(
+                    vault.as_ptr(),
+                    vault.len(),
+                    store.as_ptr(),
+                    store.len(),
+                    provider.as_ptr(),
+                    provider.len(),
+                )
+            };
+            assert!(!handle.is_null(), "{provider} should be supported");
+            unsafe { qaptr_review_session_destroy(handle) };
+        }
+
+        let unsupported = "openrouter";
+        let handle = unsafe {
+            qaptr_review_session_open_with_provider(
+                vault.as_ptr(),
+                vault.len(),
+                store.as_ptr(),
+                store.len(),
+                unsupported.as_ptr(),
+                unsupported.len(),
+            )
+        };
+        assert!(handle.is_null());
     }
 
     #[test]
@@ -818,14 +1050,15 @@ mod tests {
         assert_eq!(status["review_session"]["history_available"], true);
         assert_eq!(status["review_session"]["observation_count"], 1);
         assert_eq!(status["review_session"]["workflow_count"], 1);
-        assert_eq!(status["analysis"]["state"], "unavailable");
+        assert_eq!(status["analysis"]["state"], "ready");
         assert!(status["analysis"]["provider"].is_null());
+        assert!(status["analysis"]["reason"].is_null());
 
         unsafe { qaptr_store_destroy(handle) };
     }
 
     #[test]
-    fn review_status_reports_history_without_claiming_provider_analysis() {
+    fn review_status_reports_history_and_analysis_entrypoint_without_claiming_a_provider() {
         let root = tempfile::tempdir().expect("temporary root");
         let db_path = root.path().join("history.sqlite3");
         let path_bytes = db_path.to_string_lossy().into_owned();
@@ -858,12 +1091,9 @@ mod tests {
         assert_eq!(value["review_session"]["observation_count"], 1);
         assert_eq!(value["review_session"]["workflow_count"], 0);
         assert_eq!(value["review_session"]["notice_count"], 0);
-        assert_eq!(value["analysis"]["state"], "unavailable");
+        assert_eq!(value["analysis"]["state"], "ready");
         assert!(value["analysis"]["provider"].is_null());
-        assert_eq!(
-            value["analysis"]["reason"],
-            LIVE_ANALYSIS_UNAVAILABLE_REASON
-        );
+        assert!(value["analysis"]["reason"].is_null());
 
         unsafe { qaptr_store_destroy(handle) };
     }

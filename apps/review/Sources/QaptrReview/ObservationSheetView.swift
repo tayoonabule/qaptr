@@ -16,23 +16,23 @@ struct ObservationSheetView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
 
+                AnalysisControlView(model: model)
+                    .padding(.top, QaptrSpace.lg)
+
                 if model.loadError != nil {
                     ErrorStateView(retry: model.refresh)
                         .padding(.top, QaptrSpace.xl)
                 } else {
-                    statusLedger
-                        .padding(.top, QaptrSpace.xl)
                     if model.snapshot.observations.isEmpty {
-                        EmptyStateView(progress: model.captureProgress, notices: model.snapshot.notices)
-                            .padding(.top, QaptrSpace.xl)
+                        EmptyStateView(
+                            progress: model.captureProgress,
+                            notices: model.snapshot.notices,
+                            analysisStatus: model.reviewStatus?.analysis
+                        )
+                            .padding(.top, QaptrSpace.lg)
                     } else {
-                        Text("RECENT OBSERVATIONS")
-                            .font(QaptrType.meta(10.5))
-                            .tracking(1)
-                            .foregroundStyle(Color.qaptrInkMuted)
-                            .padding(.top, QaptrSpace.xl)
-                            .padding(.bottom, QaptrSpace.sm)
                         observationList
+                            .padding(.top, QaptrSpace.lg)
                     }
                 }
 
@@ -50,6 +50,12 @@ struct ObservationSheetView: View {
         .sheet(item: $selectedObservation) { observation in
             ObservationDetailView(model: model, observation: observation)
         }
+        .sheet(isPresented: analysisConsentPresented) {
+            if let summary = model.analysisSessionState.consentSummary {
+                AnalysisConsentView(model: model, summary: summary)
+                    .interactiveDismissDisabled()
+            }
+        }
         .onAppear { model.refresh() }
         .task {
             while !Task.isCancelled {
@@ -61,155 +67,23 @@ struct ObservationSheetView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: QaptrSpace.md) {
-            CaptureSignalBar(isActive: model.captureProgress.helperIsRunning)
-            VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-                HStack(spacing: QaptrSpace.xs) {
-                    Circle()
-                        .fill(model.captureProgress.helperIsRunning ? Color.qaptrLive : Color.qaptrInkSoft.opacity(0.35))
-                        .frame(width: 6, height: 6)
-                    Text("QAPTR")
-                        .font(QaptrType.meta())
-                        .tracking(1.2)
-                        .foregroundStyle(Color.qaptrInkSoft)
-                }
-                Text(headerTitle)
-                    .font(QaptrType.editorial(38))
-                    .foregroundStyle(Color.qaptrInk)
-                Text("A readable record of what happened on this Mac.")
-                    .font(QaptrType.body(14))
-                    .foregroundStyle(Color.qaptrInkSoft)
-            }
-        }
-        .padding(.bottom, QaptrSpace.lg)
-    }
-
-    private var statusLedger: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            captureProgress
-            if model.reviewStatus != nil || model.reviewStatusError != nil {
-                ledgerRule
-                reviewStatusSummary
-                    .padding(.bottom, QaptrSpace.md)
-            }
-        }
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.qaptrHairline).frame(height: 1)
-        }
-    }
-
-    private func ledgerHeading(_ title: String) -> some View {
-        Text(title)
-            .font(QaptrType.meta(10))
-            .tracking(1.1)
-            .foregroundStyle(Color.qaptrInkMuted)
-            .padding(.vertical, QaptrSpace.sm)
-    }
-
-    private var ledgerRule: some View {
-        Divider().overlay(Color.qaptrHairline)
+        Text(headerTitle)
+            .font(QaptrType.editorial(38))
+            .foregroundStyle(Color.qaptrInk)
     }
 
     private var headerTitle: String {
         if model.loadError != nil {
             return "Review setup"
         }
-        return model.snapshot.observations.isEmpty ? "Nothing here yet" : "What Qaptr found"
+        return model.snapshot.observations.isEmpty ? "Review" : "What Qaptr found"
     }
 
-    private var captureProgress: some View {
-        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
-            Text("Capture")
-                .font(QaptrType.title(16))
-                .foregroundStyle(Color.qaptrInk)
-            HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.xxl) {
-                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-                    Text("Screenshots captured")
-                        .font(QaptrType.meta())
-                        .foregroundStyle(Color.qaptrInkSoft)
-                    Text(model.captureProgress.captureCount.map(String.init) ?? "Not available")
-                        .font(QaptrType.display(28))
-                        .foregroundStyle(Color.qaptrInk)
-                }
-                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-                    Text("Capture state")
-                        .font(QaptrType.meta())
-                        .foregroundStyle(Color.qaptrInkSoft)
-                        Text(model.captureProgress.statusLabel)
-                            .font(QaptrType.body())
-                            .foregroundStyle(model.captureProgress.helperIsRunning ? Color.qaptrInk : Color.qaptrInkSoft)
-                            .padding(.horizontal, QaptrSpace.sm)
-                            .padding(.vertical, QaptrSpace.xxs)
-                            .background(
-                            model.captureProgress.helperIsRunning ? Color.qaptrAccentTint : Color.qaptrPaperMist,
-                            in: Capsule()
-                        )
-                }
-            }
-            if let lastCaptureDate = model.captureProgress.lastCaptureDate {
-                Text("Last capture \(lastCaptureDate, format: .dateTime.hour().minute().second())")
-                    .font(QaptrType.caption())
-                    .foregroundStyle(Color.qaptrInkSoft)
-            } else {
-                Text("No screenshot yet")
-                    .font(QaptrType.caption())
-                    .foregroundStyle(Color.qaptrInkSoft)
-            }
-            Text(captureConfigurationSummary)
-                .font(QaptrType.caption())
-                .foregroundStyle(Color.qaptrInkSoft)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, QaptrSpace.md)
-    }
-
-    private var captureConfigurationSummary: String {
-        let displays = model.captureProgress.selectedDisplayIDs
-        let displaySummary = displays.isEmpty
-            ? "No displays selected"
-            : "\(displays.count) selected display\(displays.count == 1 ? "" : "s")"
-        let interval = model.captureProgress.activeIntervalSeconds ?? model.captureIntervalSeconds
-        return "\(displaySummary) · Every \(interval) seconds"
-    }
-
-    @ViewBuilder
-    private var reviewStatusSummary: some View {
-        if let status = model.reviewStatus {
-            VStack(alignment: .leading, spacing: QaptrSpace.md) {
-                Text("History")
-                    .font(QaptrType.title(16))
-                    .foregroundStyle(Color.qaptrInk)
-                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-                    Text("Durable history")
-                        .font(QaptrType.title())
-                        .foregroundStyle(Color.qaptrInk)
-                    Text(historySummary(status.reviewSession))
-                        .font(QaptrType.body(13))
-                        .foregroundStyle(Color.qaptrInkSoft)
-                }
-                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-                    Text("Live analysis unavailable")
-                        .font(QaptrType.title())
-                        .foregroundStyle(Color.qaptrInk)
-                    Text(status.analysis.reason ?? "Live provider analysis is not available here.")
-                        .font(QaptrType.body(13))
-                        .foregroundStyle(Color.qaptrInkSoft)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-                .accessibilityElement(children: .combine)
-        } else if model.reviewStatusError != nil {
-            Text("History status unavailable. Saved observations may still be shown.")
-                .font(QaptrType.body(13))
-                .foregroundStyle(Color.qaptrInkSoft)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func historySummary(_ session: ReviewSessionStatus) -> String {
-        guard session.historyAvailable else { return "No saved observations yet." }
-        let count = session.observationCount
-        return "\(count) saved observation\(count == 1 ? "" : "s") available."
+    private var analysisConsentPresented: Binding<Bool> {
+        Binding(
+            get: { model.analysisSessionState.phase == .readyForConsent },
+            set: { _ in }
+        )
     }
 
     private var observationList: some View {
@@ -230,6 +104,184 @@ struct ObservationSheetView: View {
         }
         .overlay {
             Rectangle().strokeBorder(Color.qaptrHairline, lineWidth: 1)
+        }
+    }
+}
+
+private struct AnalysisControlView: View {
+    @Bindable var model: ReviewAppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.md) {
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+                    Text(title)
+                        .font(QaptrType.title(15))
+                        .foregroundStyle(Color.qaptrInk)
+                    Text(detail)
+                        .font(QaptrType.caption())
+                        .foregroundStyle(Color.qaptrInkSoft)
+                }
+                Spacer(minLength: QaptrSpace.lg)
+                action
+            }
+
+            if let error = model.analysisError {
+                Text(error)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrError)
+            }
+        }
+        .padding(.horizontal, QaptrSpace.lg)
+        .padding(.vertical, QaptrSpace.md)
+        .overlay {
+            RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+                .strokeBorder(Color.qaptrHairline, lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var action: some View {
+        switch model.analysisSessionState.phase {
+        case .ingesting, .preparing, .analyzing:
+            HStack(spacing: QaptrSpace.sm) {
+                ProgressView().controlSize(.small)
+                Button("Cancel", action: model.cancelAnalysis)
+                    .buttonStyle(.qaptrQuiet)
+            }
+        case .readyForConsent:
+            Text("CONSENT REQUIRED")
+                .font(QaptrType.meta(10))
+                .tracking(0.7)
+                .foregroundStyle(Color.qaptrTeal)
+        case .failed, .cancelled:
+            Button("Try again", action: model.retryAnalysis)
+                .buttonStyle(.qaptrOutline)
+        case .idle, .completed:
+            Button(model.analysisSessionState.phase == .completed ? "Analyze again" : "Analyze captures") {
+                model.startAnalysis()
+            }
+            .buttonStyle(.qaptrOutline)
+            .disabled(!model.analysisCanStart)
+        }
+    }
+
+    private var title: String {
+        switch model.analysisSessionState.phase {
+        case .idle: "Turn captures into observations"
+        case .ingesting: "Finding captured screenshots"
+        case .preparing: "Preparing screenshots locally"
+        case .readyForConsent: "Ready for your approval"
+        case .analyzing: "Analyzing prepared context"
+        case .completed:
+            if model.analysisSessionState.outcome == "consent_declined" {
+                "Nothing was sent"
+            } else if model.analysisSessionState.outcome == "no_eligible_payload" {
+                "No eligible screenshots"
+            } else if model.analysisSessionState.observationsWritten == 1 {
+                "Added 1 observation"
+            } else {
+                "Added \(model.analysisSessionState.observationsWritten) observations"
+            }
+        case .failed: "Analysis needs attention"
+        case .cancelled: "Analysis cancelled"
+        }
+    }
+
+    private var detail: String {
+        let state = model.analysisSessionState
+        switch state.phase {
+        case .idle:
+            guard let provider = model.settings.provider else {
+                return "Choose and connect a local CLI provider in Settings first."
+            }
+            if provider == .openRouter {
+                return "Native review analysis currently supports Claude, Codex, and Jcode CLI."
+            }
+            if model.providerConnection != .connected {
+                return "Reconnect \(provider.displayName) in Settings before analyzing."
+            }
+            let count = model.captureProgress.captureCount ?? 0
+            return "\(count) screenshot\(count == 1 ? "" : "s") available. Preparation stays on this Mac."
+        case .ingesting:
+            return "Qaptr is reading committed local capture metadata."
+        case .preparing:
+            return "OCR, masking, and privacy exclusions happen before consent."
+        case .readyForConsent:
+            return "Review exactly what will be sent before the provider is invoked."
+        case .analyzing:
+            return "The approved text-only context is being checked by the selected provider."
+        case .completed:
+            if state.outcome == "consent_declined" {
+                return "Nothing was sent. Prepared context stayed local."
+            }
+            return "The observation list has been refreshed from durable history."
+        case .failed:
+            return failureDetail(state.error)
+        case .cancelled:
+            return "No partial observation batch was saved."
+        }
+    }
+
+    private func failureDetail(_ error: String?) -> String {
+        switch error {
+        case "no_committed_bundles": "No captured screenshots are ready yet."
+        case "provider_unavailable", "provider_failed":
+            "The selected CLI could not complete analysis. Reconnect it in Settings and try again."
+        case "local_review_failed": "Local preparation could not complete. Try again."
+        default: "Try again, or check the selected provider in Settings."
+        }
+    }
+}
+
+private struct AnalysisConsentView: View {
+    @Bindable var model: ReviewAppModel
+    let summary: ReviewConsentSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: QaptrSpace.xl) {
+            VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+                Text("Send prepared context?")
+                    .font(QaptrType.editorial(30))
+                    .foregroundStyle(Color.qaptrInk)
+                Text("Qaptr finished local privacy preparation. Nothing reaches the provider unless you approve this request.")
+                    .font(QaptrType.body())
+                    .foregroundStyle(Color.qaptrInkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+                consentRow("Provider", summary.provider)
+                consentRow("Model", summary.modelLabel)
+                consentRow("Payload", summary.payloadKind == "text" ? "Text only" : summary.payloadKind)
+                consentRow("Prepared captures", "\(summary.captureCount)")
+                consentRow("Images sent", "\(summary.imageCount)")
+                consentRow("Excluded locally", "\(summary.exclusionCount)")
+            }
+
+            HStack(spacing: QaptrSpace.sm) {
+                Button("Keep local") { model.decideAnalysisConsent(granted: false) }
+                    .buttonStyle(.qaptrOutline)
+                Button("Send to \(summary.provider)") { model.decideAnalysisConsent(granted: true) }
+                    .buttonStyle(.qaptrPrimary)
+            }
+        }
+        .padding(QaptrSpace.xxl)
+        .frame(width: 500, alignment: .leading)
+        .background(Color.qaptrSurface)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Analysis consent for \(summary.provider)")
+    }
+
+    private func consentRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(QaptrType.meta(10.5))
+                .foregroundStyle(Color.qaptrInkMuted)
+            Spacer()
+            Text(value)
+                .font(QaptrType.body(13))
+                .foregroundStyle(Color.qaptrInk)
         }
     }
 }
@@ -453,13 +505,13 @@ private struct ObservationDetailView: View {
 
 /// Honest empty states covering checklist 4.1 row 135: no captures yet, every
 /// capture excluded during local privacy preparation (no safely prepared
-/// captures), captures prepared but nothing worth reporting, and the
-/// existing analysis-unavailable state already shown by `reviewStatusSummary`.
+/// captures), captures waiting for analysis, and analysis unavailable.
 /// Each branch is driven only by already-known scalar state -- capture
 /// count/status and the durable exclusion notices -- never by a guess.
 struct EmptyStateView: View {
     let progress: CaptureProgressSnapshot
     let notices: [ExclusionNotice]
+    let analysisStatus: ReviewAnalysisStatus?
 
     var body: some View {
         VStack(alignment: .leading, spacing: QaptrSpace.sm) {
@@ -472,9 +524,20 @@ struct EmptyStateView: View {
         }
     }
 
-    private var title: String { Self.title(captureCount: progress.captureCount, notices: notices) }
+    private var title: String {
+        Self.title(
+            captureCount: progress.captureCount,
+            notices: notices,
+            analysisState: analysisStatus?.state
+        )
+    }
     private var detail: String {
-        Self.detail(captureCount: progress.captureCount, statusLabel: progress.statusLabel, notices: notices)
+        Self.detail(
+            captureCount: progress.captureCount,
+            statusLabel: progress.statusLabel,
+            notices: notices,
+            analysisState: analysisStatus?.state
+        )
     }
 
     /// Whether every prepared capture was excluded rather than simply
@@ -488,14 +551,18 @@ struct EmptyStateView: View {
 
     /// Pure decision logic behind the empty-state title, directly testable
     /// without a full `CaptureProgressSnapshot`.
-    nonisolated static func title(captureCount: Int?, notices: [ExclusionNotice]) -> String {
+    nonisolated static func title(
+        captureCount: Int?, notices: [ExclusionNotice], analysisState: String? = nil
+    ) -> String {
         switch captureCount {
         case .some(0):
             "No screenshots have been captured yet."
         case .some where allCapturesExcluded(captureCount: captureCount, notices: notices):
             "Every recent screenshot was excluded before analysis."
+        case .some(let count) where count > 0 && analysisState == "unavailable":
+            "\(count) screenshot\(count == 1 ? "" : "s") captured. Analysis is unavailable."
         case .some(let count) where count > 0:
-            "\(count) screenshot\(count == 1 ? " is" : "s are") ready. Nothing new was found."
+            "\(count) screenshot\(count == 1 ? " is" : "s are") waiting for analysis."
         default:
             "No observations yet."
         }
@@ -503,14 +570,18 @@ struct EmptyStateView: View {
 
     /// Pure decision logic behind the empty-state detail line, directly
     /// testable without a full `CaptureProgressSnapshot`.
-    nonisolated static func detail(captureCount: Int?, statusLabel: String, notices: [ExclusionNotice]) -> String {
+    nonisolated static func detail(
+        captureCount: Int?, statusLabel: String, notices: [ExclusionNotice], analysisState: String? = nil
+    ) -> String {
         switch captureCount {
         case .some(0):
             "\(statusLabel). Notes show up here after Qaptr checks a screenshot."
         case .some where allCapturesExcluded(captureCount: captureCount, notices: notices):
             "Local privacy preparation could not safely include any recent capture. See the notice below for the reason."
+        case .some where captureCount ?? 0 > 0 && analysisState == "unavailable":
+            "This build can capture screenshots, but it cannot turn them into observations yet."
         case .some where captureCount ?? 0 > 0:
-            "Qaptr did not find a note to show."
+            "Qaptr has not produced an observation yet."
         default:
             "Qaptr is still getting ready."
         }

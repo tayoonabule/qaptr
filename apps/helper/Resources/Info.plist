@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Qaptr</string>
+	<string>Qaptr Capture</string>
 	<key>CFBundleExecutable</key>
 	<string>QaptrHelper</string>
 	<key>CFBundleIdentifier</key>

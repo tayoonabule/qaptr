@@ -2,8 +2,8 @@
 
 This document records the release-evidence baseline used by the U23 report; the
 report records the exact validated commit. It is not a release approval. Locally
-verified components do not override the blocked U23 gates in
-`bench/release_validation.md`.
+verified components do not override blocked U23 gates. Each run writes its
+report beside its logs under `bench/results/release_validation_<timestamp>/`.
 
 ## U16 provider detection evidence
 
@@ -11,8 +11,8 @@ Recorded on 2026-08-14 UTC on the Apple-silicon development machine.
 
 | Provider | Resolved executable | Version command output | Parsed version | Detection result |
 |---|---|---|---|---|
-| Codex CLI | `/Users/light/.codex/packages/standalone/releases/0.147.0-aarch64-apple-darwin/bin/codex` | `codex-cli 0.147.0` | `0.147.0` | Installed, existing OAuth session detected, local gate accepted |
-| Jcode CLI | `/Users/light/.jcode/builds/versions/22db449/jcode` | `jcode v0.75.23-dev (22db449)` | `0.75.23` | Installed, authenticated, gate accepted |
+| Codex CLI | User's canonical installed executable | Version output parsed at validation time | Parsed at validation time | Installed, existing OAuth session detected, local gate accepted |
+| Jcode CLI | User's canonical installed executable | Version output parsed at validation time | Parsed at validation time | Installed, authenticated, gate accepted |
 
 The version strings above were parsed by U14's `VersionProbe`, not copied from
 configuration. The real detection tests were run through `ProviderGate` and
@@ -36,9 +36,9 @@ The sandboxed Jcode auth probe returned tabular status containing `claude`
 
 Recorded on 2026-08-15 UTC on the Apple-silicon development machine. With the
 cmux session shim removed from `PATH`, discovery resolves the genuine Claude
-Code installation to `/Users/light/.local/share/claude/versions/2.1.228`, a
-real arm64 Mach-O. Direct invocation outside U14's sandbox reports
-`2.1.228 (Claude Code)` and `loggedIn: true` with exit 0. Qaptr did not read,
+Code installation to its canonical versioned executable, a real arm64 Mach-O.
+Direct invocation outside U14's sandbox reports a valid Claude Code version and
+`loggedIn: true` with exit 0. Qaptr did not read,
 store, or forward any Claude login token.
 
 The Claude adapter now allowlists the canonical executable's parent and, for
@@ -113,15 +113,15 @@ bash packaging/release.sh --dry-run
 ```
 
 The dry-run builds both Swift packages, assembles the nested bundle, signs every
-Mach-O and app deepest-first with `codesign --sign - --options runtime`, and runs
+Mach-O and app deepest-first with an ad-hoc signature, and runs
 these release-blocking checks:
 
 - each code-directory identifier equals its bundle `CFBundleIdentifier`, including
   the executable inside each app;
 - `codesign --verify --deep --strict` succeeds for the outer app and every nested
   app, preventing the U3 resource-sealing failure class;
-- the helper is in `Contents/Library/LoginItems`, has `LSUIElement=true`, has an
-  executable, and is accepted by LaunchServices;
+- the helper is in `Contents/Library/LoginItems`, has `LSUIElement=true`, and has
+  an executable;
 - the shipped helper executable does not link `Security.framework` and has no
   imported Keychain or decryption symbols (`SecItem*`, `SecKeychain*`, decryption
   `SecKey*`, or CommonCrypto cryptor/key-derivation imports);

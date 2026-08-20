@@ -6,8 +6,6 @@ license = "MIT"
 publish = false
 description = "The narrow C ABI used by the Qaptr review app"
 
-[workspace]
-
 [lib]
 crate-type = ["staticlib", "cdylib"]
 

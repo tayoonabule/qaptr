@@ -1,5 +1,8 @@
 # Full product visual redesign plan
 
+> Historical redesign plan. It records the rationale for a completed design
+> pass; current behavior and layout live in `apps/review/Sources/QaptrReview/`.
+
 ## Design read
 
 Qaptr is a privacy-first macOS companion and editorial product site for design-conscious technical users. The direction is quiet editorial utility: off-white paper, charcoal ink, one signal-orange accent, New York-style serif only for page moments, system sans for work, and monospaced data. It should feel deliberate and alive, never dashboard-like or decorative.

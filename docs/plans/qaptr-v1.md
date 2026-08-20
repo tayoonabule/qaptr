@@ -372,7 +372,7 @@ The website (U21) depends only on U1 and may be built in parallel with any macOS
 - **Goal:** Prove or disprove KTD3 and A2/A5 before the review app is built out.
 - **Requirements:** R-C7, R-D4, R-X1, R-X3; A2, A5.
 - **Dependencies:** U1.
-- **Files:** `bench/probes/`, `bench/shell_memory.md`, `docs/plans/qaptr-v1.md`.
+- **Files:** `bench/shell_memory.md`, `docs/plans/qaptr-v1.md` (the disposable probe sources were removed after the decision).
 - **Approach:** Build the smallest disposable Tauri 2 and native SwiftUI shells, each rendering a trivial Observation Sheet-like window. Measure aggregate `phys_footprint`, cold launch to first meaningful paint, app identity and code-signing shape, and Screen Recording TCC behavior across restart and changed rebuild. Land the measurements and the shell decision, not production UI.
 - **Execution note:** This is a spike. Land the measurements and the decision, not production UI.
 - **Test scenarios:** Aggregate `phys_footprint` is sampled once per second for both trivial probes, cold launch to first meaningful paint is recorded, light/dark-capable native surfaces are built, app identities and signing shapes are inspected, and consent is checked after request, relaunch, and changed rebuild. The full production fixture/session budget remains a follow-up because the review app does not exist in this spike.

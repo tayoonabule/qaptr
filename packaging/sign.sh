@@ -4,10 +4,11 @@ set -euo pipefail
 
 usage() {
     cat >&2 <<'EOF'
-usage: packaging/sign.sh [--adhoc | --developer-id IDENTITY] APP
+usage: packaging/sign.sh [--adhoc | --identity IDENTITY] APP
 
-Ad-hoc signing is the safe local default. Developer ID signing is only for a
-release machine that already has the requested identity installed.
+Ad-hoc signing is for structural validation only. Use a stable Apple
+Development identity for an app that will be installed and granted TCC
+permissions, or a Developer ID Application identity for distribution.
 EOF
     exit 2
 }
@@ -16,6 +17,7 @@ root_dir=$(cd "$(dirname "$0")/.." && pwd)
 entitlements="$root_dir/packaging/signing/entitlements.plist"
 identity="-"
 timestamp="none"
+hardened_runtime=false
 app=""
 
 while (($# > 0)); do
@@ -28,7 +30,19 @@ while (($# > 0)); do
         --developer-id)
             (($# >= 2)) || usage
             identity="$2"
+            hardened_runtime=true
             timestamp="required"
+            shift 2
+            ;;
+        --identity)
+            (($# >= 2)) || usage
+            identity="$2"
+            hardened_runtime=true
+            if [[ "$identity" == Developer\ ID\ Application:* ]]; then
+                timestamp="required"
+            else
+                timestamp="none"
+            fi
             shift 2
             ;;
         --help|-h)
@@ -80,10 +94,13 @@ bundle_executable() {
 # which already requires a Developer ID identity, so request it exactly when a
 # real identity is used and keep local ad-hoc packages loadable.
 codesign_args=(--force --sign "$identity")
-if [[ "$timestamp" == "none" ]]; then
-    codesign_args+=(--timestamp=none)
+if [[ "$hardened_runtime" == true ]]; then
+    codesign_args+=(--options runtime)
+fi
+if [[ "$timestamp" == "required" ]]; then
+    codesign_args+=(--timestamp)
 else
-    codesign_args+=(--options runtime --timestamp)
+    codesign_args+=(--timestamp=none)
 fi
 
 sign_macho_files() {

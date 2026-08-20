@@ -87,7 +87,6 @@ done
 [[ "$(plutil -extract CFBundleIdentifier raw -o - "$helper_app/Contents/Info.plist")" == "com.qaptr.helper" ]]
 [[ "$(plutil -extract LSUIElement raw -o - "$helper_app/Contents/Info.plist")" == "true" ]]
 codesign --verify --deep --strict "$packaged_app" >/dev/null
-open -Ra "$helper_app" >/dev/null 2>&1
 
 # Row 197 partial closure: prove the packaged review app's helper-visibility
 # path is real code, not an idle-app assumption. This compiles a tiny probe
@@ -169,15 +168,86 @@ provider_requests=$(extract provider_requests "$review_fixture")
 [[ "$review_exports" -eq 4 ]] || exit 1
 [[ "$provider_requests" -eq 0 ]] || exit 1
 
-# Launch the packaged review executable with only scalar fixture state. HOME is
-# isolated so bootstrap cannot read or mutate the developer's real history.
 runtime_dir="$output_dir/runtime"
 mkdir -p "$runtime_dir/home"
 progress_path="$runtime_dir/capture-progress.json"
 control_path="$runtime_dir/capture-control.json"
+permission_path="$runtime_dir/permission-status.json"
 paint_path="$runtime_dir/review-first-paint.txt"
+helper_pid=""
+review_pid=""
+terminate_app() {
+    local pid=$1
+    swift - "$pid" <<'SWIFT' >/dev/null 2>&1 || return 1
+import AppKit
+
+guard CommandLine.arguments.count == 2,
+      let pid = Int32(CommandLine.arguments[1]),
+      let application = NSRunningApplication(processIdentifier: pid)
+else {
+    exit(1)
+}
+exit(application.terminate() ? 0 : 1)
+SWIFT
+}
+cleanup() {
+    if [[ -n "$helper_pid" ]]; then
+        terminate_app "$helper_pid" || kill "$helper_pid" >/dev/null 2>&1 || true
+        wait "$helper_pid" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "$review_pid" ]]; then
+        terminate_app "$review_pid" || kill "$review_pid" >/dev/null 2>&1 || true
+        wait "$review_pid" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT
 cp "$progress_fixture" "$progress_path"
 printf '{"interval_seconds":5}\n' > "$control_path"
+
+# Permission onboarding launches the helper before final consent, but in a mode
+# that may only report/request TCC state. Prove the packaged helper publishes
+# its live process-scoped snapshot without starting the capture lifecycle.
+rm -f "$progress_path"
+HOME="$runtime_dir/home" \
+QAPTR_HELPER_LOCK_PATH="$runtime_dir/helper.lock" \
+QAPTR_CAPTURE_PROGRESS_PATH="$progress_path" \
+QAPTR_CAPTURE_CONTROL_PATH="$control_path" \
+QAPTR_PERMISSION_STATUS_PATH="$permission_path" \
+"$helper_executable" \
+    --permission-only true \
+    --vault-root "$runtime_dir/vault" \
+    >"$runtime_dir/helper-permission.log" 2>&1 &
+helper_pid=$!
+helper_status_ready=false
+for _ in $(seq 1 30); do
+    if [[ -s "$permission_path" ]]; then
+        helper_status_ready=true
+        break
+    fi
+    kill -0 "$helper_pid" >/dev/null 2>&1 || break
+    sleep 0.2
+done
+[[ "$helper_status_ready" == true ]] || {
+    echo "packaged helper did not publish permission status" >&2
+    exit 1
+}
+[[ ! -e "$progress_path" ]] || {
+    echo "permission-only helper started the capture lifecycle" >&2
+    exit 1
+}
+[[ "$(plutil -extract version raw -o - "$permission_path")" == "2" ]]
+[[ "$(plutil -extract process_id raw -o - "$permission_path")" == "$helper_pid" ]]
+[[ "$(plutil -extract screen_recording_requested raw -o - "$permission_path")" == "false" ]]
+[[ "$(plutil -extract accessibility_requested raw -o - "$permission_path")" == "false" ]]
+[[ -n "$(plutil -extract command_token raw -o - "$permission_path")" ]]
+[[ "$(plutil -extract helper_bundle_path raw -o - "$permission_path")" == "$helper_app" ]]
+terminate_app "$helper_pid" || kill "$helper_pid" >/dev/null 2>&1 || true
+wait "$helper_pid" >/dev/null 2>&1 || true
+helper_pid=""
+
+# Launch the packaged review executable with only scalar fixture state. HOME is
+# isolated so bootstrap cannot read or mutate the developer's real history.
+cp "$progress_fixture" "$progress_path"
 review_log="$runtime_dir/review.log"
 (
     HOME="$runtime_dir/home" \
@@ -188,11 +258,6 @@ review_log="$runtime_dir/review.log"
     "$review_executable" >"$review_log" 2>&1
 ) &
 review_pid=$!
-cleanup() {
-    kill "$review_pid" >/dev/null 2>&1 || true
-    wait "$review_pid" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
 
 launched=false
 for _ in $(seq 1 50); do

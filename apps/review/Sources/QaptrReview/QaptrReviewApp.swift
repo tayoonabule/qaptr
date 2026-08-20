@@ -18,8 +18,10 @@ private func recordFirstPaintIfRequested() {
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     let model = ReviewAppModel()
+    let navigation = ReviewNavigation()
 
     private static let openSettingsNotification = Notification.Name("com.qaptr.review.command.openSettings")
+    private static let showObservationsNotification = Notification.Name("com.qaptr.review.command.showObservations")
 
     override init() {
         super.init()
@@ -27,6 +29,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             self,
             selector: #selector(handleOpenSettingsNotification(_:)),
             name: Self.openSettingsNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleShowObservationsNotification(_:)),
+            name: Self.showObservationsNotification,
             object: nil
         )
     }
@@ -38,7 +46,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = notification
         NSApp.setActivationPolicy(.regular)
-        let content = NSHostingView(rootView: RootView(model: model))
+        let content = NSHostingView(rootView: RootView(model: model, navigation: navigation))
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1040, height: 720),
             // Let the SwiftUI surface render beneath the transparent titlebar.
@@ -97,14 +105,17 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// Opens the SwiftUI Settings scene rather than creating a second ad-hoc
-    /// window. The selector is the AppKit bridge installed by SwiftUI's
-    /// `Settings` scene.
+    func showObservations() {
+        navigation.surface = .review
+        showMainWindow()
+    }
+
+    /// Routes the existing main window to Qaptr's native Settings surface.
     func openSettings() {
         switch SettingsEntryPolicy.route(onboardingCompleted: model.onboardingCompleted) {
         case .settings:
-            NSApp.activate(ignoringOtherApps: true)
-            _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            navigation.surface = .settings
+            showMainWindow()
         case .primaryUI:
             // Settings must not become a back door around onboarding's final
             // privacy/capture-consent step. Return to the primary UI instead.
@@ -115,6 +126,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func handleOpenSettingsNotification(_ notification: Notification) {
         _ = notification
         openSettings()
+    }
+
+    @objc private func handleShowObservationsNotification(_ notification: Notification) {
+        _ = notification
+        showObservations()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -139,7 +155,7 @@ struct QaptrReviewApp: App {
                     .keyboardShortcut(",", modifiers: [.command])
             }
             CommandGroup(after: .windowArrangement) {
-                Button("Show Qaptr / Observations", action: appDelegate.showMainWindow)
+                Button("Show Capture Observations", action: appDelegate.showObservations)
                     .keyboardShortcut("1", modifiers: [.command])
             }
         }

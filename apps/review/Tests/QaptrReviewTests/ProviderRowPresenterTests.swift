@@ -70,7 +70,7 @@ final class ProviderRowPresenterTests: XCTestCase {
         }
     }
 
-    func testDetectedCliProviderNeverClaimsUsable() {
+    func testUnselectedDetectedCliProviderShowsOnlyInstalled() {
         let readiness = ProviderReadiness(id: "codex", state: .detected, usable: false)
         let presentation = ProviderRowPresenter.present(
             provider: .codexCLI, connection: .notConnected, cliReadiness: readiness
@@ -79,7 +79,34 @@ final class ProviderRowPresenterTests: XCTestCase {
         XCTAssertNotEqual(presentation.statusLabel, "Ready")
         XCTAssertNotEqual(presentation.statusLabel, "Connected")
         XCTAssertNil(presentation.nextAction)
-        XCTAssertNotNil(presentation.reason)
+        XCTAssertNil(presentation.reason)
+    }
+
+    func testSelectedCliProviderShowsConnectedOnlyAfterVerification() {
+        let readiness = ProviderReadiness(id: "codex", state: .detected, usable: false)
+        XCTAssertEqual(
+            ProviderRowPresenter.present(
+                provider: .codexCLI, connection: .checking, cliReadiness: readiness
+            ).statusLabel,
+            "Checking"
+        )
+        let connected = ProviderRowPresenter.present(
+            provider: .codexCLI, connection: .connected, cliReadiness: readiness
+        )
+        XCTAssertEqual(connected.statusLabel, "Connected")
+        XCTAssertNil(connected.reason)
+    }
+
+    func testSelectedCliFailureUsesErrorBadgeReasonAsTooltipCopy() {
+        let readiness = ProviderReadiness(id: "codex", state: .detected, usable: false)
+        let presentation = ProviderRowPresenter.present(
+            provider: .codexCLI,
+            connection: .failed(.cli(.notAuthenticated)),
+            cliReadiness: readiness
+        )
+        XCTAssertEqual(presentation.statusLabel, "Error")
+        XCTAssertEqual(presentation.reason, "Sign in with this CLI, then select it again.")
+        XCTAssertNil(presentation.nextAction)
     }
 
     func testNotInstalledCliProviderShowsAnInstallReason() {

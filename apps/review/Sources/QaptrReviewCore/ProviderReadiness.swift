@@ -32,6 +32,66 @@ public struct ProviderReadinessSnapshot: Equatable, Sendable {
     }
 }
 
+/// A coarse, credential-free failure from explicitly verifying one selected
+/// local CLI provider. The native bridge never returns process output or paths.
+public enum CLIProviderConnectionFailure: String, Equatable, Sendable {
+    case notInstalled = "not_installed"
+    case notAuthenticated = "not_authenticated"
+    case updateRequired = "update_required"
+    case unavailable
+    case invalidProvider = "invalid_provider"
+    case unsupportedProvider = "unsupported_provider"
+
+    public var message: String {
+        switch self {
+        case .notInstalled: "This CLI is no longer installed."
+        case .notAuthenticated: "Sign in with this CLI, then select it again."
+        case .updateRequired: "Update this CLI, then select it again."
+        case .unavailable: "Qaptr could not verify this CLI. Try again."
+        case .invalidProvider, .unsupportedProvider: "Qaptr cannot connect to this provider."
+        }
+    }
+}
+
+public enum CLIProviderConnectionResult: Equatable, Sendable {
+    case connected
+    case failed(CLIProviderConnectionFailure)
+}
+
+public enum CLIProviderConnectionDecoder {
+    public static func decode(_ data: Data) throws -> CLIProviderConnectionResult {
+        let json: Any
+        do {
+            json = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw ReviewSnapshotDecodeError.invalidJSON(String(describing: error))
+        }
+        guard let root = json as? [String: Any] else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("provider connection root is not an object")
+        }
+        guard let version = (root["version"] as? NSNumber)?.intValue, version == 1 else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("provider connection has an unsupported version")
+        }
+        guard let state = root["state"] as? String else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("provider connection is missing state")
+        }
+        switch state {
+        case "connected":
+            return .connected
+        case "error":
+            guard
+                let rawReason = root["reason"] as? String,
+                let reason = CLIProviderConnectionFailure(rawValue: rawReason)
+            else {
+                throw ReviewSnapshotDecodeError.unexpectedShape("provider connection has an invalid reason")
+            }
+            return .failed(reason)
+        default:
+            throw ReviewSnapshotDecodeError.unexpectedShape("provider connection has an invalid state")
+        }
+    }
+}
+
 /// Decodes the JSON produced by `qaptr_provider_readiness_json`.
 public enum ProviderReadinessDecoder {
     public static func decode(_ data: Data) throws -> ProviderReadinessSnapshot {

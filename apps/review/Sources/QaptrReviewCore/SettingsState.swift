@@ -3,8 +3,10 @@ import Foundation
 /// The identity of a supported analysis provider.
 ///
 /// Qaptr never invents a fifth provider here: the four names mirror the
-/// release-gating set decided by the plan (R-PR4). This type is presentation
-/// vocabulary only; it does not select or invoke an adapter.
+/// release-gating set decided by the plan (R-PR4). Persisting a choice alone
+/// never invokes an adapter. An explicit analysis action may later use the raw
+/// identifier to create one provider-immutable native review session, still
+/// subject to fresh verification and separate just-in-time consent.
 public enum ProviderChoice: String, CaseIterable, Equatable, Sendable {
     case openRouter = "openrouter"
     case claudeCLI = "claude-cli"
@@ -63,19 +65,10 @@ public enum PermissionStatus: Equatable, Sendable {
     case notDetermined
     case unavailable
 
-    public init(bridgeCode: Int32) {
-        switch bridgeCode {
-        case 1: self = .granted
-        case 0: self = .denied
-        case -1: self = .notDetermined
-        default: self = .unavailable
-        }
-    }
-
     public var label: String {
         switch self {
         case .granted: "Granted"
-        case .denied: "Denied"
+        case .denied: "Needs permission"
         case .notDetermined: "Not yet requested"
         case .unavailable: "Unavailable"
         }

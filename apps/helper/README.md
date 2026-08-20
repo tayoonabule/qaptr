@@ -21,6 +21,13 @@ display at a time.
   The review app is the only owner of Keychain credentials and vault reads.
 - Screen Recording permission is checked immediately before every tick. If it
   is revoked, the helper logs a quiet skip and resumes checking on later ticks.
+- Screen Recording and Accessibility are owned, requested, and preflighted by
+  this helper process. It publishes only their booleans, its PID, and a
+  timestamp to `permission-status.json`; the review app accepts that record
+  only while it is fresh and the helper is alive.
+- Onboarding can launch the helper in `--permission-only true` mode. That mode
+  can request and report permissions but cannot capture. The review app sends
+  an explicit `startCapture` command only after the final consent step.
 - `TickPlanner` resets the next due time from the current monotonic time after
   every fire. Sleep, wake, or a slow capture cannot create a catch-up burst.
 

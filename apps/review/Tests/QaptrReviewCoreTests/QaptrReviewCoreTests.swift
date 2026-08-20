@@ -374,16 +374,6 @@ final class SettingsPreferencesOnboardingCompletionTests: XCTestCase {
     }
 }
 
-final class PermissionStatusTests: XCTestCase {
-    func testMapsBridgeCodesToTheCorrectStatus() {
-        XCTAssertEqual(PermissionStatus(bridgeCode: 1), .granted)
-        XCTAssertEqual(PermissionStatus(bridgeCode: 0), .denied)
-        XCTAssertEqual(PermissionStatus(bridgeCode: -1), .notDetermined)
-        XCTAssertEqual(PermissionStatus(bridgeCode: -2), .unavailable)
-        XCTAssertEqual(PermissionStatus(bridgeCode: 99), .unavailable)
-    }
-}
-
 final class ReviewFFILibraryPathTests: XCTestCase {
     func testPrefersExplicitDevelopmentPathAndKeepsAdjacentExecutableFallback() {
         let candidates = ReviewFFILibraryPath.candidates(

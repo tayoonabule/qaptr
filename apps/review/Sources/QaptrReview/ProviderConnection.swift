@@ -7,12 +7,14 @@ struct ProviderConnectionState: Equatable {
         case invalidKey
         case unavailable
         case unableToSave
+        case cli(CLIProviderConnectionFailure)
 
         var message: String {
             switch self {
             case .invalidKey: "That key did not work. Check it and try again."
             case .unavailable: "Qaptr could not check the key. Try again soon."
             case .unableToSave: "Qaptr could not save this key in Keychain."
+            case .cli(let failure): failure.message
             }
         }
     }
@@ -45,6 +47,23 @@ struct ProviderConnectionState: Equatable {
         case .failed(let failure): failure.message
         case .configured: "A key is saved. Paste it again to verify the provider."
         default: title
+        }
+    }
+}
+
+protocol CLIProviderChecking: Sendable {
+    func check(providerID: String) async -> CLIProviderConnectionResult
+}
+
+struct NativeCLIProviderChecker: CLIProviderChecking {
+    let bridge: ReviewBridge?
+
+    func check(providerID: String) async -> CLIProviderConnectionResult {
+        guard let bridge else { return .failed(.unavailable) }
+        do {
+            return try bridge.connectCLIProvider(id: providerID)
+        } catch {
+            return .failed(.unavailable)
         }
     }
 }

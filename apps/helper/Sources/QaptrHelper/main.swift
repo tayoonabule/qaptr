@@ -11,6 +11,7 @@ private struct Options {
     let generationID: String
     let fixtureManifest: URL?
     let fixtureImageRoot: URL?
+    let permissionOnly: Bool
 
     static func parse(_ arguments: ArraySlice<String>) throws -> Self {
         var intervalSeconds = CaptureInterval.defaultSeconds
@@ -21,6 +22,7 @@ private struct Options {
         var generationID = "generation-1"
         var fixtureManifest: URL?
         var fixtureImageRoot: URL?
+        var permissionOnly = false
         var index = arguments.startIndex
 
         while index < arguments.endIndex {
@@ -59,6 +61,11 @@ private struct Options {
                 fixtureManifest = URL(fileURLWithPath: value)
             case "--fixture-image-root":
                 fixtureImageRoot = URL(fileURLWithPath: value, isDirectory: true)
+            case "--permission-only":
+                guard let parsed = Bool(value) else {
+                    throw HelperError.invalidArgument("invalid permission-only value \(value)")
+                }
+                permissionOnly = parsed
             default:
                 throw HelperError.invalidArgument("unknown argument \(argument)")
             }
@@ -73,14 +80,18 @@ private struct Options {
             vaultRoot: vaultRoot,
             generationID: generationID,
             fixtureManifest: fixtureManifest,
-            fixtureImageRoot: fixtureImageRoot
+            fixtureImageRoot: fixtureImageRoot,
+            permissionOnly: permissionOnly
         )
     }
 }
 
 private enum ReviewCommandNotification {
     static let openSettings = Notification.Name("com.qaptr.review.command.openSettings")
+    static let showObservations = Notification.Name("com.qaptr.review.command.showObservations")
+    static let requestScreenRecording = Notification.Name("com.qaptr.review.command.requestScreenRecording")
     static let requestAccessibility = Notification.Name("com.qaptr.review.command.requestAccessibility")
+    static let startCapture = Notification.Name("com.qaptr.review.command.startCapture")
 }
 
 @MainActor
@@ -93,12 +104,18 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     private let coordinator: CaptureCoordinator
     private let progressStore: CaptureProgressStore
     private let controlStore: CaptureControlStore
+    private let permissionStore: HelperPermissionSnapshotStore
+    private let commandToken = UUID().uuidString
+    private let permissionDefaults = UserDefaults.standard
     private var progressTracker: CaptureProgressTracker
     private var planner: TickPlanner
     private var activeInterval: CaptureInterval
     private var selectedDisplayIDs = Set<String>()
     private var cycle = 0
     private var timer: DispatchSourceTimer?
+    private var captureEnabled: Bool
+    private var captureIntent: CaptureControlIntent
+    private var capturePrepared = false
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
     init(options: Options, instanceLock: SingleInstanceLock, sealer: BundleSealer) {
@@ -110,17 +127,21 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         self.progressStore = progressStore
         let controlStore = CaptureControlStore(url: Self.captureControlURL())
         self.controlStore = controlStore
+        self.permissionStore = HelperPermissionSnapshotStore(url: Self.permissionStatusURL())
         self.progressTracker = CaptureProgressTracker(initial: (try? progressStore.read()) ?? .initial)
         let persistedControl = (try? controlStore.read())
             ?? (try? CaptureControl(intervalSeconds: options.interval.seconds))
             ?? .default
         self.activeInterval = (try? CaptureInterval(seconds: persistedControl.intervalSeconds)) ?? options.interval
         self.planner = TickPlanner(interval: self.activeInterval)
+        self.captureEnabled = !options.permissionOnly
+            && Self.finalConsentGranted
+            && persistedControl.intent == .running
+        self.captureIntent = .running
         super.init()
-        // Canonicalize missing or corrupt control data as the scalar interval.
-        try? controlStore.write(
-            (try? CaptureControl(intervalSeconds: self.activeInterval.seconds)) ?? .default
-        )
+        // Canonicalize missing or corrupt control data without discarding the
+        // persisted lifecycle intent.
+        try? controlStore.write(persistedControl)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -128,12 +149,32 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         DistributedNotificationCenter.default().addObserver(
             self,
+            selector: #selector(requestScreenRecordingPermission(_:)),
+            name: ReviewCommandNotification.requestScreenRecording,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
             selector: #selector(requestAccessibilityPermission(_:)),
             name: ReviewCommandNotification.requestAccessibility,
             object: nil
         )
-        writeAccessibilityPermissionStatus()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(startCapture(_:)),
+            name: ReviewCommandNotification.startCapture,
+            object: nil
+        )
+        syncControl(at: Self.currentTimestamp())
+        writePermissionStatus()
         configureStatusItem()
+        prepareCaptureIfNeeded()
+        scheduleTimer()
+    }
+
+    private func prepareCaptureIfNeeded() {
+        guard captureEnabled, !capturePrepared else { return }
+        capturePrepared = true
         let timestamp = Self.currentTimestamp()
         let startupResult = startupCoordinator.prepare(
             progressTracker: &progressTracker,
@@ -153,7 +194,6 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         case let .startupFailed(reason):
             print("event=skip reason=startup_failed error=\(reason)")
         }
-        scheduleTimer()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -161,11 +201,19 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         DistributedNotificationCenter.default().removeObserver(self)
         timer?.cancel()
         timer = nil
-        progressTracker.stop(
-            at: Self.currentTimestamp(),
-            selectedDisplayIDs: Array(selectedDisplayIDs),
-            activeIntervalSeconds: activeInterval.seconds
-        )
+        if captureIntent == .paused {
+            progressTracker.pause(
+                at: Self.currentTimestamp(),
+                selectedDisplayIDs: Array(selectedDisplayIDs),
+                activeIntervalSeconds: activeInterval.seconds
+            )
+        } else {
+            progressTracker.stop(
+                at: Self.currentTimestamp(),
+                selectedDisplayIDs: Array(selectedDisplayIDs),
+                activeIntervalSeconds: activeInterval.seconds
+            )
+        }
         persistProgress()
     }
 
@@ -175,7 +223,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         let showQaptr = NSMenuItem(
-            title: "Show Qaptr / Observations",
+            title: "Show Capture Observations",
             action: #selector(showQaptr(_:)),
             keyEquivalent: "1"
         )
@@ -215,10 +263,28 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     }
 
     @objc private func requestAccessibilityPermission(_ notification: Notification) {
-        _ = notification
+        guard accepts(notification) else { return }
+        permissionDefaults.set(true, forKey: Self.accessibilityRequestedKey)
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
-        writeAccessibilityPermissionStatus()
+        writePermissionStatus()
+    }
+
+    @objc private func requestScreenRecordingPermission(_ notification: Notification) {
+        guard accepts(notification) else { return }
+        permissionDefaults.set(true, forKey: Self.screenRecordingRequestedKey)
+        _ = capture.requestScreenRecordingAccess()
+        writePermissionStatus()
+    }
+
+    @objc private func startCapture(_ notification: Notification) {
+        guard accepts(notification), Self.finalConsentGranted else { return }
+        captureEnabled = captureIntent == .running
+        prepareCaptureIfNeeded()
+    }
+
+    private func accepts(_ notification: Notification) -> Bool {
+        notification.object as? String == commandToken
     }
 
     /// The helper is an accessory app, so these shortcuts are available while
@@ -237,59 +303,83 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
                 print("event=command_failed command=\(command) detail=\(error)")
                 return
             }
-            guard requestSettings else { return }
             DistributedNotificationCenter.default().post(
-                name: ReviewCommandNotification.openSettings,
+                name: requestSettings
+                    ? ReviewCommandNotification.openSettings
+                    : ReviewCommandNotification.showObservations,
                 object: nil
             )
         }
     }
 
     private var reviewAppURL: URL? {
-        if let override = ProcessInfo.processInfo.environment["QAPTR_REVIEW_APP_PATH"], !override.isEmpty {
-            let url = URL(fileURLWithPath: override, isDirectory: true)
-            if FileManager.default.fileExists(atPath: url.path) {
-                return url
-            }
-        }
-
-        let nested = Bundle.main.bundleURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("QaptrReview.app", isDirectory: true)
-        if FileManager.default.fileExists(atPath: nested.path) {
-            return nested
-        }
-
-        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.qaptr.review")
+        HelperRuntimePaths.reviewApplicationURL(
+            environment: ProcessInfo.processInfo.environment,
+            helperBundleURL: Bundle.main.bundleURL
+        )
     }
 
     private func scheduleTimer() {
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.qaptr.helper.capture"))
+        let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now(), repeating: 1, leeway: .milliseconds(100))
         timer.setEventHandler { [weak self] in
-            DispatchQueue.main.async {
-                guard let self else {
-                    return
-                }
-                self.writeAccessibilityPermissionStatus()
-                if let control = try? self.controlStore.read(),
-                   let interval = try? CaptureInterval(seconds: control.intervalSeconds),
-                   interval != self.activeInterval {
-                    self.activeInterval = interval
-                    self.planner = TickPlanner(interval: interval)
-                    print("event=control interval_seconds=\(interval.seconds)")
-                }
-                guard self.planner.action(at: ProcessInfo.processInfo.systemUptime) == .capture else {
-                    return
-                }
-                self.runTick()
+            guard let self else {
+                return
             }
+            self.writePermissionStatus()
+            self.syncControl(at: Self.currentTimestamp())
+            guard self.captureEnabled,
+                  self.planner.action(at: ProcessInfo.processInfo.systemUptime) == .capture else {
+                return
+            }
+            self.runTick()
         }
         self.timer = timer
         timer.resume()
+    }
+
+    private func syncControl(at timestamp: Int64) {
+        guard let control = try? controlStore.read(),
+              let interval = try? CaptureInterval(seconds: control.intervalSeconds) else {
+            return
+        }
+
+        if interval != activeInterval {
+            activeInterval = interval
+            planner = TickPlanner(interval: interval)
+            print("event=control interval_seconds=\(interval.seconds)")
+        }
+
+        guard control.intent != captureIntent else {
+            if control.intent == .paused {
+                captureEnabled = false
+            }
+            return
+        }
+
+        captureIntent = control.intent
+        switch control.intent {
+        case .paused:
+            captureEnabled = false
+            capturePrepared = false
+            planner = TickPlanner(interval: activeInterval)
+            progressTracker.pause(
+                at: timestamp,
+                selectedDisplayIDs: Array(selectedDisplayIDs),
+                activeIntervalSeconds: activeInterval.seconds
+            )
+            persistProgress()
+            updateStatus("Q")
+            print("event=control intent=paused interval_seconds=\(activeInterval.seconds)")
+        case .running:
+            captureEnabled = !options.permissionOnly && Self.finalConsentGranted
+            capturePrepared = false
+            planner = TickPlanner(interval: activeInterval)
+            print("event=control intent=running interval_seconds=\(activeInterval.seconds)")
+            if captureEnabled {
+                prepareCaptureIfNeeded()
+            }
+        }
     }
 
     private func runTick() {
@@ -316,7 +406,8 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             )
             persistProgress()
             let current = Set(try capture.availableDisplayIDs())
-            let displays = selectedDisplayIDs.intersection(current).sorted()
+            selectedDisplayIDs = current
+            let displays = current.sorted()
             let events = coordinator.runTick(
                 displays: displays,
                 context: context.sample(),
@@ -398,25 +489,24 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// The helper, rather than the review app, owns the Accessibility trust
-    /// used by `PointInTimeContextSampler`. Publish that live state so the
-    /// onboarding UI does not report the review process's unrelated TCC entry.
-    private func writeAccessibilityPermissionStatus() {
-        let url = Self.accessibilityPermissionURL()
-        let payload: [String: Any] = [
-            "granted": context.accessibilityPermissionGranted,
-            "process_id": Int(ProcessInfo.processInfo.processIdentifier),
-            "updated_at_ms": Self.currentTimestamp()
-        ]
+    /// Publishes the TCC state of the process that actually owns and uses both
+    /// permissions. QaptrReview cannot query these public APIs on the helper's
+    /// behalf because macOS always evaluates the calling process.
+    private func writePermissionStatus() {
+        let snapshot = HelperPermissionSnapshot(
+            screenRecordingGranted: capture.screenRecordingAccessGranted(),
+            screenRecordingRequested: permissionDefaults.bool(forKey: Self.screenRecordingRequestedKey),
+            accessibilityGranted: context.accessibilityPermissionGranted,
+            accessibilityRequested: permissionDefaults.bool(forKey: Self.accessibilityRequestedKey),
+            processID: Int(ProcessInfo.processInfo.processIdentifier),
+            updatedAtMillis: Self.currentTimestamp(),
+            helperBundlePath: Bundle.main.bundleURL.resolvingSymlinksInPath().standardizedFileURL.path,
+            commandToken: commandToken
+        )
         do {
-            let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try data.write(to: url, options: .atomic)
+            try permissionStore.write(snapshot)
         } catch {
-            print("event=skip reason=accessibility_permission_status_unavailable detail=\(error)")
+            print("event=skip reason=permission_status_unavailable detail=\(error)")
         }
     }
 
@@ -433,17 +523,25 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             .appendingPathComponent("capture-control.json")
     }
 
-    private static func accessibilityPermissionURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["QAPTR_ACCESSIBILITY_PERMISSION_PATH"], !override.isEmpty {
+    private static func permissionStatusURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_PERMISSION_STATUS_PATH"], !override.isEmpty {
             return URL(fileURLWithPath: override)
         }
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
-            .appendingPathComponent("accessibility-permission.json")
+            .appendingPathComponent("permission-status.json")
     }
 
     private static func currentTimestamp() -> Int64 {
         Int64(Date().timeIntervalSince1970 * 1_000)
+    }
+
+    private static let screenRecordingRequestedKey = "com.qaptr.helper.permission.screen-recording-requested"
+    private static let accessibilityRequestedKey = "com.qaptr.helper.permission.accessibility-requested"
+    private static let onboardingCompletedKey = "com.qaptr.review.onboarding.completed"
+
+    private static var finalConsentGranted: Bool {
+        UserDefaults(suiteName: "com.qaptr.review")?.bool(forKey: onboardingCompletedKey) == true
     }
 
     private func log(_ event: CaptureEvent) {
@@ -510,10 +608,10 @@ private enum QaptrHelperMain {
     static func main() {
         do {
             let options = try Options.parse(CommandLine.arguments.dropFirst())
-            let lockPath = URL(fileURLWithPath: ProcessInfo.processInfo.environment["QAPTR_HELPER_LOCK_PATH"] ?? "")
-            let resolvedLockPath = lockPath.path.isEmpty
-                ? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Qaptr/helper.lock")
-                : lockPath
+            let resolvedLockPath = HelperRuntimePaths.lockURL(
+                environment: ProcessInfo.processInfo.environment,
+                homeDirectory: FileManager.default.homeDirectoryForCurrentUser
+            )
             let instanceLock: SingleInstanceLock
             do {
                 instanceLock = try SingleInstanceLock(path: resolvedLockPath)

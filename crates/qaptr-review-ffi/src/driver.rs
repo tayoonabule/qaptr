@@ -2,9 +2,10 @@
 //!
 //! The worker owns the vault, store, local privacy pipeline, and lifecycle
 //! coordinator. The C ABI owns only bounded JSON requests and scalar state.
-//! Provider construction is deliberately conservative in this first slice:
-//! no configured provider is selected, so a production session reports a
-//! truthful unavailable result and never reaches consent or provider dispatch.
+//! Provider construction is immutable for one driver. The legacy open path uses
+//! an unavailable adapter, while the provider-aware ABI selects exactly one
+//! supported local CLI adapter. Every attempt still performs a fresh provider
+//! handshake immediately before consent and invocation.
 
 use std::path::PathBuf;
 #[cfg(test)]
@@ -25,6 +26,10 @@ use qaptr_provider::{
     AuthenticationMode, CapabilityDescriptor, ProviderAdapter, ProviderDescriptor,
     ProviderDetection, ProviderError, ProviderGate, ProviderId, ProviderInvocation,
     ProviderPayloadKind, ProviderVersion, RawProviderResponse,
+};
+use qaptr_provider_cli::{
+    CliProvider, CliRuntime, OutputLimit, RuntimeLimits, Timeout,
+    adapters::{CodexAdapter, JcodeAdapter, claude::ClaudeAdapter},
 };
 use qaptr_store::{CaptureRecord, Store, UnixMillis};
 use qaptr_vault::Vault;
@@ -94,6 +99,76 @@ impl ProviderAdapter for UnavailableProvider {
         Err(ProviderError::NotInstalled {
             provider: self.descriptor.id().clone(),
         })
+    }
+}
+
+enum ProductionProvider {
+    Unavailable(UnavailableProvider),
+    Claude(ClaudeAdapter),
+    Codex(CodexAdapter),
+    Jcode(JcodeAdapter),
+}
+
+impl ProductionProvider {
+    fn new(selected: Option<CliProvider>) -> Result<Self, ()> {
+        let Some(selected) = selected else {
+            return Ok(Self::Unavailable(UnavailableProvider::new()));
+        };
+        let timeout = Timeout::new(Duration::from_secs(120)).map_err(|_| ())?;
+        let output = OutputLimit::new(256 * 1024).map_err(|_| ())?;
+        let limits = RuntimeLimits::new(timeout, output);
+        match selected {
+            CliProvider::Claude => ClaudeAdapter::new(CliRuntime::new(limits))
+                .map(Self::Claude)
+                .map_err(|_| ()),
+            CliProvider::Codex => CodexAdapter::new(CliRuntime::new(limits))
+                .map(Self::Codex)
+                .map_err(|_| ()),
+            CliProvider::Jcode => JcodeAdapter::new(CliRuntime::new(limits))
+                .map(Self::Jcode)
+                .map_err(|_| ()),
+        }
+    }
+}
+
+impl ProviderAdapter for ProductionProvider {
+    fn descriptor(&self) -> &ProviderDescriptor {
+        match self {
+            Self::Unavailable(adapter) => adapter.descriptor(),
+            Self::Claude(adapter) => adapter.descriptor(),
+            Self::Codex(adapter) => adapter.descriptor(),
+            Self::Jcode(adapter) => adapter.descriptor(),
+        }
+    }
+
+    fn detect(&self) -> Result<ProviderDetection, ProviderError> {
+        match self {
+            Self::Unavailable(adapter) => adapter.detect(),
+            Self::Claude(adapter) => adapter.detect(),
+            Self::Codex(adapter) => adapter.detect(),
+            Self::Jcode(adapter) => adapter.detect(),
+        }
+    }
+
+    fn validate_model(&self, model: Option<&str>) -> Result<(), ProviderError> {
+        match self {
+            Self::Unavailable(adapter) => adapter.validate_model(model),
+            Self::Claude(adapter) => adapter.validate_model(model),
+            Self::Codex(adapter) => adapter.validate_model(model),
+            Self::Jcode(adapter) => adapter.validate_model(model),
+        }
+    }
+
+    fn invoke(
+        &self,
+        invocation: ProviderInvocation<'_>,
+    ) -> Result<RawProviderResponse, ProviderError> {
+        match self {
+            Self::Unavailable(adapter) => adapter.invoke(invocation),
+            Self::Claude(adapter) => adapter.invoke(invocation),
+            Self::Codex(adapter) => adapter.invoke(invocation),
+            Self::Jcode(adapter) => adapter.invoke(invocation),
+        }
     }
 }
 
@@ -587,13 +662,14 @@ struct ProductionResources {
     decoder: LocalBundleDecoder,
     clock: SystemClock,
     consent: ConsentBroker,
-    provider: ProviderGate<UnavailableProvider>,
+    provider: ProviderGate<ProductionProvider>,
 }
 
 impl ProductionResources {
     fn new(
         vault_root: PathBuf,
         store_path: PathBuf,
+        selected_provider: Option<CliProvider>,
         control: Arc<ConsentControl>,
         shared: Arc<SharedState>,
     ) -> Result<Self, ()> {
@@ -611,7 +687,7 @@ impl ProductionResources {
             decoder: LocalBundleDecoder::for_macos(),
             clock: SystemClock,
             consent: ConsentBroker::new(control, shared),
-            provider: ProviderGate::new(UnavailableProvider::new()),
+            provider: ProviderGate::new(ProductionProvider::new(selected_provider)?),
         })
     }
 }
@@ -629,6 +705,14 @@ enum WorkerCommand {
 }
 
 type ListingHook = Arc<dyn Fn(&SessionCancellation) + Send + Sync>;
+
+struct WorkerSetup {
+    vault_root: PathBuf,
+    store_path: PathBuf,
+    selected_provider: Option<CliProvider>,
+    acknowledgement_hook: Option<ListingHook>,
+    listing_hook: Option<ListingHook>,
+}
 
 struct PendingMutation {
     request_token: u64,
@@ -649,20 +733,47 @@ pub struct ReviewSessionDriver {
 impl ReviewSessionDriver {
     /// Creates a driver whose worker owns the vault and history store.
     pub(crate) fn new(vault_root: PathBuf, store_path: PathBuf) -> Self {
-        Self::new_with_listing_hook(vault_root, store_path, None)
+        Self::new_with_provider_and_hooks(vault_root, store_path, None, None, None)
     }
 
+    /// Creates a driver bound to one selected local CLI provider.
+    pub(crate) fn new_with_cli_provider(
+        vault_root: PathBuf,
+        store_path: PathBuf,
+        provider: CliProvider,
+    ) -> Self {
+        Self::new_with_provider_and_hooks(vault_root, store_path, Some(provider), None, None)
+    }
+
+    #[cfg(test)]
     fn new_with_listing_hook(
         vault_root: PathBuf,
         store_path: PathBuf,
         listing_hook: Option<ListingHook>,
     ) -> Self {
-        Self::new_with_hooks(vault_root, store_path, None, listing_hook)
+        Self::new_with_provider_and_hooks(vault_root, store_path, None, None, listing_hook)
     }
 
+    #[cfg(test)]
     fn new_with_hooks(
         vault_root: PathBuf,
         store_path: PathBuf,
+        acknowledgement_hook: Option<ListingHook>,
+        listing_hook: Option<ListingHook>,
+    ) -> Self {
+        Self::new_with_provider_and_hooks(
+            vault_root,
+            store_path,
+            None,
+            acknowledgement_hook,
+            listing_hook,
+        )
+    }
+
+    fn new_with_provider_and_hooks(
+        vault_root: PathBuf,
+        store_path: PathBuf,
+        selected_provider: Option<CliProvider>,
         acknowledgement_hook: Option<ListingHook>,
         listing_hook: Option<ListingHook>,
     ) -> Self {
@@ -670,16 +781,15 @@ impl ReviewSessionDriver {
         let (commands, receiver) = mpsc::channel();
         let worker_shared = shared.clone();
         let worker_control = shared.control.clone();
+        let setup = WorkerSetup {
+            vault_root,
+            store_path,
+            selected_provider,
+            acknowledgement_hook,
+            listing_hook,
+        };
         let worker = thread::spawn(move || {
-            worker_loop(
-                vault_root,
-                store_path,
-                receiver,
-                worker_shared,
-                worker_control,
-                acknowledgement_hook,
-                listing_hook,
-            );
+            worker_loop(setup, receiver, worker_shared, worker_control);
         });
         Self {
             shared,
@@ -924,16 +1034,19 @@ impl Drop for ReviewSessionDriver {
 }
 
 fn worker_loop(
-    vault_root: PathBuf,
-    store_path: PathBuf,
+    setup: WorkerSetup,
     receiver: Receiver<WorkerCommand>,
     shared: Arc<SharedState>,
     control: Arc<ConsentControl>,
-    acknowledgement_hook: Option<ListingHook>,
-    listing_hook: Option<ListingHook>,
 ) {
-    let mut resources =
-        ProductionResources::new(vault_root, store_path, control, shared.clone()).ok();
+    let mut resources = ProductionResources::new(
+        setup.vault_root,
+        setup.store_path,
+        setup.selected_provider,
+        control,
+        shared.clone(),
+    )
+    .ok();
     let mut last_captures = None;
     let mut last_session = None;
     while let Ok(command) = receiver.recv() {
@@ -948,7 +1061,7 @@ fn worker_loop(
                     cancellation.cancel();
                 }
                 shared.set_active_cancellation(Some(cancellation.clone()));
-                if let Some(acknowledgement_hook) = acknowledgement_hook.as_ref() {
+                if let Some(acknowledgement_hook) = setup.acknowledgement_hook.as_ref() {
                     acknowledgement_hook(&cancellation);
                 }
                 let _ = acknowledged.send(());
@@ -960,7 +1073,7 @@ fn worker_loop(
                 let captures = match committed_captures(
                     &resources.vault,
                     &cancellation,
-                    listing_hook.as_ref(),
+                    setup.listing_hook.as_ref(),
                 ) {
                     Ok(captures) if captures.is_empty() => {
                         shared.set_active_cancellation(None);
@@ -1000,7 +1113,7 @@ fn worker_loop(
                     cancellation.cancel();
                 }
                 shared.set_active_cancellation(Some(cancellation.clone()));
-                if let Some(acknowledgement_hook) = acknowledgement_hook.as_ref() {
+                if let Some(acknowledgement_hook) = setup.acknowledgement_hook.as_ref() {
                     acknowledgement_hook(&cancellation);
                 }
                 let _ = acknowledged.send(());
@@ -1009,7 +1122,7 @@ fn worker_loop(
                     None => match committed_captures(
                         &resources.vault,
                         &cancellation,
-                        listing_hook.as_ref(),
+                        setup.listing_hook.as_ref(),
                     ) {
                         Ok(captures) => captures,
                         Err(()) => {

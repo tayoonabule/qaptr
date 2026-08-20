@@ -24,3 +24,16 @@ jobs:
         run: cargo test --workspace
       - name: Build documentation
         run: cargo doc --workspace --no-deps
+
+  swift:
+    name: Swift app quality gates
+    runs-on: macos-14
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Run helper tests
+        run: swift test --package-path apps/helper
+      - name: Run review app tests
+        run: swift test --package-path apps/review
+      - name: Validate macOS command wiring
+        run: bash scripts/validate_macos_commands.sh

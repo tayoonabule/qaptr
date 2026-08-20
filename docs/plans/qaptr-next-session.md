@@ -6,7 +6,7 @@ created: 2026-08-15
 source_plans:
   - docs/plans/qaptr-v1.md
   - docs/design/full-product-visual-redesign.md
-  - bench/release_validation.md
+  - bench/scripts/release_validate.sh
 ---
 
 # Qaptr next-session implementation plan

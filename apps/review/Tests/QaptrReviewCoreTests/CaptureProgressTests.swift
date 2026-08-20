@@ -33,14 +33,32 @@ final class CaptureProgressSnapshotTests: XCTestCase {
         XCTAssertEqual(CaptureProgressSnapshot.unavailable.readiness, .neverConfigured)
     }
 
-    func testIntervalControlRoundTripsAsOneScalar() throws {
+    func testIntervalControlRoundTripsWithRunningIntent() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("qaptr-control-\(UUID().uuidString)")
         let store = CaptureControlStore(url: root.appendingPathComponent("capture-control.json"))
         try store.write(try CaptureControl(intervalSeconds: 120))
         XCTAssertEqual(try store.read(), try CaptureControl(intervalSeconds: 120))
-        let encoded = String(decoding: try Data(contentsOf: store.url), as: UTF8.self)
-        XCTAssertEqual(encoded, "{\"interval_seconds\":120}")
+        let encoded = try JSONSerialization.jsonObject(with: Data(contentsOf: store.url))
+        let fields = try XCTUnwrap(encoded as? [String: Any])
+        XCTAssertEqual(fields["interval_seconds"] as? Int, 120)
+        XCTAssertEqual(fields["intent"] as? String, "running")
+    }
+
+    func testLegacyIntervalControlDefaultsToRunningAndPausedPreservesInterval() throws {
+        let legacy = try JSONDecoder().decode(
+            CaptureControl.self,
+            from: Data("{\"interval_seconds\":120}".utf8)
+        )
+        XCTAssertEqual(legacy, try CaptureControl(intervalSeconds: 120, intent: .running))
+
+        let paused = try CaptureControl(intervalSeconds: 120, intent: .paused)
+        XCTAssertEqual(paused.intervalSeconds, 120)
+        XCTAssertEqual(paused.intent, .paused)
+        XCTAssertEqual(
+            try JSONDecoder().decode(CaptureControl.self, from: JSONEncoder().encode(paused)),
+            paused
+        )
     }
 
     func testIntervalPolicyClampsAndHumanizes() throws {
@@ -203,6 +221,19 @@ final class CaptureProgressSnapshotTests: XCTestCase {
 
         let stoppedButHadCaptures = CaptureProgressSnapshot(state: .stopped, captureCount: 5, processID: nil)
         XCTAssertEqual(stoppedButHadCaptures.readiness, .captureReady)
+    }
+
+    func testPausedProgressIsTruthfulWithoutClaimingLiveCapture() {
+        let paused = CaptureProgressSnapshot(
+            state: .paused,
+            captureCount: 5,
+            processID: Int64(ProcessInfo.processInfo.processIdentifier)
+        )
+
+        XCTAssertFalse(paused.helperIsRunning)
+        XCTAssertEqual(paused.statusLabel, "Capture paused")
+        XCTAssertEqual(paused.readiness, .captureReady)
+        XCTAssertNil(paused.actionableReason)
     }
 
     func testActionableReasonPrefersHelperSuppliedReasonOverGenericCopy() {

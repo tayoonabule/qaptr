@@ -141,6 +141,31 @@ struct SettingsView: View {
       title: "Capture", detail: "Choose Qaptr's local capture rhythm and expiry window."
     ) {
       VStack(alignment: .leading, spacing: QaptrSpace.md) {
+        HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.sm) {
+          VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+            Text(model.captureControlIntent == .paused ? "Capture paused" : "Capture running")
+              .font(QaptrType.title())
+              .foregroundStyle(Color.qaptrInk)
+            Text(
+              model.captureControlIntent == .paused
+                ? "No new ticks will start until you resume."
+                : "The helper owns capture timing in the background."
+            )
+              .font(QaptrType.caption())
+              .foregroundStyle(Color.qaptrInkSoft)
+          }
+          Spacer()
+          Button(model.captureControlIntent == .paused ? "Resume" : "Pause") {
+            if model.captureControlIntent == .paused {
+              model.resumeCapture()
+            } else {
+              model.pauseCapture()
+            }
+          }
+          .buttonStyle(.tactile)
+          .accessibilityLabel(model.captureControlIntent == .paused ? "Resume capture" : "Pause capture")
+        }
+
         HStack(alignment: .firstTextBaseline) {
           VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
             Text("Capture rhythm")
@@ -245,20 +270,21 @@ struct SettingsView: View {
             Text(provider.displayName)
               .font(QaptrType.body(14.5))
               .foregroundStyle(Color.qaptrInk)
-            Text(provider == .openRouter ? "API key" : "Command-line connection")
-              .font(QaptrType.caption(11))
-              .foregroundStyle(Color.qaptrInkMuted)
+            if provider == .openRouter {
+              Text("API key")
+                .font(QaptrType.caption(11))
+                .foregroundStyle(Color.qaptrInkMuted)
+            }
           }
           Spacer(minLength: QaptrSpace.sm)
           Text(presentation.statusLabel.uppercased())
             .font(QaptrType.meta(9.5))
             .tracking(0.55)
-            .foregroundStyle(
-              model.providerConnection == .connected && selected ? Color.qaptrSuccess : Color.qaptrAccentStrong
-            )
+            .foregroundStyle(providerStatusColor(presentation, selected: selected))
             .padding(.horizontal, QaptrSpace.sm)
             .padding(.vertical, QaptrSpace.xs)
-            .background(Color.qaptrSurface, in: Capsule())
+            .background(providerStatusBackground(presentation), in: Capsule())
+            .help(presentation.reason ?? presentation.statusLabel)
           Image(systemName: selected ? "checkmark.circle.fill" : "circle")
             .font(.system(size: 15, weight: .medium))
             .foregroundStyle(selected ? Color.qaptrAccent : Color.qaptrBorderStrong)
@@ -281,27 +307,19 @@ struct SettingsView: View {
           }
         }
       }
-
-      if let reason = presentation.reason {
-        HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.sm) {
-          Text(reason)
-            .font(QaptrType.caption(11))
-            .foregroundStyle(Color.qaptrInkSoft)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel(reason)
-          Spacer(minLength: QaptrSpace.sm)
-          if let action = presentation.nextAction, provider == .openRouter {
-            Button(action == .addKey ? "Add key" : "Change key") {
-              model.openProviderSetup()
-              showsProviderSetup = true
-            }
-            .buttonStyle(.qaptrQuiet)
-          }
-        }
-        .padding(.horizontal, QaptrSpace.md)
-        .padding(.bottom, QaptrSpace.sm)
-      }
     }
+  }
+
+  private func providerStatusColor(
+    _ presentation: ProviderRowPresentation, selected: Bool
+  ) -> Color {
+    if presentation.statusLabel == "Error" { return .qaptrError }
+    if presentation.statusLabel == "Connected" && selected { return .qaptrSuccess }
+    return .qaptrAccentStrong
+  }
+
+  private func providerStatusBackground(_ presentation: ProviderRowPresentation) -> Color {
+    presentation.statusLabel == "Error" ? Color.qaptrError.opacity(0.08) : Color.qaptrSurface
   }
 
   /// True only for OpenRouter once a key exists (saved or verified), so
@@ -486,7 +504,7 @@ private struct PermissionControlRow: View {
           .foregroundStyle(
             status == .granted ? Color.qaptrInkSoft : Color.qaptrInkSoft.opacity(0.65))
         if status != .granted {
-          Button("Request", action: request)
+          Button(status == .denied ? "Open System Settings" : "Request", action: request)
             .buttonStyle(.qaptrOutline)
         }
       }

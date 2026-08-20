@@ -1,12 +1,7 @@
 import Foundation
-import Darwin
 import AppKit
 import QaptrReviewCore
 import Observation
-
-/// The review app's bundle identifier, matched by the U22 packaging pipeline
-/// and by `MacPermissions`/TCC lookups in `qaptr-review-ffi`.
-let reviewBundleIdentifier = "com.qaptr.review"
 
 /// The default durable-history database location under the app's support
 /// directory, matching `qaptr-store`'s SQLite WAL file.
@@ -36,44 +31,37 @@ func defaultCaptureControlPath() -> URL {
     return base.appendingPathComponent("Qaptr", isDirectory: true).appendingPathComponent("capture-control.json")
 }
 
-private struct HelperAccessibilityPermissionStatus: Decodable {
-    let granted: Bool
-    let processID: Int
-    let updatedAtMillis: Int64
-
-    enum CodingKeys: String, CodingKey {
-        case granted
-        case processID = "process_id"
-        case updatedAtMillis = "updated_at_ms"
-    }
+private enum HelperCommand {
+    static let requestScreenRecording = Notification.Name("com.qaptr.review.command.requestScreenRecording")
+    static let requestAccessibility = Notification.Name("com.qaptr.review.command.requestAccessibility")
+    static let startCapture = Notification.Name("com.qaptr.review.command.startCapture")
 }
 
-private func defaultAccessibilityPermissionPath() -> URL {
-    if let override = ProcessInfo.processInfo.environment["QAPTR_ACCESSIBILITY_PERMISSION_PATH"], !override.isEmpty {
-        return URL(fileURLWithPath: override)
-    }
-    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-    return base.appendingPathComponent("Qaptr", isDirectory: true)
-        .appendingPathComponent("accessibility-permission.json")
-}
+private enum HelperPermission {
+    case screenRecording
+    case accessibility
 
-private func helperAccessibilityPermissionStatus() -> PermissionStatus? {
-    guard let data = try? Data(contentsOf: defaultAccessibilityPermissionPath()),
-          let status = try? JSONDecoder().decode(HelperAccessibilityPermissionStatus.self, from: data),
-          status.updatedAtMillis > Int64(Date().timeIntervalSince1970 * 1_000) - 10_000,
-          kill(Int32(status.processID), 0) == 0
-    else {
-        return nil
+    var notification: Notification.Name {
+        switch self {
+        case .screenRecording: HelperCommand.requestScreenRecording
+        case .accessibility: HelperCommand.requestAccessibility
+        }
     }
-    return status.granted ? .granted : .denied
+
+    var privacyAnchor: String {
+        switch self {
+        case .screenRecording: "Privacy_ScreenCapture"
+        case .accessibility: "Privacy_Accessibility"
+        }
+    }
 }
 
 /// The single observable source of truth driving every SwiftUI view.
 ///
-/// This model never launches a tool, executes an automation, or invokes a
-/// provider. It only reads durable history and permission/login-item status
-/// through `ReviewBridge`, and reads/writes local settings preferences.
+/// This model reads durable history and local status through `ReviewBridge`,
+/// manages settings, and starts the native review-session state machine only
+/// after a person explicitly asks to analyze captured screenshots. Provider
+/// dispatch remains blocked behind the session's separate just-in-time consent.
 @MainActor
 @Observable
 final class ReviewAppModel {
@@ -81,11 +69,14 @@ final class ReviewAppModel {
     private(set) var reviewStatus: ReviewStatus? = nil
     private(set) var captureProgress: CaptureProgressSnapshot = .unavailable
     private(set) var captureIntervalSeconds = CaptureIntervalPolicy.defaultSeconds
+    private(set) var captureControlIntent: CaptureControlIntent = .running
     private(set) var loadError: String?
     private(set) var reviewStatusError: String? = nil
     private(set) var settings: SettingsState = .placeholder
     private(set) var providerConnection = ProviderConnectionState.notConnected
     private(set) var cliProviderReadiness: [String: ProviderReadiness] = [:]
+    private(set) var analysisSessionState: ReviewSessionState = .idle
+    private(set) var analysisError: String?
     var providerSetupRequest: ProviderChoice?
     var onboardingCompleted: Bool
 
@@ -96,11 +87,20 @@ final class ReviewAppModel {
     private let controlStore: CaptureControlStore
     private let credentialStore: any ProviderCredentialStoring
     private let openRouterChecker: any OpenRouterChecking
+    private let cliProviderChecker: any CLIProviderChecking
+    private let analysisSessionFactory: AnalysisSessionFactory?
+    private var analysisSessionController: (any AnalysisSessionControlling)?
+    private var analysisPollingTask: Task<Void, Never>?
 
     init(
         preferences: SettingsPreferences = SettingsPreferences(store: UserDefaults.standard),
         credentialStore: any ProviderCredentialStoring = KeychainProviderCredentialStore(),
-        openRouterChecker: any OpenRouterChecking = OpenRouterConnectionChecker()
+        openRouterChecker: any OpenRouterChecking = OpenRouterConnectionChecker(),
+        progressReader: CaptureProgressReader? = nil,
+        controlStore: CaptureControlStore? = nil,
+        cliProviderChecker: (any CLIProviderChecking)? = nil,
+        analysisSessionFactory: AnalysisSessionFactory? = nil,
+        storePath: URL? = nil
     ) {
         #if DEBUG
         self.usesMockData = DevMockData.enabled
@@ -115,11 +115,12 @@ final class ReviewAppModel {
         #else
         self.onboardingCompleted = preferences.onboardingCompleted
         #endif
-        let storePath = defaultStorePath()
-        self.progressReader = CaptureProgressReader(url: defaultCaptureProgressPath())
-        self.controlStore = CaptureControlStore(url: defaultCaptureControlPath())
+        let storePath = storePath ?? defaultStorePath()
+        self.progressReader = progressReader ?? CaptureProgressReader(url: defaultCaptureProgressPath())
+        self.controlStore = controlStore ?? CaptureControlStore(url: defaultCaptureControlPath())
+        let resolvedBridge: ReviewBridge?
         if usesMockData {
-            self.bridge = nil
+            resolvedBridge = nil
             self.loadError = nil
         } else {
             do {
@@ -127,14 +128,28 @@ final class ReviewAppModel {
                     at: storePath.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                self.bridge = try ReviewBridge(storePath: storePath, bundleIdentifier: reviewBundleIdentifier)
+                resolvedBridge = try ReviewBridge(storePath: storePath)
             } catch {
-                self.bridge = nil
+                resolvedBridge = nil
                 self.loadError = String(describing: error)
             }
         }
+        self.bridge = resolvedBridge
+        self.cliProviderChecker = cliProviderChecker ?? NativeCLIProviderChecker(bridge: resolvedBridge)
+        if let analysisSessionFactory {
+            self.analysisSessionFactory = analysisSessionFactory
+        } else if let resolvedBridge {
+            self.analysisSessionFactory = { providerID in
+                NativeAnalysisSessionController(
+                    session: try resolvedBridge.makeReviewSession(providerID: providerID)
+                )
+            }
+        } else {
+            self.analysisSessionFactory = nil
+        }
         refreshCaptureProgress()
         refreshSettings()
+        rebindLoginItemForCurrentBuildIfNeeded()
     }
 
     /// Reloads the durable-history snapshot from `qaptr-store`.
@@ -164,6 +179,122 @@ final class ReviewAppModel {
         } catch {
             loadError = String(describing: error)
         }
+    }
+
+    /// Starts a provider-immutable native review session over the committed
+    /// capture bundles. This does not grant provider consent: local preparation
+    /// runs first and the UI must separately answer the emitted consent request.
+    func startAnalysis() {
+        guard analysisSessionState.allowedOperations.contains("start") else { return }
+        guard let provider = settings.provider, provider != .openRouter else {
+            analysisError = "Choose and connect a local CLI provider in Settings."
+            return
+        }
+        guard providerConnection == .connected else {
+            analysisError = "Reconnect the selected CLI provider in Settings before analyzing."
+            return
+        }
+        guard let analysisSessionFactory else {
+            analysisError = "Live analysis is not available in this build."
+            return
+        }
+        do {
+            let controller = try analysisSessionFactory(provider.rawValue)
+            analysisSessionController = controller
+            analysisError = nil
+            applyAnalysisState(try controller.start(sessionID: UUID().uuidString.lowercased()))
+            beginAnalysisPolling()
+        } catch {
+            analysisError = analysisMessage(for: error)
+        }
+    }
+
+    /// Answers the exact pending just-in-time consent request. Declining keeps
+    /// all preparation local and prevents the provider adapter from being invoked.
+    func decideAnalysisConsent(granted: Bool) {
+        guard analysisSessionState.phase == .readyForConsent,
+              let analysisSessionController
+        else { return }
+        do {
+            analysisError = nil
+            applyAnalysisState(try analysisSessionController.decideConsent(granted: granted))
+            beginAnalysisPolling()
+        } catch {
+            analysisError = analysisMessage(for: error)
+        }
+    }
+
+    func cancelAnalysis() {
+        guard analysisSessionState.allowedOperations.contains("cancel"),
+              let analysisSessionController
+        else { return }
+        do {
+            applyAnalysisState(try analysisSessionController.cancel())
+            beginAnalysisPolling()
+        } catch {
+            analysisError = analysisMessage(for: error)
+        }
+    }
+
+    func retryAnalysis() {
+        guard analysisSessionState.allowedOperations.contains("retry"),
+              let analysisSessionController
+        else {
+            startAnalysis()
+            return
+        }
+        do {
+            analysisError = nil
+            applyAnalysisState(try analysisSessionController.retry())
+            beginAnalysisPolling()
+        } catch {
+            analysisError = analysisMessage(for: error)
+        }
+    }
+
+    var analysisCanStart: Bool {
+        guard let provider = settings.provider else { return false }
+        return provider != .openRouter
+            && providerConnection == .connected
+            && analysisSessionState.allowedOperations.contains("start")
+    }
+
+    private func beginAnalysisPolling() {
+        analysisPollingTask?.cancel()
+        let controller = analysisSessionController
+        analysisPollingTask = Task { [weak self] in
+            guard let self, let controller else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                guard !Task.isCancelled else { return }
+                do {
+                    let state = try controller.state()
+                    self.applyAnalysisState(state)
+                    if state.phase == .readyForConsent || state.isTerminal { return }
+                } catch {
+                    self.analysisError = self.analysisMessage(for: error)
+                    return
+                }
+            }
+        }
+    }
+
+    private func applyAnalysisState(_ state: ReviewSessionState) {
+        analysisSessionState = state
+        if state.isTerminal {
+            refresh()
+        }
+    }
+
+    private func analysisMessage(for error: Error) -> String {
+        let description = String(describing: error)
+        if description.contains("no_committed_bundles") {
+            return "No captured screenshots are ready to analyze yet."
+        }
+        if description.contains("provider_unavailable") {
+            return "The selected CLI provider could not be verified. Reconnect it in Settings."
+        }
+        return description
     }
 
     /// Generates (or regenerates) the canonical workflow for one durable
@@ -209,12 +340,14 @@ final class ReviewAppModel {
             #if DEBUG
             captureProgress = DevMockData.captureProgress
             captureIntervalSeconds = DevMockData.captureProgress.activeIntervalSeconds ?? CaptureIntervalPolicy.defaultSeconds
+            captureControlIntent = DevMockData.captureProgress.state == .paused ? .paused : .running
             settings.intervalSeconds = captureIntervalSeconds
             #endif
             return
         }
         captureProgress = (try? progressReader.read()) ?? .unavailable
         let control = (try? controlStore.read()) ?? .default
+        captureControlIntent = control.intent
         captureIntervalSeconds = control.intervalSeconds
         settings.intervalSeconds = control.intervalSeconds
         // Missing or corrupt control files fall back to the safe default and
@@ -227,7 +360,7 @@ final class ReviewAppModel {
     func setCaptureIntervalSeconds(_ seconds: Int) {
         let normalized = CaptureIntervalPolicy.normalized(seconds)
         do {
-            let control = try CaptureControl(intervalSeconds: normalized)
+            let control = try CaptureControl(intervalSeconds: normalized, intent: captureControlIntent)
             try controlStore.write(control)
             captureIntervalSeconds = normalized
             settings.intervalSeconds = normalized
@@ -236,8 +369,33 @@ final class ReviewAppModel {
         }
     }
 
+    /// Requests that the helper stop starting new capture ticks. The helper
+    /// acknowledges the request by persisting `.paused` progress on its next
+    /// control-file poll.
+    func pauseCapture() {
+        setCaptureControlIntent(.paused)
+    }
+
+    /// Requests that the helper prepare and resume capture from a clean tick
+    /// schedule while preserving the selected interval.
+    func resumeCapture() {
+        setCaptureControlIntent(.running)
+    }
+
+    private func setCaptureControlIntent(_ intent: CaptureControlIntent) {
+        guard intent != captureControlIntent else { return }
+        do {
+            let control = try CaptureControl(intervalSeconds: captureIntervalSeconds, intent: intent)
+            try controlStore.write(control)
+            captureControlIntent = intent
+        } catch {
+            // Keep the previous intent when the control could not be persisted.
+        }
+    }
+
     /// Reloads permission and login-item status without prompting.
     func refreshSettings() {
+        refreshCaptureProgress()
         var next = settings
         next.intervalSeconds = captureIntervalSeconds
         next.availableDisplayIDs = DisplayEnumerator.currentDisplays().map(\.id)
@@ -245,15 +403,48 @@ final class ReviewAppModel {
         next.provider = preferences.provider
         next.excludedApplications = preferences.excludedApplications
         next.excludedWindowTitles = preferences.excludedWindowTitles
+        if let permissionSnapshot = currentHelperPermissionSnapshot() {
+            next.screenRecordingStatus = permissionSnapshot.screenRecordingStatus
+            next.accessibilityContextStatus = permissionSnapshot.accessibilityStatus
+        } else {
+            next.screenRecordingStatus = .notDetermined
+            next.accessibilityContextStatus = .notDetermined
+        }
         if let bridge {
-            next.screenRecordingStatus = bridge.permissionState(.screenCapture)
-            next.accessibilityContextStatus = helperAccessibilityPermissionStatus()
-                ?? bridge.permissionState(.accessibilityContext)
             next.loginItemEnabled = bridge.loginItemEnabled()
         }
         settings = next
-        refreshProviderConnection()
+        if onboardingCompleted {
+            if let provider = settings.provider, provider != .openRouter {
+                if providerConnection == .notConnected {
+                    verifyCLIProvider(provider)
+                }
+            } else {
+                refreshProviderConnection()
+            }
+        } else {
+            providerConnection = .notConnected
+        }
         refreshCliProviderReadiness()
+    }
+
+    /// Refreshes only live local permission/display state. Onboarding polls this
+    /// lightweight path while a macOS consent panel is open, without repeatedly
+    /// checking providers or touching the network.
+    func refreshPermissions() {
+        var next = settings
+        next.availableDisplayIDs = DisplayEnumerator.currentDisplays().map(\.id)
+        if let permissionSnapshot = currentHelperPermissionSnapshot() {
+            next.screenRecordingStatus = permissionSnapshot.screenRecordingStatus
+            next.accessibilityContextStatus = permissionSnapshot.accessibilityStatus
+        } else {
+            next.screenRecordingStatus = .notDetermined
+            next.accessibilityContextStatus = .notDetermined
+        }
+        if let bridge {
+            next.loginItemEnabled = bridge.loginItemEnabled()
+        }
+        settings = next
     }
 
     /// Reloads the bounded, path-only CLI readiness snapshot. A detected
@@ -279,45 +470,123 @@ final class ReviewAppModel {
     }
 
     /// The connection state for a provider that is not currently selected.
-    /// CLI providers have no persisted connection state distinct from
-    /// selection, so this always reports `.notConnected` for them; OpenRouter
-    /// still reflects whether a key is already saved even when it is not the
-    /// selected provider, so the row's status is truthful either way.
+    /// Reading OpenRouter's Keychain item is intentionally deferred until the
+    /// person selects OpenRouter, so merely opening onboarding or Settings can
+    /// never trigger a system password prompt.
     private func connectionState(for provider: ProviderChoice) -> ProviderConnectionState {
-        guard provider == .openRouter else { return .notConnected }
-        return credentialStore.containsOpenRouterKey() ? .configured : .needsKey
+        _ = provider
+        return .notConnected
     }
 
-    /// Requests Screen Recording through the native prompt.
+    /// Requests Screen Recording from the helper process that actually captures.
     func requestScreenRecording() {
-        settings.screenRecordingStatus = .notDetermined
-        if let bridge {
-            let requestedStatus = bridge.requestPermission(.screenCapture)
-            if requestedStatus != .unavailable {
-                settings.screenRecordingStatus = requestedStatus
-            }
-            refreshPermissionAfterSystemPrompt(.screenCapture)
+        if settings.screenRecordingStatus == .denied {
+            openPrivacySettings(anchor: HelperPermission.screenRecording.privacyAnchor)
+            return
         }
-        if settings.screenRecordingStatus != .granted {
-            openPrivacySettings(anchor: "Privacy_ScreenCapture")
+        settings.screenRecordingStatus = .notDetermined
+        requestHelperPermission(.screenRecording)
+    }
+
+    /// Requests Accessibility from the helper process that reads app/window names.
+    func requestAccessibilityContext() {
+        if settings.accessibilityContextStatus == .denied {
+            openPrivacySettings(anchor: HelperPermission.accessibility.privacyAnchor)
+            return
+        }
+        settings.accessibilityContextStatus = .notDetermined
+        requestHelperPermission(.accessibility)
+    }
+
+    private func requestHelperPermission(_ permission: HelperPermission) {
+        guard let helperURL = helperApplicationURL() else {
+            setPermissionStatus(.unavailable, for: permission)
+            return
+        }
+
+        if let snapshot = currentHelperPermissionSnapshot() {
+            post(permission.notification, commandToken: snapshot.commandToken)
+            refreshPermissionAfterSystemPrompt(permission)
+            return
+        }
+
+        // A same-ID process without a current, path-bound v2 heartbeat is an
+        // obsolete or wrong helper. Stop it before launching the exact nested
+        // helper from this review bundle so it cannot hold the global lock or
+        // swallow permission commands during an upgrade.
+        for application in Self.runningHelperApplications {
+            application.terminate()
+        }
+
+        Task { [weak self] in
+            for _ in 0..<20 where !Self.runningHelperApplications.isEmpty {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            for application in Self.runningHelperApplications {
+                application.forceTerminate()
+            }
+            for _ in 0..<10 where !Self.runningHelperApplications.isEmpty {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            self?.launchHelper(at: helperURL, requesting: permission)
         }
     }
 
-    /// Requests the optional accessibility-context permission.
-    func requestAccessibilityContext() {
-        settings.accessibilityContextStatus = .notDetermined
-        let helperIsRunning = !NSRunningApplication.runningApplications(
-            withBundleIdentifier: "com.qaptr.helper"
-        ).isEmpty
-        if helperIsRunning {
-            DistributedNotificationCenter.default().post(
-                name: Notification.Name("com.qaptr.review.command.requestAccessibility"),
-                object: nil
-            )
-        } else {
-            openPrivacySettings(anchor: "Privacy_Accessibility")
+    private func launchHelper(at helperURL: URL, requesting permission: HelperPermission) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.arguments = ["--permission-only", "true"]
+        NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration) { [weak self] _, error in
+            Task { @MainActor in
+                guard let self else { return }
+                guard error == nil else {
+                    self.setPermissionStatus(.unavailable, for: permission)
+                    return
+                }
+                self.sendPermissionCommandWhenReady(permission)
+            }
         }
-        refreshPermissionAfterSystemPrompt(.accessibilityContext)
+    }
+
+    private func sendPermissionCommandWhenReady(_ permission: HelperPermission) {
+        Task { [weak self] in
+            guard let self else { return }
+            for _ in 0..<40 {
+                if let snapshot = self.currentHelperPermissionSnapshot() {
+                    self.post(permission.notification, commandToken: snapshot.commandToken)
+                    self.refreshPermissionAfterSystemPrompt(permission)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            self.setPermissionStatus(.unavailable, for: permission)
+        }
+    }
+
+    private static var runningHelperApplications: [NSRunningApplication] {
+        NSRunningApplication.runningApplications(withBundleIdentifier: "com.qaptr.helper")
+    }
+
+    private func helperApplicationURL() -> URL? {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_HELPER_APP_PATH"], !override.isEmpty {
+            let url = URL(fileURLWithPath: override, isDirectory: true)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        let nested = Bundle.main.bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("LoginItems", isDirectory: true)
+            .appendingPathComponent("QaptrHelper.app", isDirectory: true)
+        if FileManager.default.fileExists(atPath: nested.path) { return nested }
+        return nil
+    }
+
+    private func currentHelperPermissionSnapshot() -> HelperPermissionSnapshot? {
+        guard let helperURL = helperApplicationURL() else { return nil }
+        return liveHelperPermissionSnapshot(expectedHelperBundleURL: helperURL)
+    }
+
+    private func post(_ notification: Notification.Name, commandToken: String) {
+        DistributedNotificationCenter.default().post(name: notification, object: commandToken)
     }
 
     private func openPrivacySettings(anchor: String) {
@@ -331,27 +600,30 @@ final class ReviewAppModel {
         }
     }
 
-    /// TCC writes its decision asynchronously after the native prompt closes.
-    /// Re-read a few times instead of rendering the stale pre-prompt value.
-    private func refreshPermissionAfterSystemPrompt(_ permission: BridgePermission) {
-        guard let bridge else { return }
+    /// The helper publishes every second. Poll long enough for a person to read
+    /// and answer the macOS prompt instead of sampling three arbitrary moments.
+    private func refreshPermissionAfterSystemPrompt(_ permission: HelperPermission) {
         Task { [weak self] in
-            for delay in [250_000_000, 750_000_000, 1_500_000_000] {
-                try? await Task.sleep(nanoseconds: UInt64(delay))
-                let status = permission == .accessibilityContext
-                    ? (helperAccessibilityPermissionStatus() ?? bridge.permissionState(permission))
-                    : bridge.permissionState(permission)
-                if status == .granted || delay == 1_500_000_000 {
-                    guard let self else { return }
-                    switch permission {
-                    case .screenCapture:
-                        self.settings.screenRecordingStatus = status
-                    case .accessibilityContext:
-                        self.settings.accessibilityContextStatus = status
-                    }
-                    return
-                }
+            for _ in 0..<60 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard let self else { return }
+                self.refreshPermissions()
+                if self.permissionStatus(for: permission) == .granted { return }
             }
+        }
+    }
+
+    private func permissionStatus(for permission: HelperPermission) -> PermissionStatus {
+        switch permission {
+        case .screenRecording: settings.screenRecordingStatus
+        case .accessibility: settings.accessibilityContextStatus
+        }
+    }
+
+    private func setPermissionStatus(_ status: PermissionStatus, for permission: HelperPermission) {
+        switch permission {
+        case .screenRecording: settings.screenRecordingStatus = status
+        case .accessibility: settings.accessibilityContextStatus = status
         }
     }
 
@@ -361,23 +633,64 @@ final class ReviewAppModel {
         settings.loginItemEnabled = bridge.setLoginItemEnabled(enabled)
     }
 
+    /// Re-registers once per packaged build so an upgrade cannot leave
+    /// SMAppService pointing at a removed copy such as `~/Applications/Qaptr.app`.
+    private func rebindLoginItemForCurrentBuildIfNeeded() {
+        guard onboardingCompleted,
+              Bundle.main.bundleIdentifier == "com.qaptr.review",
+              let bridge,
+              let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+              let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        else {
+            return
+        }
+
+        let markerKey = "com.qaptr.review.login-item-bound-build"
+        let marker = "\(shortVersion)(\(buildVersion))"
+        guard UserDefaults.standard.string(forKey: markerKey) != marker else { return }
+
+        let enabled = bridge.setLoginItemEnabled(true)
+        settings.loginItemEnabled = enabled
+        if enabled {
+            UserDefaults.standard.set(marker, forKey: markerKey)
+        }
+    }
+
     func setCacheLifetime(_ lifetime: CacheLifetime) {
         preferences.cacheLifetime = lifetime
         settings.cacheLifetime = lifetime
     }
 
     func setProvider(_ provider: ProviderChoice) {
+        if settings.provider != provider {
+            resetAnalysisSessionForProviderChange()
+        }
         preferences.provider = provider
         settings.provider = provider
-        refreshProviderConnection()
+        if provider == .openRouter {
+            refreshProviderConnection()
+        } else {
+            providerConnection = .notConnected
+        }
     }
 
     /// Removes the provider preference without triggering a provider request.
     func clearProvider() {
+        resetAnalysisSessionForProviderChange()
         preferences.provider = nil
         settings.provider = nil
         providerSetupRequest = nil
         providerConnection = .notConnected
+    }
+
+    private func resetAnalysisSessionForProviderChange() {
+        analysisPollingTask?.cancel()
+        if analysisSessionState.allowedOperations.contains("cancel") {
+            _ = try? analysisSessionController?.cancel()
+        }
+        analysisSessionController = nil
+        analysisSessionState = .idle
+        analysisError = nil
     }
 
     /// Selects `provider` and refreshes `providerConnection` from the real
@@ -391,9 +704,28 @@ final class ReviewAppModel {
         setProvider(provider)
         guard provider == .openRouter else {
             providerSetupRequest = nil
+            verifyCLIProvider(provider)
             return
         }
         providerSetupRequest = providerConnection.kind == .needsKey ? .openRouter : nil
+    }
+
+    private func verifyCLIProvider(_ provider: ProviderChoice) {
+        guard provider != .openRouter else { return }
+        providerConnection = .checking
+        let checker = cliProviderChecker
+        Task { [weak self] in
+            let result = await checker.check(providerID: provider.rawValue)
+            await MainActor.run {
+                guard let self, self.settings.provider == provider else { return }
+                switch result {
+                case .connected:
+                    self.providerConnection = .connected
+                case .failed(let failure):
+                    self.providerConnection = .failed(.cli(failure))
+                }
+            }
+        }
     }
 
     /// Explicitly reopens the OpenRouter setup sheet for the currently
@@ -483,6 +815,9 @@ final class ReviewAppModel {
             // final privacy-consent stage, never during a read-only refresh or
             // an ordinary review-app launch.
             setLoginItemEnabled(true)
+            if let snapshot = currentHelperPermissionSnapshot() {
+                post(HelperCommand.startCapture, commandToken: snapshot.commandToken)
+            }
         }
         return completed
     }
@@ -517,20 +852,8 @@ final class ReviewAppModel {
     ///
     /// Provider usability: leaving the provider unset is a legitimate
     /// capture-only choice (see `OnboardingProviderChoiceList`), so it counts
-    /// as usable. OpenRouter usability is the real Keychain-backed connection
-    /// state. The three CLI providers (`claudeCLI`, `codexCLI`, `jcodeCLI`)
-    /// have no live readiness check implemented anywhere in this codebase
-    /// yet -- that is checklist 5.1's separate, still-open "let the user
-    /// select a provider only when readiness checks make it usable" item,
-    /// not this gate. Forcing a fabricated `false` here would durably brick
-    /// onboarding for that choice with no recovery UI to unblock it, which
-    /// is a worse and unrequested regression than leaving this specific
-    /// sub-check ungated; forcing a fabricated `true` would falsely claim a
-    /// readiness check occurred. So a CLI provider selection is treated the
-    /// same as no selection: it does not block completion, matching this
-    /// path's actual pre-existing behavior, and the missing readiness check
-    /// is reported as an open item rather than silently faked in either
-    /// direction.
+    /// as usable. Every selected provider, including a local CLI, must have
+    /// completed its real connection check before onboarding can finish.
     nonisolated static func onboardingCompletionInputs(
         screenRecordingStatus: PermissionStatus,
         availableDisplayCount: Int,
@@ -539,9 +862,9 @@ final class ReviewAppModel {
     ) -> OnboardingCompletionInputs {
         let hasUsableProvider: Bool
         switch provider {
-        case nil, .claudeCLI, .codexCLI, .jcodeCLI:
+        case nil:
             hasUsableProvider = true
-        case .openRouter:
+        case .openRouter, .claudeCLI, .codexCLI, .jcodeCLI:
             hasUsableProvider = providerConnectionKind == .connected
         }
         return OnboardingCompletionInputs(

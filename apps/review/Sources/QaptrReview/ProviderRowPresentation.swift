@@ -5,8 +5,8 @@ import QaptrReviewCore
 /// a short concise reason, and at most one next action. This is a pure
 /// function of already-known state (settings provider choice, the
 /// Keychain-backed OpenRouter connection state, and the bounded path-only CLI
-/// readiness snapshot), so it never triggers a network call or claims a
-/// readiness check occurred when one has not.
+/// readiness snapshot), so rendering never triggers a provider process or
+/// claims a readiness check occurred when one has not.
 struct ProviderRowPresentation: Equatable, Sendable {
     /// A short, uppercase-friendly status word or phrase.
     let statusLabel: String
@@ -48,7 +48,9 @@ enum ProviderRowPresenter {
         case .openRouter:
             return presentOpenRouter(connection: connection)
         case .claudeCLI, .codexCLI, .jcodeCLI:
-            return presentCli(readiness: cliReadiness)
+            return connection == .notConnected
+                ? presentCliInstallation(readiness: cliReadiness)
+                : presentCliConnection(connection)
         }
     }
 
@@ -77,7 +79,22 @@ enum ProviderRowPresenter {
         }
     }
 
-    private static func presentCli(readiness: ProviderReadiness?) -> ProviderRowPresentation {
+    private static func presentCliConnection(
+        _ connection: ProviderConnectionState
+    ) -> ProviderRowPresentation {
+        switch connection.kind {
+        case .checking:
+            return ProviderRowPresentation(statusLabel: "Checking", reason: nil, nextAction: nil)
+        case .connected:
+            return ProviderRowPresentation(statusLabel: "Connected", reason: nil, nextAction: nil)
+        case .failed(let failure):
+            return ProviderRowPresentation(statusLabel: "Error", reason: failure.message, nextAction: nil)
+        case .notConnected, .needsKey, .configured:
+            return ProviderRowPresentation(statusLabel: "Installed", reason: nil, nextAction: nil)
+        }
+    }
+
+    private static func presentCliInstallation(readiness: ProviderReadiness?) -> ProviderRowPresentation {
         guard let readiness else {
             return ProviderRowPresentation(
                 statusLabel: "Not checked",
@@ -92,7 +109,7 @@ enum ProviderRowPresenter {
             // provider is ready to use.
             return ProviderRowPresentation(
                 statusLabel: "Installed",
-                reason: "Qaptr found this CLI but has not verified it can run a review.",
+                reason: nil,
                 nextAction: nil
             )
         case .notInstalled:

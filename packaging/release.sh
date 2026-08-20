@@ -6,8 +6,10 @@ usage() {
     cat >&2 <<'EOF'
 usage: packaging/release.sh [--dry-run] [--reproducibility-check] [--skip-reproducibility]
 
-The default build uses ad-hoc signing and never contacts Apple. A real release
-requires QAPTR_SIGNING_IDENTITY and QAPTR_NOTARY_PROFILE on a release machine.
+The default build uses ad-hoc signing for structural validation only. Install
+local builds with a stable Apple Development identity via
+QAPTR_SIGNING_IDENTITY. A distributed release additionally requires
+QAPTR_NOTARY_PROFILE on a release machine.
 EOF
     exit 2
 }
@@ -94,6 +96,14 @@ mkdir -p "$(dirname "$helper_dst")"
 rm -rf "$helper_dst"
 cp -R "$helper_src" "$helper_dst"
 
+# One release has one version across all three application bundles. Keeping the
+# nested apps in lockstep also lets LaunchServices prefer an actual upgrade
+# instead of retaining several equal-version candidates.
+for nested_app in "$review_dst" "$helper_dst"; do
+    plutil -replace CFBundleShortVersionString -string "$version" "$nested_app/Contents/Info.plist"
+    plutil -replace CFBundleVersion -string "$build_version" "$nested_app/Contents/Info.plist"
+done
+
 cat > "$build_root/QaptrLauncher.swift" <<'EOF'
 import AppKit
 import Foundation
@@ -172,8 +182,10 @@ EOF
 plutil -lint "$outer/Contents/Info.plist" >/dev/null
 
 sign_mode=(--adhoc)
+signing_description="ad-hoc structural"
 if [[ -n "${QAPTR_SIGNING_IDENTITY:-}" ]]; then
-    sign_mode=(--developer-id "$QAPTR_SIGNING_IDENTITY")
+    sign_mode=(--identity "$QAPTR_SIGNING_IDENTITY")
+    signing_description="identity-signed"
 elif [[ "$dry_run" == false ]]; then
     echo "real release mode requires QAPTR_SIGNING_IDENTITY; use --dry-run for ad-hoc validation" >&2
     exit 1
@@ -191,7 +203,10 @@ bash "$packaging_dir/sign.sh" "${sign_mode[@]}" "$outer"
 [[ -x "$outer/Contents/MacOS/Qaptr" ]] || exit 1
 [[ -x "$review_dst/Contents/MacOS/QaptrReview" ]] || exit 1
 [[ -x "$helper_dst/Contents/MacOS/QaptrHelper" ]] || exit 1
-open -Ra "$helper_dst" >/dev/null 2>&1 || { echo "LaunchServices rejected the nested helper app" >&2; exit 1; }
+[[ "$(plutil -extract CFBundleShortVersionString raw -o - "$review_dst/Contents/Info.plist")" == "$version" ]] || exit 1
+[[ "$(plutil -extract CFBundleShortVersionString raw -o - "$helper_dst/Contents/Info.plist")" == "$version" ]] || exit 1
+[[ "$(plutil -extract CFBundleVersion raw -o - "$review_dst/Contents/Info.plist")" == "$build_version" ]] || exit 1
+[[ "$(plutil -extract CFBundleVersion raw -o - "$helper_dst/Contents/Info.plist")" == "$build_version" ]] || exit 1
 codesign --verify --deep --strict --verbose=2 "$outer" >/dev/null
 
 if [[ "$dry_run" == true ]]; then
@@ -204,8 +219,8 @@ dmg="$build_root/Qaptr-$version.dmg"
 bash "$packaging_dir/dmg.sh" "$outer" "$dmg"
 
 if [[ "$dry_run" == true ]]; then
-    echo "ad-hoc packaging verification complete: $outer"
-    echo "credential-blocked: Developer ID notarization, stapling, and Gatekeeper assessment"
+    echo "$signing_description packaging verification complete: $outer"
+    echo "release-blocked: Developer ID notarization, stapling, and Gatekeeper assessment"
 else
     spctl --assess --type execute --verbose=4 "$outer"
     echo "Developer ID packaging verification complete: $outer"

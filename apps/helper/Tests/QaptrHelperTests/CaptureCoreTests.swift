@@ -3,6 +3,55 @@ import XCTest
 @testable import QaptrHelperCore
 
 final class CaptureCoreTests: XCTestCase {
+    func testHelperLockPathRejectsEmptyEnvironmentOverride() {
+        let home = URL(fileURLWithPath: "/Users/example", isDirectory: true)
+
+        XCTAssertEqual(
+            HelperRuntimePaths.lockURL(
+                environment: ["QAPTR_HELPER_LOCK_PATH": ""],
+                homeDirectory: home
+            ).path,
+            "/Users/example/Library/Application Support/Qaptr/helper.lock"
+        )
+        XCTAssertEqual(
+            HelperRuntimePaths.lockURL(
+                environment: ["QAPTR_HELPER_LOCK_PATH": "/custom/helper.lock"],
+                homeDirectory: home
+            ).path,
+            "/custom/helper.lock"
+        )
+    }
+
+    func testHelperPermissionSnapshotRoundTripsBothHelperOwnedPermissions() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-permissions-\(UUID().uuidString)")
+            .appendingPathComponent("permission-status.json")
+        let store = HelperPermissionSnapshotStore(url: url)
+        let snapshot = HelperPermissionSnapshot(
+            screenRecordingGranted: true,
+            screenRecordingRequested: true,
+            accessibilityGranted: false,
+            accessibilityRequested: false,
+            processID: 42,
+            updatedAtMillis: 900,
+            helperBundlePath: "/Applications/Qaptr.app/Helper.app",
+            commandToken: "test-token"
+        )
+
+        try store.write(snapshot)
+
+        XCTAssertEqual(try store.read(), snapshot)
+        let json = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        XCTAssertTrue(json.contains("\"version\":2"))
+        XCTAssertTrue(json.contains("\"screen_recording_granted\":true"))
+        XCTAssertTrue(json.contains("\"screen_recording_requested\":true"))
+        XCTAssertTrue(json.contains("\"accessibility_granted\":false"))
+        XCTAssertTrue(json.contains("\"accessibility_requested\":false"))
+        XCTAssertTrue(json.contains("\"process_id\":42"))
+        XCTAssertTrue(json.contains("\"updated_at_ms\":900"))
+        XCTAssertTrue(json.contains("\"command_token\":\"test-token\""))
+    }
+
     func testCaptureProgressCountsOnlySuccessfulSealsAcrossStates() {
         var tracker = CaptureProgressTracker()
         tracker.start(at: 100, processID: 42)
@@ -177,11 +226,41 @@ final class CaptureCoreTests: XCTestCase {
         }
     }
 
-    func testCaptureControlPersistsOnlyTheBoundedIntervalScalar() throws {
+    func testCaptureControlPersistsBoundedIntervalAndRunningIntent() throws {
         let control = try CaptureControl(intervalSeconds: 60)
         let encoded = try JSONEncoder().encode(control)
         let json = String(decoding: encoded, as: UTF8.self)
-        XCTAssertEqual(json, "{\"interval_seconds\":60}")
+        XCTAssertEqual(json, "{\"interval_seconds\":60,\"intent\":\"running\"}")
+    }
+
+    func testCaptureControlDecodesLegacyIntervalAsRunningAndPreservesIntervalWhenPaused() throws {
+        let legacy = try JSONDecoder().decode(
+            CaptureControl.self,
+            from: Data("{\"interval_seconds\":300}".utf8)
+        )
+        XCTAssertEqual(legacy, try CaptureControl(intervalSeconds: 300, intent: .running))
+
+        let paused = try CaptureControl(intervalSeconds: 300, intent: .paused)
+        XCTAssertEqual(
+            try JSONDecoder().decode(CaptureControl.self, from: JSONEncoder().encode(paused)),
+            paused
+        )
+        XCTAssertEqual(paused.intervalSeconds, 300)
+        XCTAssertEqual(paused.intent, .paused)
+    }
+
+    func testCaptureProgressTrackerPersistsPausedStateAndResumesWithWaitingState() {
+        var tracker = CaptureProgressTracker()
+        tracker.start(at: 100, processID: 42, selectedDisplayIDs: ["display-1"], activeIntervalSeconds: 60)
+
+        tracker.pause(at: 200, activeIntervalSeconds: 60)
+        XCTAssertEqual(tracker.progress.state, .paused)
+        XCTAssertEqual(tracker.progress.captureCount, 0)
+        XCTAssertEqual(tracker.progress.activeIntervalSeconds, 60)
+
+        tracker.start(at: 300, processID: 42, activeIntervalSeconds: 60)
+        XCTAssertEqual(tracker.progress.state, .waiting)
+        XCTAssertEqual(tracker.progress.activeIntervalSeconds, 60)
     }
 
     func testDetailedCaptureLifecycleUsesExplicitStartAndStop() {

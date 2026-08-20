@@ -20,13 +20,17 @@ fi
 if grep -Eq 'Settings[[:space:]]*\{[[:space:]]*EmptyView\(\)' "$review"; then
     fail "review Settings scene still uses EmptyView"
 fi
-grep -Eq 'SettingsView\(model:[[:space:]]*appDelegate\.model' "$review" \
+grep -Eq 'model:[[:space:]]*appDelegate\.model' "$review" \
     || fail "review Settings scene is not wired to the shared model"
-grep -q 'showSettingsWindow:' "$review" \
-    || fail "review Settings command has no deterministic scene action"
+grep -q 'navigation.surface = .settings' "$review" \
+    || fail "review Settings command does not select the Settings surface"
+grep -q 'func showObservations()' "$review" \
+    || fail "review observations command has no deterministic handler"
+grep -q 'navigation.surface = .review' "$review" \
+    || fail "review observations command does not select the Review surface"
 grep -q 'keyboardShortcut' "$review" \
     || fail "review commands have no keyboard shortcuts"
-grep -q 'Button("Show Qaptr / Observations"' "$review" \
+grep -q 'Button("Show Capture Observations"' "$review" \
     || fail "review show command is missing"
 grep -q 'Button("Settings…"' "$review" \
     || fail "review settings command is missing"
