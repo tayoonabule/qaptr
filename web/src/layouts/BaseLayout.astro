@@ -224,14 +224,17 @@ interface Props {
 
       @media (max-width: 480px) {
         .site-footer__row {
-          align-items: flex-start;
-          justify-content: flex-start;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
           text-align: center;
+          gap: var(--spacing-12);
         }
 
         .site-footer__privacy {
-          flex-basis: 100%;
-          order: 3;
+          flex: 0 0 auto;
+          width: 100%;
+          max-width: 22rem;
         }
       }
     </style>
