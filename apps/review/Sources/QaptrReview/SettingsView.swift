@@ -176,14 +176,25 @@ struct SettingsView: View {
               .foregroundStyle(Color.qaptrInkSoft)
           }
           Spacer()
-          Picker("Capture rhythm", selection: captureIntervalBinding) {
+          Menu {
             ForEach(CaptureIntervalPreset.allCases, id: \.self) { preset in
-              Text("\(preset.displayName) · \(preset.detail)")
-                .tag(preset.seconds)
+              Button("\(preset.displayName) · \(preset.detail)") {
+                captureIntervalBinding.wrappedValue = preset.seconds
+              }
             }
+          } label: {
+            HStack(spacing: QaptrSpace.xxs) {
+              Text(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
+              Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(Color.qaptrAccentStrong)
           }
-          .labelsHidden()
-          .pickerStyle(.menu)
+          .menuIndicator(.hidden)
+          .menuStyle(.borderlessButton)
+          .fixedSize()
+          .accessibilityLabel("Capture rhythm")
+          .accessibilityValue(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
         }
         Text(
           "Choose a pace from every 5 seconds to every 30 minutes. Nothing is shown in this screen."
