@@ -17,7 +17,18 @@ named, because "tests pass" and "the app works" are different claims.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- `packaging/release.sh` reads the default version from
+  `[workspace.package].version` in `Cargo.toml` instead of repeating it as a
+  shell default, so the manifest and the packaging script cannot drift. An
+  explicit `QAPTR_VERSION` still overrides it, and a missing manifest section
+  is now a hard error rather than a silent fall back to a stale literal.
+
+### Added
+
+- `CHANGELOG.md` and `docs/release-process.md`, so the release convention is
+  written down rather than reconstructed per release.
 
 ## [0.1.0] - 2026-08-20 (build 9)
 

@@ -88,10 +88,25 @@ swift test --package-path apps/review
 
    ```sh
    git tag -a v0.1.0 -m 'Qaptr 0.1.0 (build 9)'
+   git push origin main
    git push origin v0.1.0
    ```
 
-5. **Record acceptance evidence.** Note in the changelog entry what was
+5. **Publish the GitHub Release.** The changelog links to
+   `releases/tag/vX.Y.Z`, and a git tag alone does not create that page, so
+   skipping this leaves a dead link. `--verify-tag` refuses to invent a tag
+   that was never pushed.
+
+   ```sh
+   gh release create v0.1.0 --verify-tag \
+     --title 'Qaptr 0.1.0 (build 9)' \
+     --notes "$(sed -n '/## \[0.1.0\]/,/^## \[/p' CHANGELOG.md)"
+   ```
+
+   The repository is private, so these URLs 404 for anonymous requests even
+   when correct. Check with `gh release view` rather than `curl`.
+
+6. **Record acceptance evidence.** Note in the changelog entry what was
    actually observed, not what was expected. The env-gated probes make UI
    states checkable without a visible screen:
 
