@@ -131,7 +131,10 @@ impl CliInvocation {
         self
     }
 
-    /// Allows a provider's documented support directory to be read.
+    /// Allows a provider's documented support directory to be read and updated.
+    ///
+    /// Provider CLIs own authentication refreshes and bounded session metadata
+    /// inside this directory. The rest of the user's home remains denied.
     pub fn support_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.support_paths.push(path.into());
         self
@@ -534,6 +537,10 @@ fn sandbox_profile(
 (allow process*)\n\
 (allow process-exec)\n\
 (allow sysctl-read)\n\
+(allow mach-lookup (global-name \"com.apple.SystemConfiguration.configd\"))\n\
+(allow mach-lookup (global-name \"com.apple.system.notification_center\"))\n\
+(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))\n\
+(allow mach-lookup (global-name \"com.apple.logd\"))\n\
 (allow file-read*)\n\
 (allow file-map-executable)\n\
 (allow network-outbound)\n",
@@ -555,6 +562,7 @@ fn sandbox_profile(
             return Err(CliRuntimeError::InvalidSandboxPath { path: path.clone() });
         }
         append_allow_subpath(&mut profile, "file-read*", path)?;
+        append_allow_subpath(&mut profile, "file-write*", path)?;
         append_allow_subpath(&mut profile, "file-map-executable", path)?;
     }
     Ok(profile)
@@ -667,5 +675,38 @@ mod tests {
                     .find(&working_allow)
                     .expect("working-directory exception is present")
         );
+    }
+
+    #[test]
+    fn profile_allows_system_configuration_for_network_clients() {
+        let profile = sandbox_profile(
+            std::path::Path::new("/bin/echo"),
+            std::path::Path::new("/tmp/qaptr-provider-runtime"),
+            &[],
+        )
+        .expect("test paths are valid sandbox paths");
+
+        for service in [
+            "com.apple.SystemConfiguration.configd",
+            "com.apple.system.notification_center",
+            "com.apple.system.opendirectoryd.libinfo",
+            "com.apple.logd",
+        ] {
+            assert!(profile.contains(&format!("(allow mach-lookup (global-name \"{service}\"))")));
+        }
+    }
+
+    #[test]
+    fn support_paths_are_explicit_read_write_exceptions() {
+        let support = PathBuf::from("/Users/test/.provider");
+        let profile = sandbox_profile(
+            std::path::Path::new("/bin/echo"),
+            std::path::Path::new("/tmp/qaptr-provider-runtime"),
+            std::slice::from_ref(&support),
+        )
+        .expect("test paths are valid sandbox paths");
+
+        assert!(profile.contains("(allow file-read* (subpath \"/Users/test/.provider\"))"));
+        assert!(profile.contains("(allow file-write* (subpath \"/Users/test/.provider\"))"));
     }
 }

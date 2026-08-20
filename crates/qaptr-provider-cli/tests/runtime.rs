@@ -2,7 +2,7 @@
 
 #![cfg(target_os = "macos")]
 
-use std::{path::PathBuf, time::Duration};
+use std::{fs, path::PathBuf, time::Duration};
 
 use qaptr_provider::{ExecutablePath, ProviderError, ProviderId, RuntimeFailureKind};
 use qaptr_provider_cli::{
@@ -72,6 +72,26 @@ fn sandbox_denies_real_access_to_the_user_home() {
         }
         other => panic!("expected sandbox denial, got {other:?}"),
     }
+}
+
+#[test]
+fn sandbox_allows_provider_owned_support_state_updates() {
+    let support = std::env::temp_dir().join(format!(
+        "qaptr-provider-support-test-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&support).expect("create provider support directory");
+    let marker = support.join("refreshed-session");
+    let invocation = CliInvocation::new(executable("/usr/bin/touch"))
+        .support_path(support.clone())
+        .arg(&marker);
+
+    runtime(Duration::from_secs(2), 4096)
+        .run(invocation)
+        .expect("provider may update only its explicit support directory");
+    assert!(marker.is_file());
+
+    fs::remove_dir_all(support).expect("remove provider support directory");
 }
 
 #[test]
