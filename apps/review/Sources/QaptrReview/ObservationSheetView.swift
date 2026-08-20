@@ -5,6 +5,62 @@ import UniformTypeIdentifiers
 
 // Hallmark · studied-DNA: Micro live-site · work plane: row ledger · no stacked dashboard cards
 
+/// Which of the three mutually exclusive bodies the review surface is showing.
+///
+/// The body branch and the header title were previously two independent
+/// conditionals over the same state, which could disagree -- the header could
+/// read "What Qaptr found" while the body rendered an empty state. Deriving
+/// both from one value makes that class of drift unrepresentable, and gives the
+/// rendered outcome a stable name that instrumentation can report.
+enum ReviewContentState: Equatable {
+    case error
+    case empty
+    case observations
+
+    static func resolve(hasLoadError: Bool, observationCount: Int) -> ReviewContentState {
+        if hasLoadError { return .error }
+        return observationCount == 0 ? .empty : .observations
+    }
+
+    /// The editorial header shown above the body.
+    var headerTitle: String {
+        switch self {
+        case .error: return "Review setup"
+        case .empty: return "Review"
+        case .observations: return "What Qaptr found"
+        }
+    }
+
+    /// A stable name for logging and instrumentation.
+    ///
+    /// Kept separate from the case names, matching `ReviewSurface.probeName`,
+    /// so a rename of either side cannot silently change the wire format that
+    /// the acceptance check depends on.
+    var probeName: String {
+        switch self {
+        case .error: return "error"
+        case .empty: return "empty"
+        case .observations: return "observations"
+        }
+    }
+}
+
+/// Optional review-body instrumentation, following the same env-gated contract
+/// as the first-paint and surface probes in `QaptrReviewApp`.
+///
+/// Unlike those two, this one rewrites on every change rather than once, because
+/// the interesting transition is `empty` -> `observations` as an analysis run
+/// lands. Which body rendered is otherwise only observable by looking at the
+/// window, which is impossible while the screen is locked; this makes
+/// "analysis finished and findings are on screen, with no error state" checkable
+/// from a script instead of inferred from the database.
+private func recordReviewContentStateIfRequested(_ state: ReviewContentState) {
+    guard let path = ProcessInfo.processInfo.environment["QAPTR_REVIEW_CONTENT_FILE"] else {
+        return
+    }
+    try? "\(state.probeName)\n".write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+}
+
 /// The primary surface: a small, honest list of recent observations.
 struct ObservationSheetView: View {
     @Bindable var model: ReviewAppModel
@@ -19,21 +75,20 @@ struct ObservationSheetView: View {
                 AnalysisControlView(model: model)
                     .padding(.top, QaptrSpace.lg)
 
-                if model.loadError != nil {
+                switch contentState {
+                case .error:
                     ErrorStateView(retry: model.refresh)
                         .padding(.top, QaptrSpace.xl)
-                } else {
-                    if model.snapshot.observations.isEmpty {
-                        EmptyStateView(
-                            progress: model.captureProgress,
-                            notices: model.snapshot.notices,
-                            analysisStatus: model.reviewStatus?.analysis
-                        )
-                            .padding(.top, QaptrSpace.lg)
-                    } else {
-                        observationList
-                            .padding(.top, QaptrSpace.lg)
-                    }
+                case .empty:
+                    EmptyStateView(
+                        progress: model.captureProgress,
+                        notices: model.snapshot.notices,
+                        analysisStatus: model.reviewStatus?.analysis
+                    )
+                        .padding(.top, QaptrSpace.lg)
+                case .observations:
+                    observationList
+                        .padding(.top, QaptrSpace.lg)
                 }
 
                 if !model.snapshot.notices.isEmpty {
@@ -57,6 +112,9 @@ struct ObservationSheetView: View {
             }
         }
         .onAppear { model.refresh() }
+        .onChange(of: contentState, initial: true) { _, state in
+            recordReviewContentStateIfRequested(state)
+        }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -66,17 +124,17 @@ struct ObservationSheetView: View {
         }
     }
 
-    private var header: some View {
-        Text(headerTitle)
-            .font(QaptrType.editorial(38))
-            .foregroundStyle(Color.qaptrInk)
+    private var contentState: ReviewContentState {
+        ReviewContentState.resolve(
+            hasLoadError: model.loadError != nil,
+            observationCount: model.snapshot.observations.count
+        )
     }
 
-    private var headerTitle: String {
-        if model.loadError != nil {
-            return "Review setup"
-        }
-        return model.snapshot.observations.isEmpty ? "Review" : "What Qaptr found"
+    private var header: some View {
+        Text(contentState.headerTitle)
+            .font(QaptrType.editorial(38))
+            .foregroundStyle(Color.qaptrInk)
     }
 
     private var analysisConsentPresented: Binding<Bool> {
