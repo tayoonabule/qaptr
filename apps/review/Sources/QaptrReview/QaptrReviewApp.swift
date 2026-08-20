@@ -15,6 +15,22 @@ private func recordFirstPaintIfRequested() {
     try? "\(nanoseconds)\n".write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
 }
 
+/// Optional surface instrumentation, following the same env-gated,
+/// write-once contract as the first-paint probe above.
+///
+/// The routing this records is otherwise only observable by looking at the
+/// window, which is impossible when the screen is locked and unreliable over
+/// the accessibility API for a background app. Recording the resolved surface
+/// makes cold-launch routing verifiable from a script, which is how the launch
+/// argument contract is exercised against a real signed build rather than only
+/// in unit tests.
+private func recordResolvedSurfaceIfRequested(_ surface: ReviewSurface) {
+    guard let path = ProcessInfo.processInfo.environment["QAPTR_REVIEW_SURFACE_FILE"] else {
+        return
+    }
+    try? "\(surface.probeName)\n".write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: NSWindowController?
@@ -97,6 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeFirstResponder(nil)
         NSApp.activate(ignoringOtherApps: true)
         applyLaunchCommandIfPresent()
+        // Recorded after routing, so the probe reflects the surface the user
+        // actually lands on rather than the one the command asked for; the
+        // settings command is policy-checked and can legitimately resolve
+        // elsewhere when onboarding is incomplete.
+        recordResolvedSurfaceIfRequested(navigation.surface)
         recordFirstPaintIfRequested()
     }
 

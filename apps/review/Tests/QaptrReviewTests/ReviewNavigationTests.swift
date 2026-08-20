@@ -15,6 +15,14 @@ final class ReviewNavigationTests: XCTestCase {
         XCTAssertEqual(navigation.surface, .review)
     }
 
+    func testSurfaceProbeNamesArePinnedWireFormat() {
+        // The cold-launch acceptance check reads these strings out of
+        // QAPTR_REVIEW_SURFACE_FILE to decide whether routing worked, so a
+        // rename here would silently turn that check into a false pass.
+        XCTAssertEqual(ReviewSurface.review.probeName, "review")
+        XCTAssertEqual(ReviewSurface.settings.probeName, "settings")
+    }
+
     func testCaptureStatusDistinguishesPausedFromNeedsAttention() {
         XCTAssertEqual(
             CaptureStatusPresentation.present(intent: .running, helperIsRunning: true),

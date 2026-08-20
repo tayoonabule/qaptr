@@ -7,6 +7,17 @@ import SwiftUI
 enum ReviewSurface: Equatable {
   case review
   case settings
+
+  /// A stable name for logging and instrumentation.
+  ///
+  /// Kept separate from the case names so a rename of either side cannot
+  /// silently change the probe's wire format.
+  var probeName: String {
+    switch self {
+    case .review: return "review"
+    case .settings: return "settings"
+    }
+  }
 }
 
 @MainActor
