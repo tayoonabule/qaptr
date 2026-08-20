@@ -27,9 +27,8 @@ coverage/
 .idea/
 .vscode/
 
-# Local planning exports and reference captures
+# Local planning exports
 /docs/plans/*.pdf
-/IMG_1409.png
 
 # Knowledge graph: generated locally, rebuilt by the post-commit hook
 /graphify-out/
