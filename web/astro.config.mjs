@@ -17,6 +17,10 @@ const isDokploy = deploymentTarget === "dokploy";
 // the landing page static and the waitlist endpoint dynamic.
 export default defineConfig({
   output: "static",
+  // Astro's built-in check compares Origin with the adapter's internal URL,
+  // which is not proxy-aware in standalone Node mode. The waitlist route
+  // performs the equivalent validation against Host/X-Forwarded-* headers.
+  security: { checkOrigin: false },
   adapter: isDokploy
     ? node({ mode: "standalone" })
     : cloudflare({

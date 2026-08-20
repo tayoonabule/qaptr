@@ -47,6 +47,20 @@ test("Dokploy runtime serves the site and persists an idempotent signup", async 
   assert.equal(count.count, 1, "duplicate signups must remain idempotent");
 });
 
+test("Dokploy runtime rejects cross-site submissions", async () => {
+  const response = await fetch(`${server.baseUrl}/api/waitlist`, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      origin: "https://attacker.example",
+    },
+    body: new URLSearchParams({ email: "cross-site@example.com", source: "hero" }),
+  });
+
+  assert.equal(response.status, 403);
+});
+
 test("Dokploy runtime applies the same per-client rate limit", async () => {
   const clientIp = "203.0.113.99";
   let limited = false;

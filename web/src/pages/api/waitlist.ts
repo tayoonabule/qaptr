@@ -26,8 +26,35 @@ function redirectTo(
   return new Response(null, { status: 303, headers: { Location: new URL(path, origin).toString() } });
 }
 
+function isSameOrigin(request: Request): boolean {
+  const originHeader = request.headers.get("origin");
+  if (!originHeader) return false;
+
+  let submittedOrigin: URL;
+  try {
+    submittedOrigin = new URL(originHeader);
+  } catch {
+    return false;
+  }
+
+  const requestUrl = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
+  const expectedHost = forwardedHost || request.headers.get("host") || requestUrl.host;
+  const expectedProtocol = forwardedProtocol ? `${forwardedProtocol}:` : requestUrl.protocol;
+
+  return (
+    submittedOrigin.host.toLowerCase() === expectedHost.toLowerCase() &&
+    submittedOrigin.protocol === expectedProtocol
+  );
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
-  const origin = new URL(request.url).origin;
+  if (!isSameOrigin(request)) {
+    return new Response("Cross-site POST form submissions are forbidden", { status: 403 });
+  }
+
+  const origin = request.headers.get("origin")!;
   const db = await getWaitlistDb(locals);
 
   if (!db) {

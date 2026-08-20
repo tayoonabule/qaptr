@@ -123,6 +123,19 @@ test("the footer form posts independently of the hero form", async () => {
   await context.close();
 });
 
+test("cross-site waitlist submissions are rejected", async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const response = await page.request.post(`${server.baseUrl}/api/waitlist`, {
+    headers: { origin: "https://attacker.example" },
+    form: { email: `cross-site-${Date.now()}@example.com`, source: "hero" },
+    maxRedirects: 0,
+  });
+
+  assert.equal(response.status(), 403);
+  await context.close();
+});
+
 test("rate limiting blocks a burst of submissions from one client", async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
