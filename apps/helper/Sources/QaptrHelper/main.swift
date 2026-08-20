@@ -298,7 +298,19 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             return
         }
 
-        NSWorkspace.shared.openApplication(at: reviewAppURL, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+        // Pass the intent as a launch argument as well as posting the
+        // notification. A cold launch cannot be routed by notification alone:
+        // the post below can land before the newly spawned app registers its
+        // observers, which silently dropped the command and opened the app on
+        // its default surface. macOS delivers these arguments only when it
+        // actually spawns a new instance, so the two paths cover the warm and
+        // cold cases without double-applying the command.
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.arguments = ReviewLaunchCommandRequest
+            .forSettingsRequest(requestSettings)
+            .launchArguments
+
+        NSWorkspace.shared.openApplication(at: reviewAppURL, configuration: configuration) { _, error in
             if let error {
                 print("event=command_failed command=\(command) detail=\(error)")
                 return

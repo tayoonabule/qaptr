@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import QaptrReviewCore
 import SwiftUI
 
 // Hallmark: Native macOS scene routes remain stable while review surfaces use the studied-DNA layout.
@@ -95,7 +96,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // normally from that point on.
         window.makeFirstResponder(nil)
         NSApp.activate(ignoringOtherApps: true)
+        applyLaunchCommandIfPresent()
         recordFirstPaintIfRequested()
+    }
+
+    /// Honors a command the helper passed as a launch argument.
+    ///
+    /// A cold launch cannot be routed by distributed notification: the helper
+    /// posts as soon as the open call succeeds, which can precede this
+    /// delegate's observer registration, so the notification is dropped and the
+    /// window would open on its default surface. Reading the argument here runs
+    /// after the window exists and routes through the same policy-checked entry
+    /// points as the warm path, so both paths share one set of rules.
+    private func applyLaunchCommandIfPresent() {
+        guard let command = ReviewLaunchCommand.parse(
+            arguments: ProcessInfo.processInfo.arguments
+        ) else { return }
+        switch command {
+        case .showObservations:
+            showObservations()
+        case .openSettings:
+            openSettings()
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

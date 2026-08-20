@@ -32,3 +32,6 @@ coverage/
 
 # Knowledge graph: generated locally, rebuilt by the post-commit hook
 /graphify-out/
+
+# Local Playwright scratch scripts
+/web/*_tmp.cjs

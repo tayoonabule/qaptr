@@ -117,6 +117,12 @@ struct ContentView: View {
     }
     .buttonStyle(.plain)
     .frame(maxWidth: .infinity)
+    // The `Label` inside a `.plain` button does not reliably surface its text
+    // as the button's accessibility label, which left both rail items exposed
+    // to assistive technology and UI automation as untitled buttons
+    // distinguishable only by position. Naming the control explicitly restores
+    // that.
+    .accessibilityLabel(title)
     .accessibilityAddTraits(selected ? .isSelected : [])
   }
 
