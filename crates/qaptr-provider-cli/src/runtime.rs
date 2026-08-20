@@ -541,6 +541,7 @@ fn sandbox_profile(
 (allow mach-lookup (global-name \"com.apple.system.notification_center\"))\n\
 (allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))\n\
 (allow mach-lookup (global-name \"com.apple.logd\"))\n\
+(allow mach-lookup (global-name \"com.apple.SecurityServer\"))\n\
 (allow file-read*)\n\
 (allow file-map-executable)\n\
 (allow network-outbound)\n",
@@ -548,6 +549,14 @@ fn sandbox_profile(
     if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
         append_deny_subpath(&mut profile, "file-read*", &home)?;
         append_deny_subpath(&mut profile, "file-write*", &home)?;
+        // Denying the whole home subpath also hides the home directory entry
+        // itself, which breaks realpath(3) for any allowed path beneath it: the
+        // resolver must stat every parent component. Provider CLIs resolve
+        // their own state directory (for example CODEX_HOME) on startup and
+        // treat the failure as fatal. Granting metadata-only access to the
+        // single home directory entry keeps its contents denied while letting
+        // path resolution walk through it.
+        append_allow_literal(&mut profile, "file-read-metadata", &home)?;
     }
     append_deny_subpath(&mut profile, "file-read*", Path::new("/Volumes"))?;
     append_deny_subpath(&mut profile, "file-write*", Path::new("/Volumes"))?;
@@ -691,9 +700,39 @@ mod tests {
             "com.apple.system.notification_center",
             "com.apple.system.opendirectoryd.libinfo",
             "com.apple.logd",
+            // TLS trust evaluation. Without it every HTTPS handshake fails
+            // with an unknown-issuer error, so provider calls never reach the
+            // network.
+            "com.apple.SecurityServer",
         ] {
             assert!(profile.contains(&format!("(allow mach-lookup (global-name \"{service}\"))")));
         }
+    }
+
+    #[test]
+    fn home_directory_entry_stays_traversable_for_path_resolution() {
+        let home = PathBuf::from(std::env::var_os("HOME").expect("test has a home directory"));
+        let profile = sandbox_profile(
+            std::path::Path::new("/bin/echo"),
+            std::path::Path::new("/tmp/qaptr-provider-runtime"),
+            &[],
+        )
+        .expect("test paths are valid sandbox paths");
+        let home = home.to_str().expect("test home is UTF-8");
+
+        // realpath(3) stats every parent component, so an allowed path under
+        // the home directory is unreachable unless the directory entry itself
+        // can be stat'ed.
+        let metadata_allow = format!("(allow file-read-metadata (literal \"{home}\"))");
+        let contents_deny = format!("(deny file-read* (subpath \"{home}\"))");
+        assert!(
+            profile
+                .find(&contents_deny)
+                .expect("home contents stay denied")
+                < profile
+                    .find(&metadata_allow)
+                    .expect("home directory entry is stat-able")
+        );
     }
 
     #[test]
