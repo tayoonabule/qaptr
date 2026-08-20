@@ -330,7 +330,7 @@ struct OnboardingView: View {
   /// ever reported a status, so this never invents a running-capture claim.
   private var liveCaptureDisplaysText: String? {
     Self.liveCaptureDisplaysText(
-      helperIsRunning: model.captureProgress.helperIsRunning,
+      helperIsRunning: model.captureHelperIsRunning,
       selectedDisplayIDs: model.captureProgress.selectedDisplayIDs
     )
   }

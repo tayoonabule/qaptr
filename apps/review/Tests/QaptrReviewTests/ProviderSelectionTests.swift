@@ -35,12 +35,45 @@ private struct FakeOpenRouterChecker: OpenRouterChecking {
     }
 }
 
+private actor DelayedOpenRouterChecker: OpenRouterChecking {
+    private var continuation: CheckedContinuation<ProviderConnectionState, Never>?
+    private(set) var started = false
+
+    func check(apiKey: String) async -> ProviderConnectionState {
+        _ = apiKey
+        started = true
+        return await withCheckedContinuation { continuation = $0 }
+    }
+
+    func resolve(_ result: ProviderConnectionState) {
+        continuation?.resume(returning: result)
+        continuation = nil
+    }
+}
+
 private struct FakeCLIProviderChecker: CLIProviderChecking {
     var result: CLIProviderConnectionResult = .connected
 
     func check(providerID: String) async -> CLIProviderConnectionResult {
         _ = providerID
         return result
+    }
+}
+
+private actor MutableCLIProviderChecker: CLIProviderChecking {
+    private var result: CLIProviderConnectionResult
+
+    init(result: CLIProviderConnectionResult) {
+        self.result = result
+    }
+
+    func check(providerID: String) async -> CLIProviderConnectionResult {
+        _ = providerID
+        return result
+    }
+
+    func setResult(_ result: CLIProviderConnectionResult) {
+        self.result = result
     }
 }
 
@@ -54,16 +87,20 @@ private struct FakeCLIProviderChecker: CLIProviderChecking {
 final class ProviderSelectionTests: XCTestCase {
     private func makeModel(
         storedKey: String? = nil,
-        cliResult: CLIProviderConnectionResult = .connected
+        cliResult: CLIProviderConnectionResult = .connected,
+        openRouterChecker: any OpenRouterChecking = FakeOpenRouterChecker(),
+        cliProviderChecker: (any CLIProviderChecking)? = nil,
+        onboardingCompleted: Bool = false
     ) -> (ReviewAppModel, FakeProviderCredentialStore) {
         let credentialStore = FakeProviderCredentialStore()
         credentialStore.storedKey = storedKey
         let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        preferences.onboardingCompleted = onboardingCompleted
         let model = ReviewAppModel(
             preferences: preferences,
             credentialStore: credentialStore,
-            openRouterChecker: FakeOpenRouterChecker(),
-            cliProviderChecker: FakeCLIProviderChecker(result: cliResult)
+            openRouterChecker: openRouterChecker,
+            cliProviderChecker: cliProviderChecker ?? FakeCLIProviderChecker(result: cliResult)
         )
         return (model, credentialStore)
     }
@@ -175,6 +212,44 @@ final class ProviderSelectionTests: XCTestCase {
         XCTAssertNil(model.providerSetupRequest)
     }
 
+    func testStaleOpenRouterCheckCannotConnectANewlySelectedCLI() async {
+        let delayedChecker = DelayedOpenRouterChecker()
+        let (model, _) = makeModel(
+            cliResult: .failed(.notAuthenticated),
+            openRouterChecker: delayedChecker
+        )
+
+        model.connectProvider(.openRouter)
+        model.startOpenRouterConnectionCheck("sk-delayed")
+        await waitUntil { await delayedChecker.started }
+
+        model.connectProvider(.claudeCLI)
+        await waitUntil { model.providerConnection == .failed(.cli(.notAuthenticated)) }
+        await delayedChecker.resolve(.connected)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(model.settings.provider, .claudeCLI)
+        XCTAssertEqual(model.providerConnection, .failed(.cli(.notAuthenticated)))
+        XCTAssertFalse(model.analysisCanStart)
+    }
+
+    func testSettingsRefreshRechecksSelectedCLIAuthentication() async {
+        let checker = MutableCLIProviderChecker(result: .connected)
+        let (model, _) = makeModel(
+            cliProviderChecker: checker,
+            onboardingCompleted: true
+        )
+
+        model.connectProvider(.jcodeCLI)
+        await waitUntil { model.providerConnection == .connected }
+
+        await checker.setResult(.failed(.notAuthenticated))
+        model.refreshSettings()
+        await waitUntil { model.providerConnection == .failed(.cli(.notAuthenticated)) }
+
+        XCTAssertFalse(model.analysisCanStart)
+    }
+
     func testKeySavedStateIsDistinctFromConnectedState() {
         // `configured` (a local Keychain key exists) must never claim the
         // stronger `connected` (network-verified) state.
@@ -193,6 +268,19 @@ final class ProviderSelectionTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(20))
         }
         XCTAssertTrue(condition())
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(2),
+        _ condition: @escaping @Sendable () async -> Bool
+    ) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !(await condition()), clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        let completed = await condition()
+        XCTAssertTrue(completed)
     }
 }
 

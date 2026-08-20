@@ -230,6 +230,7 @@ final class CaptureProgressSnapshotTests: XCTestCase {
             processID: Int64(ProcessInfo.processInfo.processIdentifier)
         )
 
+        XCTAssertTrue(paused.helperProcessExists)
         XCTAssertFalse(paused.helperIsRunning)
         XCTAssertEqual(paused.statusLabel, "Capture paused")
         XCTAssertEqual(paused.readiness, .captureReady)

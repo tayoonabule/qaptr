@@ -3,6 +3,88 @@ import SwiftUI
 
 // Hallmark: Control Plane layout. A persistent category rail keeps one deliberate editor in focus.
 
+enum CaptureSettingsAction: Equatable {
+  case pause
+  case resume
+  case restart
+  case openPrivacy
+}
+
+struct CaptureSettingsPresentation: Equatable {
+  let title: String
+  let detail: String
+  let action: CaptureSettingsAction?
+  let actionLabel: String?
+
+  static func present(
+    intent: CaptureControlIntent,
+    progress: CaptureProgressSnapshot,
+    helperIsRunning: Bool,
+    helperProcessExists: Bool
+  ) -> Self {
+    if intent == .paused {
+      return Self(
+        title: "Capture paused",
+        detail: "No new ticks will start until you resume.",
+        action: .resume,
+        actionLabel: "Resume"
+      )
+    }
+
+    switch progress.state {
+    case .permissionRequired:
+      return Self(
+        title: "Screen Recording required",
+        detail: progress.failureReason ?? "Grant Screen Recording permission to continue.",
+        action: .openPrivacy,
+        actionLabel: "Review privacy"
+      )
+    case .noDisplays:
+      return Self(
+        title: "No display available",
+        detail: progress.failureReason ?? "Connect a display before Qaptr can capture.",
+        action: nil,
+        actionLabel: nil
+      )
+    case .error, .stopped, .unknown:
+      return Self(
+        title: "Capture needs attention",
+        detail: progress.actionableReason ?? "The background helper is not running.",
+        action: .restart,
+        actionLabel: "Try again"
+      )
+    case .paused where helperProcessExists:
+      return Self(
+        title: "Capture resuming",
+        detail: "The helper is applying your request.",
+        action: .pause,
+        actionLabel: "Pause"
+      )
+    case .starting where helperProcessExists:
+      return Self(
+        title: "Capture starting",
+        detail: "The helper is preparing the first capture tick.",
+        action: .pause,
+        actionLabel: "Pause"
+      )
+    case .waiting where helperIsRunning, .capturing where helperIsRunning:
+      return Self(
+        title: "Capture running",
+        detail: "The helper owns capture timing in the background.",
+        action: .pause,
+        actionLabel: "Pause"
+      )
+    case .starting, .waiting, .capturing, .paused:
+      return Self(
+        title: "Capture needs attention",
+        detail: "The background helper is not responding.",
+        action: .restart,
+        actionLabel: "Try again"
+      )
+    }
+  }
+}
+
 /// The control surface for the small number of choices that affect Qaptr.
 ///
 /// Redesigned around compact bordered product cards and the mono meta voice.
@@ -148,33 +230,49 @@ struct SettingsView: View {
   }
 
   private var captureSection: some View {
-    SettingsSection(
+    let presentation = CaptureSettingsPresentation.present(
+      intent: model.captureControlIntent,
+      progress: model.captureProgress,
+      helperIsRunning: model.captureHelperIsRunning,
+      helperProcessExists: model.captureHelperProcessExists
+    )
+    return SettingsSection(
       title: "Capture", detail: "Choose Qaptr's local capture rhythm and expiry window."
     ) {
       VStack(alignment: .leading, spacing: QaptrSpace.md) {
         HStack(alignment: .firstTextBaseline, spacing: QaptrSpace.sm) {
           VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-            Text(model.captureControlIntent == .paused ? "Capture paused" : "Capture running")
+            Text(presentation.title)
               .font(QaptrType.title())
               .foregroundStyle(Color.qaptrInk)
-            Text(
-              model.captureControlIntent == .paused
-                ? "No new ticks will start until you resume."
-                : "The helper owns capture timing in the background."
-            )
+            Text(presentation.detail)
               .font(QaptrType.caption())
               .foregroundStyle(Color.qaptrInkSoft)
           }
           Spacer()
-          Button(model.captureControlIntent == .paused ? "Resume" : "Pause") {
-            if model.captureControlIntent == .paused {
-              model.resumeCapture()
-            } else {
-              model.pauseCapture()
+          if let action = presentation.action, let actionLabel = presentation.actionLabel {
+            Button(actionLabel) {
+              switch action {
+              case .pause:
+                model.pauseCapture()
+              case .resume:
+                model.resumeCapture()
+              case .restart:
+                model.restartCaptureHelper()
+              case .openPrivacy:
+                selectedCategory = .privacy
+              }
             }
+            .buttonStyle(.tactile)
+            .accessibilityLabel(actionLabel)
           }
-          .buttonStyle(.tactile)
-          .accessibilityLabel(model.captureControlIntent == .paused ? "Resume capture" : "Pause capture")
+        }
+
+        if let error = model.captureRestartError {
+          Text(error)
+            .font(QaptrType.caption())
+            .foregroundStyle(Color.qaptrError)
+            .fixedSize(horizontal: false, vertical: true)
         }
 
         HStack(alignment: .firstTextBaseline) {

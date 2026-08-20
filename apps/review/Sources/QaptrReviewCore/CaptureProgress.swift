@@ -318,14 +318,20 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
 
     public static let unavailable = CaptureProgressSnapshot(state: .stopped, captureCount: nil)
 
+    /// Whether the process that wrote this snapshot still exists. This stays
+    /// true while capture is deliberately paused, which lets the review app
+    /// distinguish a healthy paused helper from one that exited unexpectedly.
+    public var helperProcessExists: Bool {
+        guard let processID, processID > 0 else { return false }
+        return Darwin.kill(pid_t(processID), 0) == 0
+    }
+
     /// A waiting or active capture state is only called active while the
     /// helper process that wrote it still exists. This prevents a stale file
     /// after a crash from claiming that background capture is running.
     public var helperIsRunning: Bool {
-        guard state != .stopped, state != .paused, let processID, processID > 0 else {
-            return false
-        }
-        return Darwin.kill(pid_t(processID), 0) == 0
+        guard state != .stopped, state != .paused else { return false }
+        return helperProcessExists
     }
 
     public var statusLabel: String {
@@ -333,7 +339,7 @@ public struct CaptureProgressSnapshot: Codable, Equatable, Sendable {
         case .starting:
             "Starting"
         case .waiting:
-            helperIsRunning ? "Background capture active" : "Helper not running"
+            helperIsRunning ? "Background capture active" : "Helper not responding"
         case .capturing:
             helperIsRunning ? "Capturing now" : "Capture interrupted"
         case .paused:

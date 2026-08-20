@@ -15,8 +15,8 @@ private func recordFirstPaintIfRequested() {
 }
 
 @MainActor
-private final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var window: NSWindow?
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var windowController: NSWindowController?
     let model = ReviewAppModel()
     let navigation = ReviewNavigation()
 
@@ -78,7 +78,13 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = NSColor(name: nil, dynamicProvider: qaptrSurfaceNSColor)
         window.contentView = content
         window.center()
-        window.makeKeyAndOrderFront(nil)
+        // A window controller owns the AppKit close/reopen lifecycle. Keeping
+        // it on the delegate preserves this same window and SwiftUI model after
+        // Close so Dock and helper-menu reopen commands can show the in-flight
+        // analysis again instead of creating a fresh session.
+        let windowController = NSWindowController(window: window)
+        self.windowController = windowController
+        windowController.showWindow(nil)
         // AppKit auto-assigns the first key-view-loop-eligible control as
         // first responder whenever a window becomes key with none set,
         // which for this window means the first onboarding button always
@@ -89,7 +95,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         // normally from that point on.
         window.makeFirstResponder(nil)
         NSApp.activate(ignoringOtherApps: true)
-        self.window = window
         recordFirstPaintIfRequested()
     }
 
@@ -100,8 +105,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showMainWindow() {
-        guard let window else { return }
+        guard let windowController, let window = windowController.window else { return }
         NSApp.activate(ignoringOtherApps: true)
+        windowController.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
     }
 
@@ -134,7 +140,18 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        // Closing a window is not consent to cancel an in-flight analysis.
+        // Keep the retained AppKit window and model alive; explicit Quit still
+        // terminates the application and its native session.
+        false
+    }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        if !flag { showMainWindow() }
+        return true
     }
 }
 

@@ -68,8 +68,11 @@ final class ReviewAppModel {
     private(set) var snapshot: ReviewSnapshot = .empty
     private(set) var reviewStatus: ReviewStatus? = nil
     private(set) var captureProgress: CaptureProgressSnapshot = .unavailable
+    private(set) var captureHelperIsRunning = false
+    private(set) var captureHelperProcessExists = false
     private(set) var captureIntervalSeconds = CaptureIntervalPolicy.defaultSeconds
     private(set) var captureControlIntent: CaptureControlIntent = .running
+    private(set) var captureRestartError: String?
     private(set) var loadError: String?
     private(set) var reviewStatusError: String? = nil
     private(set) var settings: SettingsState = .placeholder
@@ -88,9 +91,12 @@ final class ReviewAppModel {
     private let credentialStore: any ProviderCredentialStoring
     private let openRouterChecker: any OpenRouterChecking
     private let cliProviderChecker: any CLIProviderChecking
+    private let helperHeartbeatProcessIDOverride: (() -> Int?)?
     private let analysisSessionFactory: AnalysisSessionFactory?
     private var analysisSessionController: (any AnalysisSessionControlling)?
     private var analysisPollingTask: Task<Void, Never>?
+    private var captureRestartTask: Task<Void, Never>?
+    private var providerConnectionAttempt: UUID?
 
     init(
         preferences: SettingsPreferences = SettingsPreferences(store: UserDefaults.standard),
@@ -98,6 +104,7 @@ final class ReviewAppModel {
         openRouterChecker: any OpenRouterChecking = OpenRouterConnectionChecker(),
         progressReader: CaptureProgressReader? = nil,
         controlStore: CaptureControlStore? = nil,
+        helperHeartbeatProcessID: (() -> Int?)? = nil,
         cliProviderChecker: (any CLIProviderChecking)? = nil,
         analysisSessionFactory: AnalysisSessionFactory? = nil,
         storePath: URL? = nil
@@ -118,6 +125,7 @@ final class ReviewAppModel {
         let storePath = storePath ?? defaultStorePath()
         self.progressReader = progressReader ?? CaptureProgressReader(url: defaultCaptureProgressPath())
         self.controlStore = controlStore ?? CaptureControlStore(url: defaultCaptureControlPath())
+        self.helperHeartbeatProcessIDOverride = helperHeartbeatProcessID
         let resolvedBridge: ReviewBridge?
         if usesMockData {
             resolvedBridge = nil
@@ -363,13 +371,32 @@ final class ReviewAppModel {
         if usesMockData {
             #if DEBUG
             captureProgress = DevMockData.captureProgress
+            captureHelperIsRunning = [.starting, .waiting, .capturing].contains(DevMockData.captureProgress.state)
+            captureHelperProcessExists = captureHelperIsRunning
             captureIntervalSeconds = DevMockData.captureProgress.activeIntervalSeconds ?? CaptureIntervalPolicy.defaultSeconds
             captureControlIntent = DevMockData.captureProgress.state == .paused ? .paused : .running
             settings.intervalSeconds = captureIntervalSeconds
             #endif
             return
         }
-        captureProgress = (try? progressReader.read()) ?? .unavailable
+        let progress = (try? progressReader.read()) ?? .unavailable
+        captureProgress = progress
+        // Persist the process check as observable state. A stale snapshot can
+        // remain byte-for-byte identical after a helper crash, so relying on a
+        // computed `kill(pid, 0)` value alone does not invalidate SwiftUI.
+        // Capture progress changes only on lifecycle events and ticks. The
+        // helper's path-bound permission snapshot is the actual one-second
+        // heartbeat, so use it to detect a live, responsive helper without
+        // treating a long configured capture interval as a hang.
+        let heartbeatProcessID: Int?
+        if let helperHeartbeatProcessIDOverride {
+            heartbeatProcessID = helperHeartbeatProcessIDOverride()
+        } else {
+            heartbeatProcessID = currentHelperPermissionSnapshot()?.processID
+        }
+        captureHelperIsRunning = progress.helperIsRunning
+            && heartbeatProcessID == progress.processID.map(Int.init)
+        captureHelperProcessExists = progress.helperProcessExists
         let control = (try? controlStore.read()) ?? .default
         captureControlIntent = control.intent
         captureIntervalSeconds = control.intervalSeconds
@@ -404,6 +431,74 @@ final class ReviewAppModel {
     /// schedule while preserving the selected interval.
     func resumeCapture() {
         setCaptureControlIntent(.running)
+        if !captureHelperProcessExists {
+            restartCaptureHelper()
+        }
+    }
+
+    /// Explicit recovery for a helper that exited while capture intent stayed
+    /// running. Opening the exact nested helper is the same public app boundary
+    /// used during setup and avoids silently claiming capture is live from a
+    /// stale progress file.
+    func restartCaptureHelper() {
+        guard let helperURL = helperApplicationURL() else {
+            captureRestartError = "The capture helper is missing from this Qaptr installation. Reinstall Qaptr and try again."
+            captureHelperIsRunning = false
+            captureHelperProcessExists = false
+            return
+        }
+
+        captureRestartTask?.cancel()
+        captureRestartError = nil
+        captureRestartTask = Task { [weak self] in
+            guard let self else { return }
+
+            // A helper can still own the single-instance lock while its
+            // heartbeat is stale. Stop that exact bundle ID before relaunching
+            // so Try Again recovers both exited and hung processes.
+            for application in Self.runningHelperApplications {
+                application.terminate()
+            }
+            for _ in 0..<20 where !Self.runningHelperApplications.isEmpty {
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            for application in Self.runningHelperApplications {
+                application.forceTerminate()
+            }
+            for _ in 0..<10 where !Self.runningHelperApplications.isEmpty {
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+
+            guard !Task.isCancelled else { return }
+            if let error = await self.openCaptureHelper(at: helperURL) {
+                self.captureRestartError = "Qaptr could not restart capture: \(error.localizedDescription)"
+                return
+            }
+
+            for _ in 0..<40 {
+                guard !Task.isCancelled else { return }
+                self.refreshCaptureProgress()
+                if self.captureHelperIsRunning {
+                    self.captureRestartError = nil
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            self.captureRestartError = "The capture helper did not respond. Quit and reopen Qaptr, then try again."
+        }
+    }
+
+    private func openCaptureHelper(at helperURL: URL) async -> Error? {
+        await withCheckedContinuation { continuation in
+            NSWorkspace.shared.openApplication(
+                at: helperURL,
+                configuration: NSWorkspace.OpenConfiguration()
+            ) { _, error in
+                continuation.resume(returning: error)
+            }
+        }
     }
 
     private func setCaptureControlIntent(_ intent: CaptureControlIntent) {
@@ -440,9 +535,10 @@ final class ReviewAppModel {
         settings = next
         if onboardingCompleted {
             if let provider = settings.provider, provider != .openRouter {
-                if providerConnection == .notConnected {
-                    verifyCLIProvider(provider)
-                }
+                // Authentication can change while Qaptr is in the background.
+                // Re-check the selected CLI whenever settings are refreshed
+                // instead of preserving a stale connected badge indefinitely.
+                verifyCLIProvider(provider)
             } else {
                 refreshProviderConnection()
             }
@@ -698,6 +794,7 @@ final class ReviewAppModel {
     func setProvider(_ provider: ProviderChoice) {
         if settings.provider != provider {
             resetAnalysisSessionForProviderChange()
+            providerConnectionAttempt = nil
         }
         preferences.provider = provider
         settings.provider = provider
@@ -711,6 +808,7 @@ final class ReviewAppModel {
     /// Removes the provider preference without triggering a provider request.
     func clearProvider() {
         resetAnalysisSessionForProviderChange()
+        providerConnectionAttempt = nil
         preferences.provider = nil
         settings.provider = nil
         providerSetupRequest = nil
@@ -746,12 +844,18 @@ final class ReviewAppModel {
 
     private func verifyCLIProvider(_ provider: ProviderChoice) {
         guard provider != .openRouter else { return }
+        let attempt = UUID()
+        providerConnectionAttempt = attempt
         providerConnection = .checking
         let checker = cliProviderChecker
         Task { [weak self] in
             let result = await checker.check(providerID: provider.rawValue)
             await MainActor.run {
-                guard let self, self.settings.provider == provider else { return }
+                guard let self,
+                      self.settings.provider == provider,
+                      self.providerConnectionAttempt == attempt
+                else { return }
+                self.providerConnectionAttempt = nil
                 switch result {
                 case .connected:
                     self.providerConnection = .connected
@@ -777,6 +881,8 @@ final class ReviewAppModel {
     }
 
     func startOpenRouterConnectionCheck(_ key: String) {
+        let attempt = UUID()
+        providerConnectionAttempt = attempt
         providerConnection = .checking
         do {
             try credentialStore.saveOpenRouterKey(key)
@@ -788,8 +894,13 @@ final class ReviewAppModel {
         Task { [weak self] in
             let result = await checker.check(apiKey: key)
             await MainActor.run {
-                self?.providerConnection = result
-                if result == .connected { self?.providerSetupRequest = nil }
+                guard let self,
+                      self.settings.provider == .openRouter,
+                      self.providerConnectionAttempt == attempt
+                else { return }
+                self.providerConnectionAttempt = nil
+                self.providerConnection = result
+                if result == .connected { self.providerSetupRequest = nil }
             }
         }
     }
@@ -808,6 +919,9 @@ final class ReviewAppModel {
         }
         guard let provider = settings.provider else {
             providerConnection = .notConnected
+            return
+        }
+        if provider == .openRouter, providerConnectionAttempt != nil {
             return
         }
         providerConnection = provider == .openRouter

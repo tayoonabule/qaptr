@@ -67,4 +67,44 @@ final class CaptureControlModelTests: XCTestCase {
         XCTAssertEqual(model.captureControlIntent, .paused)
         XCTAssertEqual(model.captureIntervalSeconds, 60)
     }
+
+    func testRefreshPublishesLivenessWhenAnOtherwiseUnchangedHelperSnapshotGoesStale() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qaptr-capture-liveness-model-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let controlStore = CaptureControlStore(url: root.appendingPathComponent("capture-control.json"))
+        try controlStore.write(try CaptureControl(intervalSeconds: 60, intent: .running))
+        let progressURL = root.appendingPathComponent("capture-progress.json")
+
+        let helper = Process()
+        helper.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        helper.arguments = ["0.1"]
+        try helper.run()
+        let progress = CaptureProgressSnapshot(
+            state: .waiting,
+            captureCount: 1,
+            processID: Int64(helper.processIdentifier)
+        )
+        try JSONEncoder().encode(progress).write(to: progressURL, options: .atomic)
+
+        let model = ReviewAppModel(
+            preferences: SettingsPreferences(store: InMemoryPreferenceStore()),
+            credentialStore: CaptureControlTestCredentialStore(),
+            openRouterChecker: CaptureControlTestOpenRouterChecker(),
+            progressReader: CaptureProgressReader(url: progressURL),
+            controlStore: controlStore,
+            helperHeartbeatProcessID: {
+                helper.isRunning ? Int(helper.processIdentifier) : nil
+            },
+            storePath: root.appendingPathComponent("history.sqlite3")
+        )
+        XCTAssertTrue(model.captureHelperIsRunning)
+        XCTAssertTrue(model.captureHelperProcessExists)
+
+        helper.waitUntilExit()
+        model.refreshCaptureProgress()
+
+        XCTAssertFalse(model.captureHelperIsRunning)
+        XCTAssertFalse(model.captureHelperProcessExists)
+    }
 }

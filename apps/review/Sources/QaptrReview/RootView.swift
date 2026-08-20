@@ -123,7 +123,7 @@ struct ContentView: View {
   private var captureStatus: CaptureStatusPresentation {
     CaptureStatusPresentation.present(
       intent: model.captureControlIntent,
-      helperIsRunning: model.captureProgress.helperIsRunning
+      helperIsRunning: model.captureHelperIsRunning
     )
   }
 
