@@ -229,8 +229,11 @@ final class CaptureCoreTests: XCTestCase {
     func testCaptureControlPersistsBoundedIntervalAndRunningIntent() throws {
         let control = try CaptureControl(intervalSeconds: 60)
         let encoded = try JSONEncoder().encode(control)
-        let json = String(decoding: encoded, as: UTF8.self)
-        XCTAssertEqual(json, "{\"interval_seconds\":60,\"intent\":\"running\"}")
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        XCTAssertEqual(json["interval_seconds"] as? Int, 60)
+        XCTAssertEqual(json["intent"] as? String, "running")
     }
 
     func testCaptureControlDecodesLegacyIntervalAsRunningAndPreservesIntervalWhenPaused() throws {
