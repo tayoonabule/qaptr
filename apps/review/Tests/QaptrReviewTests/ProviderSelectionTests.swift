@@ -144,8 +144,7 @@ final class ProviderSelectionTests: XCTestCase {
 
         model.connectProvider(.codexCLI)
         XCTAssertEqual(model.providerConnection, .checking)
-        await Task.yield()
-        await Task.yield()
+        await waitUntil { model.providerConnection == .connected }
 
         XCTAssertEqual(model.providerConnection, .connected)
         XCTAssertEqual(model.settings.provider, .codexCLI)
@@ -155,8 +154,7 @@ final class ProviderSelectionTests: XCTestCase {
         let (model, _) = makeModel(cliResult: .failed(.notAuthenticated))
 
         model.connectProvider(.claudeCLI)
-        await Task.yield()
-        await Task.yield()
+        await waitUntil { model.providerConnection == .failed(.cli(.notAuthenticated)) }
 
         XCTAssertEqual(model.providerConnection, .failed(.cli(.notAuthenticated)))
         XCTAssertEqual(
@@ -169,7 +167,7 @@ final class ProviderSelectionTests: XCTestCase {
         let (model, credentialStore) = makeModel(storedKey: "sk-existing")
 
         model.connectProvider(.jcodeCLI)
-        await Task.yield()
+        await waitUntil { model.providerConnection == .connected }
         model.connectProvider(.openRouter)
 
         XCTAssertEqual(credentialStore.storedKey, "sk-existing")
@@ -183,6 +181,18 @@ final class ProviderSelectionTests: XCTestCase {
         XCTAssertNotEqual(ProviderConnectionState.configured, ProviderConnectionState.connected)
         XCTAssertEqual(ProviderConnectionState.configured.title, "Key saved")
         XCTAssertEqual(ProviderConnectionState.connected.title, "Connected")
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(2),
+        _ condition: @escaping @MainActor () -> Bool
+    ) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition(), clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(condition())
     }
 }
 

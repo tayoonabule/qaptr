@@ -29,7 +29,8 @@ struct QaptrBrandLogo: View {
 
 private enum QaptrReviewLogoResources {
   static let aperture: Data = {
-    guard let url = Bundle.module.url(forResource: "QaptrAperture", withExtension: "svg"),
+    guard let url = Bundle.main.url(forResource: "QaptrAperture", withExtension: "svg")
+      ?? Bundle.module.url(forResource: "QaptrAperture", withExtension: "svg"),
       let data = try? Data(contentsOf: url)
     else {
       return Data()

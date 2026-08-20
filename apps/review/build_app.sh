@@ -29,7 +29,12 @@ swift_bin_path=$(swift build \
     --configuration "$configuration" \
     --show-bin-path)
 swift_binary="$swift_bin_path/QaptrReview"
+swift_resource_bundle="$swift_bin_path/QaptrReview_QaptrReview.bundle"
 [[ -x "$swift_binary" ]] || { echo "Swift build did not produce: $swift_binary" >&2; exit 1; }
+[[ -d "$swift_resource_bundle" ]] || {
+    echo "Swift build did not produce resources: $swift_resource_bundle" >&2
+    exit 1
+}
 
 # Keep the raw SwiftPM executable runnable during development. ReviewBridge
 # searches beside the executable after the package-specific environment and
@@ -40,8 +45,13 @@ ln -sf "$ffi_library" "$swift_bin_path/libqaptr_review_ffi.dylib"
 rm -rf "$app_dir"
 mkdir -p "$app_dir/Contents/MacOS"
 mkdir -p "$app_dir/Contents/Frameworks"
+mkdir -p "$app_dir/Contents/Resources"
 cp "$review_dir/Resources/Info.plist" "$app_dir/Contents/Info.plist"
 cp "$swift_binary" "$app_dir/Contents/MacOS/QaptrReview"
+# Put runtime assets in the standard signed app-resource location. The view
+# checks Bundle.main first and only uses SwiftPM's generated bundle in local
+# `swift run` builds.
+cp "$swift_resource_bundle/QaptrAperture.svg" "$app_dir/Contents/Resources/QaptrAperture.svg"
 ffi_name=$(basename "$ffi_library")
 cp "$ffi_library" "$app_dir/Contents/Frameworks/$ffi_name"
 # Cargo embeds the build-machine path as the dylib install name. Rewrite it

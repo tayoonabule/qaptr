@@ -203,6 +203,10 @@ bash "$packaging_dir/sign.sh" "${sign_mode[@]}" "$outer"
 [[ -x "$outer/Contents/MacOS/Qaptr" ]] || exit 1
 [[ -x "$review_dst/Contents/MacOS/QaptrReview" ]] || exit 1
 [[ -x "$helper_dst/Contents/MacOS/QaptrHelper" ]] || exit 1
+[[ -f "$review_dst/Contents/Resources/QaptrAperture.svg" ]] || {
+    echo "nested review app logo resource is missing" >&2
+    exit 1
+}
 [[ "$(plutil -extract CFBundleShortVersionString raw -o - "$review_dst/Contents/Info.plist")" == "$version" ]] || exit 1
 [[ "$(plutil -extract CFBundleShortVersionString raw -o - "$helper_dst/Contents/Info.plist")" == "$version" ]] || exit 1
 [[ "$(plutil -extract CFBundleVersion raw -o - "$review_dst/Contents/Info.plist")" == "$build_version" ]] || exit 1
