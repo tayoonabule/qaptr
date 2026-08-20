@@ -60,6 +60,15 @@ struct SettingsView: View {
 
     var id: Self { self }
 
+    var symbol: String {
+      switch self {
+      case .capture: "camera.viewfinder"
+      case .analysis: "sparkles"
+      case .privacy: "hand.raised"
+      case .neverCapture: "eye.slash"
+      }
+    }
+
     var detail: String {
       switch self {
       case .capture: "Rhythm and local history"
@@ -90,35 +99,37 @@ struct SettingsView: View {
   }
 
   private var categoryTabs: some View {
-    HStack(spacing: QaptrSpace.xs) {
-      ForEach(SettingsCategory.allCases) { category in
+    HStack(spacing: 0) {
+      ForEach(Array(SettingsCategory.allCases.enumerated()), id: \.element) { index, category in
         Button {
           selectedCategory = category
         } label: {
-          Text(category.rawValue)
-            .font(QaptrType.body(12.5))
-            .fontWeight(selectedCategory == category ? .semibold : .regular)
-          .foregroundStyle(selectedCategory == category ? Color.qaptrSurface : Color.qaptrInkSoft)
-          .padding(.horizontal, QaptrSpace.sm)
-          .padding(.vertical, QaptrSpace.sm)
-          .background(
-            selectedCategory == category ? Color.qaptrPrimaryAction : Color.clear,
-            in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-          )
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.tactile)
+          Label(category.rawValue, systemImage: category.symbol)
+            .labelStyle(.titleAndIcon)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(SettingsCategoryButtonStyle(isSelected: selectedCategory == category))
         .accessibilityAddTraits(selectedCategory == category ? .isSelected : [])
         .accessibilityLabel(category.rawValue)
         .accessibilityValue(selectedCategory == category ? "Selected" : "Not selected")
+        .accessibilityHint(category.detail)
+
+        if index < SettingsCategory.allCases.count - 1 {
+          Rectangle()
+            .fill(Color.qaptrHairline)
+            .frame(width: 1, height: 20)
+        }
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.bottom, QaptrSpace.xs)
-    .overlay(alignment: .bottom) {
-      Rectangle()
-        .fill(Color.qaptrHairline)
-        .frame(height: 1)
+    .padding(QaptrSpace.xxs)
+    .background(
+      Color.qaptrPaperMist.opacity(0.72),
+      in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+    )
+    .overlay {
+      RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+        .strokeBorder(Color.qaptrHairline, lineWidth: 1)
     }
   }
 
@@ -424,6 +435,34 @@ struct SettingsView: View {
       get: { model.settings.loginItemEnabled },
       set: { model.setLoginItemEnabled($0) }
     )
+  }
+}
+
+private struct SettingsCategoryButtonStyle: ButtonStyle {
+  let isSelected: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(QaptrType.title(12.5))
+      .foregroundStyle(isSelected ? Color.qaptrInk : Color.qaptrInkSoft)
+      .padding(.horizontal, QaptrSpace.md)
+      .padding(.vertical, QaptrSpace.sm)
+      .background(
+        isSelected
+          ? Color.qaptrSurface
+          : (configuration.isPressed ? Color.qaptrSurface.opacity(0.72) : Color.clear),
+        in: RoundedRectangle(cornerRadius: QaptrRadius.input, style: .continuous)
+      )
+      .overlay(alignment: .bottom) {
+        RoundedRectangle(cornerRadius: 1)
+          .fill(isSelected ? Color.qaptrTeal : Color.clear)
+          .frame(width: 28, height: 2)
+          .padding(.bottom, 2)
+      }
+      .contentShape(Rectangle())
+      .scaleEffect(reduceMotion || !configuration.isPressed ? 1 : 0.985)
+      .animation(QaptrMotion.press, value: configuration.isPressed)
   }
 }
 

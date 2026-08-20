@@ -131,6 +131,14 @@ private struct AnalysisControlView: View {
                     .font(QaptrType.caption())
                     .foregroundStyle(Color.qaptrError)
             }
+
+            if model.analysisSessionState.phase.isActivelyWorking {
+                AnalysisProgressView(
+                    state: model.analysisSessionState,
+                    providerName: model.settings.provider?.displayName
+                )
+                .padding(.top, QaptrSpace.xxs)
+            }
         }
         .padding(.horizontal, QaptrSpace.lg)
         .padding(.vertical, QaptrSpace.md)
@@ -169,10 +177,15 @@ private struct AnalysisControlView: View {
     private var title: String {
         switch model.analysisSessionState.phase {
         case .idle: "Turn captures into observations"
-        case .ingesting: "Finding captured screenshots"
-        case .preparing: "Preparing screenshots locally"
+        case .ingesting: "Finding screenshots in your local vault"
+        case .preparing: "Protecting screenshots on this Mac"
         case .readyForConsent: "Ready for your approval"
-        case .analyzing: "Analyzing prepared context"
+        case .analyzing:
+            if let provider = model.settings.provider {
+                "\(provider.displayName) is reviewing approved text"
+            } else {
+                "Reviewing approved text"
+            }
         case .completed:
             if model.analysisSessionState.outcome == "consent_declined" {
                 "Nothing was sent"
@@ -204,13 +217,13 @@ private struct AnalysisControlView: View {
             let count = model.captureProgress.captureCount ?? 0
             return "\(count) screenshot\(count == 1 ? "" : "s") available. Preparation stays on this Mac."
         case .ingesting:
-            return "Qaptr is reading committed local capture metadata."
+            return "Qaptr is opening committed captures. Nothing has left this Mac."
         case .preparing:
-            return "OCR, masking, and privacy exclusions happen before consent."
+            return "OCR is extracting text while privacy rules remove sensitive content before approval."
         case .readyForConsent:
             return "Review exactly what will be sent before the provider is invoked."
         case .analyzing:
-            return "The approved text-only context is being checked by the selected provider."
+            return "Only the privacy-filtered text you approved is with the selected provider. Screenshot files remain local."
         case .completed:
             if state.outcome == "consent_declined" {
                 return "Nothing was sent. Prepared context stayed local."
@@ -234,6 +247,119 @@ private struct AnalysisControlView: View {
     }
 }
 
+private extension ReviewSessionPhase {
+    var isActivelyWorking: Bool {
+        self == .ingesting || self == .preparing || self == .analyzing
+    }
+}
+
+private struct AnalysisProgressView: View {
+    let state: ReviewSessionState
+    let providerName: String?
+
+    private let stages = AnalysisProgressStage.allCases
+
+    var body: some View {
+        HStack(alignment: .top, spacing: QaptrSpace.md) {
+            ForEach(Array(stages.enumerated()), id: \.element) { index, stage in
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+                    HStack(spacing: QaptrSpace.xs) {
+                        ZStack {
+                            Circle()
+                                .fill(stage.fill(for: state.phase))
+                                .frame(width: 18, height: 18)
+                            if stage.isComplete(for: state.phase) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(Color.qaptrSuccess)
+                            } else {
+                                Text("\(index + 1)")
+                                    .font(QaptrType.meta(8.5))
+                                    .foregroundStyle(stage.isCurrent(for: state.phase) ? Color.qaptrAccentStrong : Color.qaptrInkMuted)
+                            }
+                        }
+                        Text(stage.title)
+                            .font(QaptrType.title(11.5))
+                            .foregroundStyle(stage.isUpcoming(for: state.phase) ? Color.qaptrInkMuted : Color.qaptrInk)
+                    }
+                    Text(stage.detail(state: state, providerName: providerName))
+                        .font(QaptrType.caption(10.5))
+                        .foregroundStyle(Color.qaptrInkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.top, QaptrSpace.sm)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.qaptrHairline)
+                .frame(height: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Analysis progress")
+    }
+}
+
+private enum AnalysisProgressStage: Int, CaseIterable {
+    case collect
+    case protect
+    case analyze
+
+    var title: String {
+        switch self {
+        case .collect: "Find captures"
+        case .protect: "Protect locally"
+        case .analyze: "Create observations"
+        }
+    }
+
+    func detail(state: ReviewSessionState, providerName: String?) -> String {
+        switch self {
+        case .collect:
+            return state.capturesSeen > 0
+                ? "\(state.capturesSeen) found"
+                : "Reading the local vault"
+        case .protect:
+            if state.preparedCaptures > 0 {
+                return "\(state.preparedCaptures) ready · \(state.exclusionCount) kept out"
+            }
+            return "OCR and privacy checks"
+        case .analyze:
+            return state.phase == .analyzing
+                ? "Approved text with \(providerName ?? "provider")"
+                : "Waits for your approval"
+        }
+    }
+
+    func isComplete(for phase: ReviewSessionPhase) -> Bool {
+        rawValue < currentIndex(for: phase)
+    }
+
+    func isCurrent(for phase: ReviewSessionPhase) -> Bool {
+        rawValue == currentIndex(for: phase)
+    }
+
+    func isUpcoming(for phase: ReviewSessionPhase) -> Bool {
+        rawValue > currentIndex(for: phase)
+    }
+
+    func fill(for phase: ReviewSessionPhase) -> Color {
+        if isComplete(for: phase) { return Color.qaptrSoftMint }
+        if isCurrent(for: phase) { return Color.qaptrAccentTintStrong }
+        return Color.qaptrPaperMist
+    }
+
+    private func currentIndex(for phase: ReviewSessionPhase) -> Int {
+        switch phase {
+        case .ingesting: 0
+        case .preparing: 1
+        case .analyzing: 2
+        default: 0
+        }
+    }
+}
+
 private struct AnalysisConsentView: View {
     @Bindable var model: ReviewAppModel
     let summary: ReviewConsentSummary
@@ -241,33 +367,54 @@ private struct AnalysisConsentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: QaptrSpace.xl) {
             VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-                Text("Send prepared context?")
+                Text("Send prepared text?")
                     .font(QaptrType.editorial(30))
                     .foregroundStyle(Color.qaptrInk)
-                Text("Qaptr finished local privacy preparation. Nothing reaches the provider unless you approve this request.")
+                Text("Review the exact boundary before Qaptr contacts \(summary.provider). Nothing is sent unless you approve.")
                     .font(QaptrType.body())
                     .foregroundStyle(Color.qaptrInkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            HStack(alignment: .top, spacing: QaptrSpace.md) {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color.qaptrSuccess)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+                    Text("Screenshot files stay on this Mac")
+                        .font(QaptrType.title(13))
+                        .foregroundStyle(Color.qaptrInk)
+                    Text(AnalysisConsentPresentation.privacyExplanation(summary))
+                        .font(QaptrType.caption())
+                        .foregroundStyle(Color.qaptrInkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(QaptrSpace.md)
+            .background(
+                Color.qaptrSoftMint.opacity(0.72),
+                in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+            )
+
             VStack(alignment: .leading, spacing: QaptrSpace.sm) {
                 consentRow("Provider", summary.provider)
                 consentRow("Model", summary.modelLabel)
-                consentRow("Payload", summary.payloadKind == "text" ? "Text only" : summary.payloadKind)
-                consentRow("Prepared captures", "\(summary.captureCount)")
-                consentRow("Images sent", "\(summary.imageCount)")
+                consentRow("Sent to provider", AnalysisConsentPresentation.payloadLabel(summary))
+                consentRow("Source captures", "\(summary.captureCount) prepared locally")
+                consentRow("Screenshot files", summary.imageCount == 0 ? "None sent" : "\(summary.imageCount) sent")
                 consentRow("Excluded locally", "\(summary.exclusionCount)")
             }
 
             HStack(spacing: QaptrSpace.sm) {
                 Button("Keep local") { model.decideAnalysisConsent(granted: false) }
                     .buttonStyle(.qaptrOutline)
-                Button("Send to \(summary.provider)") { model.decideAnalysisConsent(granted: true) }
+                Button("Send text to \(summary.provider)") { model.decideAnalysisConsent(granted: true) }
                     .buttonStyle(.qaptrPrimary)
             }
         }
         .padding(QaptrSpace.xxl)
-        .frame(width: 500, alignment: .leading)
+        .frame(width: 540, alignment: .leading)
         .background(Color.qaptrSurface)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Analysis consent for \(summary.provider)")
@@ -283,6 +430,22 @@ private struct AnalysisConsentView: View {
                 .font(QaptrType.body(13))
                 .foregroundStyle(Color.qaptrInk)
         }
+    }
+}
+
+enum AnalysisConsentPresentation {
+    static func payloadLabel(_ summary: ReviewConsentSummary) -> String {
+        if summary.payloadKind == "text", summary.imageCount == 0 {
+            return "Privacy-filtered OCR text"
+        }
+        return summary.payloadKind
+    }
+
+    static func privacyExplanation(_ summary: ReviewConsentSummary) -> String {
+        if summary.imageCount == 0 {
+            return "Qaptr extracted and privacy-filtered text from \(summary.captureCount) capture\(summary.captureCount == 1 ? "" : "s"). The provider receives that text, not the images."
+        }
+        return "This request includes \(summary.imageCount) image\(summary.imageCount == 1 ? "" : "s") and prepared context from \(summary.captureCount) capture\(summary.captureCount == 1 ? "" : "s")."
     }
 }
 
