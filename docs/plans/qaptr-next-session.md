@@ -11,13 +11,24 @@ source_plans:
 
 # Qaptr next-session implementation plan
 
+> **Historical baseline, updated 2026-08-20:** This plan records the gaps found
+> on 2026-08-15. It is not a live description of the shipped tree. Provider-aware
+> review sessions, explicit consent, scalar observation/workflow persistence,
+> Markdown exports, truthful provider readiness, and pause/resume capture control
+> are now implemented. Current behavior is defined by source, tests, `PRODUCT.md`,
+> and the maintained release scripts.
+
 ## Why this plan exists
 
-The existing V1 plan describes the intended architecture and release gates, but the current packaged app does not yet deliver the core user outcome. In a real use of the app, it currently appears not to capture useful sessions, generate observations, connect through a usable provider flow, or provide a simple reliable model choice.
+At the 2026-08-15 baseline, the existing V1 plan described the intended
+architecture and release gates, but the packaged app did not yet deliver the
+core user outcome. It appeared not to capture useful sessions, generate
+observations, connect through a usable provider flow, or provide a simple
+reliable model choice.
 
 This document supersedes the immediate execution order from `docs/plans/qaptr-v1.md` for the next planning session. It does not weaken the privacy or release requirements. It converts the current evidence into an implementation-first plan.
 
-## Current truth, not aspiration
+## Baseline truth recorded on 2026-08-15
 
 ### Confirmed working or substantially implemented
 
@@ -31,9 +42,12 @@ This document supersedes the immediate execution order from `docs/plans/qaptr-v1
 
 ### Confirmed missing or not proven
 
-- The review app is largely a read-only history/settings surface. It does not yet drive a real review session from captures to observations.
-- There is no complete production path for analyze, observe, inspect in detail, generate a Workflow, or export the four Markdown variants.
-- The provider UI does not yet provide a simple, trustworthy provider/model selection experience.
+- The review app was largely a read-only history/settings surface and did not
+  yet drive a real review session from captures to observations.
+- There was no complete production path for analyze, observe, inspect in
+  detail, generate a Workflow, or export the four Markdown variants.
+- The provider UI did not yet provide a simple, trustworthy provider/model
+  selection experience.
 - There is no reliable default model policy that selects a usable model without requiring the user to update the app when a provider changes its fastest or preferred model.
 - Real OpenRouter endpoint/key proof is not configured. Claude authentication remains unverified because its session is Keychain-backed and the sandbox intentionally does not read credentials.
 - The real-image Vision/masking preparation gate fails closed because masked-image recognition verification is not configured.
@@ -42,7 +56,9 @@ This document supersedes the immediate execution order from `docs/plans/qaptr-v1
 ## Product decisions to lock before implementation
 
 1. **The primary product loop is capture → local preparation → provider analysis → observations → detail → Workflow → export.** Every implementation task must connect to this loop.
-2. **The current capture setting is one interval slider from 5 to 300 seconds.** Do not restore pause/sparse/frequency concepts in code, UI, tests, or copy.
+2. **Capture cadence remains bounded from 5 to 300 seconds.** The current app also
+   exposes an explicit pause/resume control without reviving the removed
+   sparse/frequency profile model.
 3. **Provider selection must be simple.** The user chooses a provider, then sees only models that provider currently makes available or that Qaptr has validated through a capability/configuration check.
 4. **A reliable default model is mandatory.** Qaptr must ship with a versioned default policy, not a hardcoded model name scattered through the UI. If a configured model is unavailable, Qaptr must select a validated fallback or explain that setup is incomplete. It must never silently send to an unknown or stale model.
 5. **Model discovery must not require an app update for routine provider model changes.** OpenRouter should use a safe model-list/configuration path where possible. CLI providers should use their own supported default/model capability rather than pretending Qaptr knows every model name.

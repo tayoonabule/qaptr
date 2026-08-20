@@ -1,6 +1,10 @@
 # Qaptr next-session execution checklist
 
 > Generated from [`qaptr-next-session.md`](qaptr-next-session.md) on 2026-08-15.
+> **Historical checklist, updated 2026-08-20:** This is evidence provenance, not
+> the live product backlog. Source, tests, `PRODUCT.md`, and release scripts are
+> authoritative. Review analysis, workflow/export, provider readiness, and an
+> explicit pause/resume control have since shipped.
 > **Rule:** Close an item only with its linked test, measured evidence, or explicitly recorded external blocker. Do not represent unavailable credentials, hardware, signing identity, or permission grants as complete.
 > **Execution update (2026-08-16):** Remaining code-backed work is being executed in parallel by Rust session, bridge, provider-readiness, review-app UX, and release-evidence workers. External permission, credential, hardware, signing, and soak items remain blocked unless independently evidenced. This note will be updated with verified commits and test results as workers finish.
 > **Verified during this pass:** `cargo test -p qaptr-workflow --test analyze` passes 14/14, including `cancellation_requested_by_consent_stops_before_provider_invocation`; this closes only the consent-boundary cancellation regression, not the full cooperative-cancellation checklist row.
@@ -9,7 +13,9 @@
 ## Milestone guardrails
 
 - [ ] Preserve the product loop: sealed capture → local preparation → explicit consent → provider analysis → observations → detail → Workflow → four Markdown exports.
-- [ ] Keep capture configuration to one 5–300 second slider. Do not introduce pause, sparse, or frequency vocabulary.
+- [x] Keep capture cadence bounded to 5–300 seconds and avoid the removed
+  sparse/frequency profile model. The shipped explicit pause/resume control is
+  independent of cadence selection.
 - [ ] Do not transmit to a provider before per-session explicit consent.
 - [ ] Keep durable history scalar and image-free. Do not persist screenshot bytes, thumbnails, provider payloads, or credentials.
 - [ ] Fail closed for missing credentials/models, unavailable providers, failed privacy preparation, timeouts, and malformed output.
@@ -137,7 +143,9 @@
 ### 4.2 Detail and detailed capture
 - [ ] Add observation detail actions driven by scalar durable data only.
 - [ ] Implement explicit start/stop detailed-capture lifecycle through the same 5–300 second interval-control vocabulary.
-- [ ] Do not restore pause, sparse, or frequency copy, tests, or settings.
+- [x] Keep the removed sparse/frequency profile model out of copy, tests, and
+  settings. The shipped explicit pause/resume control is a separate lifecycle
+  action.
 - [ ] Show detailed-capture action result from real helper state, including permission or startup failure.
 - [ ] Add lifecycle tests for start, stop, helper unavailable, permission denied, and interval persistence.
 
@@ -166,7 +174,10 @@
 
 ### 5.2 Reconcile the settings surface
 - [ ] Restrict settings to capture interval, displays, cache lifetime, provider/model, privacy/permission status, and justified exclusion controls.
-- [x] Remove obsolete sparse/pause/frequency vocabulary from `docs/plans/qaptr-v1.md`, source, tests, and user-visible copy. `CaptureProfileState::Sparse` is now `Interval`; profile docs/tests and the public website now describe one fixed 5–300 second interval, and a case-insensitive scan of `web/src`, the v1 plan, and website design doc finds no prohibited terms (`11af093`; focused policy tests/clippy and `npm --prefix web run build` pass).
+- [x] Remove the obsolete sparse/frequency profile vocabulary from
+  `docs/plans/qaptr-v1.md`, source, tests, and user-visible copy.
+  `CaptureProfileState::Sparse` became `Interval`; the later explicit
+  pause/resume control does not reintroduce that profile model.
 - [x] Keep login-item state and permissions live rather than cached as optimistic success. `ReviewAppModel.refreshSettings` queries `ReviewBridge.permissionState` and `loginItemEnabled` on each refresh, and bridge/system tests map the native codes without treating unknown/error as granted (`QaptrReviewCoreTests.testMapsBridgeCodesToTheCorrectStatus`; review package previously passed 65 tests).
 - [ ] Add visible provider/model readiness and one recovery action per unavailable state.
 

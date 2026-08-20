@@ -7,8 +7,10 @@ column points at an existing committed image fixture; the repeated sources are
 intentional so the session exercises 24 scheduled captures without adding
 synthetic pixels that are not already covered by U9.
 
-The manifest is input to `bench/scripts/release_validate.sh`. It is suitable for
-the real Vision preparation measurement. The current review app does not yet
-expose analysis, observation detail, workflow generation, or export controls,
-so the full UI review-session gate must remain a reported failure until a
-production-shaped driver exists.
+The manifest is input to `bench/scripts/release_validate.sh` and
+`bench/scripts/packaged_fixture_smoke.sh`. It is suitable for the real Vision
+preparation measurement. The review app now exposes provider-aware analysis,
+observation detail, workflow generation, and all four exports through the
+production-shaped native driver. The deterministic packaged smoke remains a
+fixture boundary, not a substitute for a credentialed provider transmission or
+a clean-machine Screen Recording prompt.
