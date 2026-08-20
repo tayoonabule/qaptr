@@ -1,9 +1,9 @@
 # Packaged smoke evidence handoff
 
-`bench/release_validation.md` was already modified before this change and was
-intentionally not edited. The next U23 report regeneration should include the
-new `packaged_fixture_smoke` gate and preserve the distinction between fixture
-proof and real capture proof.
+The legacy release-validation report and its one-off benchmark probes have been
+removed. Use `bench/scripts/packaged_fixture_smoke.sh` as the maintained package
+gate, while preserving the distinction between fixture proof and real capture
+proof.
 
 Recommended report evidence after running the validator:
 
