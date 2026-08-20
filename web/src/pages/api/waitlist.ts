@@ -1,15 +1,11 @@
 import type { APIRoute } from "astro";
-import type { D1Database } from "@cloudflare/workers-types";
 import { validateSubmission } from "../../lib/validate";
 import { checkRateLimit, hashClientKey } from "../../lib/ratelimit";
+import { getWaitlistDb } from "@waitlist-db";
 
 // This route is the one server-rendered endpoint in the site (KTD12).
 // Everything else in web/, including every /join/* confirmation page, is prerendered static output.
 export const prerender = false;
-
-interface Env {
-  WAITLIST_DB: D1Database;
-}
 
 const RATE_LIMIT = { limit: 10, windowSeconds: 60 };
 
@@ -32,14 +28,16 @@ function redirectTo(
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const origin = new URL(request.url).origin;
-  const runtime = (locals as { runtime?: { env: Env } }).runtime;
-  const db = runtime?.env?.WAITLIST_DB;
+  const db = await getWaitlistDb(locals);
 
   if (!db) {
     return new Response("Service unavailable: storage is not configured.", { status: 503 });
   }
 
-  const clientIp = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const clientIp =
+    request.headers.get("cf-connecting-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() ??
+    "unknown";
   const clientKey = await hashClientKey(clientIp);
 
   let formData: FormData;

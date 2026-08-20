@@ -1,6 +1,10 @@
 {
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@waitlist-db": ["src/lib/waitlist-db-cloudflare.ts"]
+    },
     "strictNullChecks": true,
     "types": ["@cloudflare/workers-types"]
   },

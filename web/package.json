@@ -4,32 +4,37 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=18.14.1"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:dokploy": "QAPTR_DEPLOY_TARGET=dokploy astro build",
     "preview": "astro preview",
     "check": "astro check && tsc --noEmit -p tests/tsconfig.json",
     "test": "node --import tsx --test tests/unit/**/*.test.ts",
     "test:a11y": "node --import tsx tests/a11y/run.mjs",
     "test:e2e": "node --import tsx --test --test-timeout=30000 tests/e2e/**/*.test.ts",
+    "test:dokploy": "npm run build:dokploy && node --import tsx --test --test-timeout=30000 tests/dokploy/**/*.test.ts",
     "test:perf": "node --import tsx tests/perf/measure.mjs",
-    "wrangler:dev": "wrangler pages dev dist",
-    "db:migrate:local": "wrangler d1 migrations apply qaptr-waitlist --local",
+    "wrangler:dev": "npm run build && wrangler dev --config dist/server/wrangler.json --persist-to .wrangler/state",
+    "db:migrate:local": "wrangler d1 migrations apply qaptr-waitlist --local --persist-to .wrangler/state",
     "db:migrate:remote": "wrangler d1 migrations apply qaptr-waitlist --remote"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "11.2.0",
-    "astro": "4.16.19"
+    "@astrojs/cloudflare": "14.2.3",
+    "@astrojs/node": "11.1.4",
+    "astro": "7.2.4",
+    "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.4",
     "@axe-core/playwright": "4.10.1",
-    "@cloudflare/workers-types": "4.20250109.0",
-    "playwright": "1.49.1",
+    "@cloudflare/workers-types": "^5.20260820.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "playwright": "^1.62.1",
     "tsx": "4.23.12",
     "typescript": "5.7.3",
-    "wrangler": "3.99.0"
+    "wrangler": "4.124.0"
   }
 }

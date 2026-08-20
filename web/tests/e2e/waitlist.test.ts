@@ -16,7 +16,7 @@ let nextTestIp = 30;
 
 /**
  * Returns a fresh RFC 5737 documentation-range IP for each call. Local
- * `wrangler pages dev` does not set `cf-connecting-ip` the way production
+ * `wrangler dev` does not set `cf-connecting-ip` the way production
  * Cloudflare does, so every browser-driven form submission in this file
  * shares one "unknown" rate-limit bucket unless each test context is
  * given its own synthetic client IP, matching how distinct real visitors
@@ -133,7 +133,7 @@ test("rate limiting blocks a burst of submissions from one client", async () => 
   let sawRateLimited = false;
   for (let i = 0; i < 15; i += 1) {
     const response = await page.request.post(`${server.baseUrl}/api/waitlist`, {
-      headers: { "cf-connecting-ip": testIp },
+      headers: { "cf-connecting-ip": testIp, origin: server.baseUrl },
       form: { email: `burst-${i}-${Date.now()}@example.com`, source: "hero" },
       maxRedirects: 0,
     });
@@ -154,7 +154,7 @@ test("a normal single visitor is not rate limited", async () => {
   await page.goto(`${server.baseUrl}/`);
 
   const response = await page.request.post(`${server.baseUrl}/api/waitlist`, {
-    headers: { "cf-connecting-ip": uniqueTestIp() },
+    headers: { "cf-connecting-ip": uniqueTestIp(), origin: server.baseUrl },
     form: { email: `single-${Date.now()}@example.com`, source: "hero" },
     maxRedirects: 0,
   });

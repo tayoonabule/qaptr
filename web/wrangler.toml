@@ -1,6 +1,10 @@
 name = "qaptr-web"
 compatibility_date = "2026-08-01"
-pages_build_output_dir = "./dist"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+# Astro 7 deploys server-rendered sites to Cloudflare Workers. The adapter
+# writes the generated Worker entrypoint and static-assets binding at build
+# time, so this file only declares durable runtime bindings.
 
 # Cloudflare D1 database backing the waitlist endpoint (KTD12, R-W1).
 # database_id is a placeholder: real deployment fills this in via
