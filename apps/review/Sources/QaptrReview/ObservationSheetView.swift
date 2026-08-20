@@ -382,7 +382,7 @@ private struct AnalysisConsentView: View {
                     .foregroundStyle(Color.qaptrSuccess)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-                    Text("Screenshot files stay on this Mac")
+                    Text(AnalysisConsentPresentation.privacyTitle(summary))
                         .font(QaptrType.title(13))
                         .foregroundStyle(Color.qaptrInk)
                     Text(AnalysisConsentPresentation.privacyExplanation(summary))
@@ -404,6 +404,14 @@ private struct AnalysisConsentView: View {
                 consentRow("Source captures", "\(summary.captureCount) prepared locally")
                 consentRow("Screenshot files", summary.imageCount == 0 ? "None sent" : "\(summary.imageCount) sent")
                 consentRow("Excluded locally", "\(summary.exclusionCount)")
+            }
+
+            if let error = model.analysisError {
+                Text(error)
+                    .font(QaptrType.caption())
+                    .foregroundStyle(Color.qaptrError)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Analysis consent failed: \(error)")
             }
 
             HStack(spacing: QaptrSpace.sm) {
@@ -434,6 +442,13 @@ private struct AnalysisConsentView: View {
 }
 
 enum AnalysisConsentPresentation {
+    static func privacyTitle(_ summary: ReviewConsentSummary) -> String {
+        if summary.imageCount == 0 {
+            return "Screenshot files stay on this Mac"
+        }
+        return "Screenshot files are included in this request"
+    }
+
     static func payloadLabel(_ summary: ReviewConsentSummary) -> String {
         if summary.payloadKind == "text", summary.imageCount == 0 {
             return "Privacy-filtered OCR text"

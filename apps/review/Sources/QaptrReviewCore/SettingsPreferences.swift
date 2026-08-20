@@ -71,9 +71,10 @@ public final class InMemoryPreferenceStore: PreferenceStore, @unchecked Sendable
 ///
 /// This intentionally persists only what a person actually configures here:
 /// cache lifetime, provider choice, an optional explicit model override, and
-/// the two exclusion lists. Permission
-/// and login-item status are always read live through the bridge rather than
-/// cached, so settings can never show a stale granted state.
+/// the two exclusion lists. Permission and login-item status are always read
+/// live through the bridge rather than cached, so settings can never show a
+/// stale granted state. The person's requested login-item choice is retained
+/// separately so a future app upgrade cannot silently undo an explicit opt-out.
 public struct SettingsPreferences: Sendable {
     private let store: PreferenceStore
 
@@ -84,6 +85,7 @@ public struct SettingsPreferences: Sendable {
         static let excludedApplications = "com.qaptr.review.settings.excludedApplications"
         static let excludedWindowTitles = "com.qaptr.review.settings.excludedWindowTitles"
         static let onboardingCompleted = "com.qaptr.review.onboarding.completed"
+        static let loginItemEnabledPreference = "com.qaptr.review.settings.loginItemEnabledPreference"
     }
 
     public init(store: PreferenceStore) {
@@ -135,6 +137,21 @@ public struct SettingsPreferences: Sendable {
     public var onboardingCompleted: Bool {
         get { store.bool(forKey: Key.onboardingCompleted) }
         nonmutating set { store.set(newValue, forKey: Key.onboardingCompleted) }
+    }
+
+    /// The person's explicit start-at-login choice, when they have made one.
+    /// `nil` preserves the legacy first-upgrade behavior for existing installs.
+    public var loginItemEnabledPreference: Bool? {
+        get {
+            switch store.string(forKey: Key.loginItemEnabledPreference) {
+            case "enabled": true
+            case "disabled": false
+            default: nil
+            }
+        }
+        nonmutating set {
+            store.set(newValue.map { $0 ? "enabled" : "disabled" }, forKey: Key.loginItemEnabledPreference)
+        }
     }
 
     /// Adds a normalized entry to the excluded-application list.

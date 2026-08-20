@@ -256,6 +256,20 @@ final class SettingsPreferencesTests: XCTestCase {
         preferences.onboardingCompleted = true
         XCTAssertTrue(preferences.onboardingCompleted)
     }
+
+    func testLoginItemPreferenceDistinguishesUnsetEnabledAndDisabled() {
+        let preferences = SettingsPreferences(store: InMemoryPreferenceStore())
+        XCTAssertNil(preferences.loginItemEnabledPreference)
+
+        preferences.loginItemEnabledPreference = true
+        XCTAssertEqual(preferences.loginItemEnabledPreference, true)
+
+        preferences.loginItemEnabledPreference = false
+        XCTAssertEqual(preferences.loginItemEnabledPreference, false)
+
+        preferences.loginItemEnabledPreference = nil
+        XCTAssertNil(preferences.loginItemEnabledPreference)
+    }
 }
 
 final class ProviderChoiceTests: XCTestCase {

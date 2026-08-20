@@ -44,6 +44,16 @@ struct ContentView: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .background(Color.qaptrSurface)
+    .task {
+      while !Task.isCancelled {
+        model.refreshCaptureProgress()
+        do {
+          try await Task.sleep(nanoseconds: 1_000_000_000)
+        } catch {
+          return
+        }
+      }
+    }
   }
 
   private var rail: some View {
@@ -76,11 +86,11 @@ struct ContentView: View {
         Spacer()
 
         VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-          CaptureSignalBar(isActive: captureIsActive)
-          Text(captureStatusLabel)
+          CaptureSignalBar(status: captureStatus)
+          Text(captureStatus.label)
             .font(QaptrType.meta(9))
             .tracking(0.7)
-            .foregroundStyle(captureIsActive ? Color.qaptrTeal : Color.qaptrInkMuted)
+            .foregroundStyle(captureStatus.isActive ? Color.qaptrTeal : Color.qaptrInkMuted)
         }
       }
       .padding(.horizontal, QaptrSpace.lg)
@@ -110,13 +120,11 @@ struct ContentView: View {
     .accessibilityAddTraits(selected ? .isSelected : [])
   }
 
-  private var captureIsActive: Bool {
-    model.captureControlIntent == .running && model.captureProgress.helperIsRunning
-  }
-
-  private var captureStatusLabel: String {
-    if model.captureControlIntent == .paused { return "CAPTURE PAUSED" }
-    return model.captureProgress.helperIsRunning ? "CAPTURE LIVE" : "CAPTURE NEEDS ATTENTION"
+  private var captureStatus: CaptureStatusPresentation {
+    CaptureStatusPresentation.present(
+      intent: model.captureControlIntent,
+      helperIsRunning: model.captureProgress.helperIsRunning
+    )
   }
 
   private func setSurface(_ surface: ReviewSurface) {
@@ -130,9 +138,43 @@ struct ContentView: View {
   }
 }
 
+enum CaptureStatusPresentation: Equatable {
+  case live
+  case paused
+  case needsAttention
+
+  static func present(
+    intent: CaptureControlIntent,
+    helperIsRunning: Bool
+  ) -> CaptureStatusPresentation {
+    if intent == .paused { return .paused }
+    return helperIsRunning ? .live : .needsAttention
+  }
+
+  var label: String {
+    switch self {
+    case .live: "CAPTURE LIVE"
+    case .paused: "CAPTURE PAUSED"
+    case .needsAttention: "CAPTURE NEEDS ATTENTION"
+    }
+  }
+
+  var accessibilityLabel: String {
+    switch self {
+    case .live: "Capture live"
+    case .paused: "Capture paused"
+    case .needsAttention: "Capture needs attention"
+    }
+  }
+
+  var isActive: Bool { self == .live }
+}
+
 struct CaptureSignalBar: View {
-  let isActive: Bool
+  let status: CaptureStatusPresentation
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private var isActive: Bool { status.isActive }
 
   var body: some View {
     TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
@@ -164,7 +206,7 @@ struct CaptureSignalBar: View {
         .animation(.easeInOut(duration: 0.2), value: isActive)
     }
     .frame(height: 8)
-    .accessibilityLabel(isActive ? "Capture live" : "Capture paused")
+    .accessibilityLabel(status.accessibilityLabel)
   }
 }
 

@@ -272,7 +272,7 @@ final class ReviewAppModel {
                     self.applyAnalysisState(state)
                     if state.phase == .readyForConsent || state.isTerminal { return }
                 } catch {
-                    self.analysisError = self.analysisMessage(for: error)
+                    self.applyAnalysisPollingFailure(error)
                     return
                 }
             }
@@ -284,6 +284,30 @@ final class ReviewAppModel {
         if state.isTerminal {
             refresh()
         }
+    }
+
+    private func applyAnalysisPollingFailure(_ error: Error) {
+        let message = analysisMessage(for: error)
+        let current = analysisSessionState
+        analysisError = message
+        applyAnalysisState(
+            ReviewSessionState(
+                sessionID: current.sessionID,
+                phase: .failed,
+                capturesSeen: current.capturesSeen,
+                preparedCaptures: current.preparedCaptures,
+                imageCount: current.imageCount,
+                exclusionCount: current.exclusionCount,
+                observationsWritten: current.observationsWritten,
+                consentSummary: nil,
+                result: nil,
+                outcome: "session_state_unavailable",
+                error: message,
+                resultProvider: nil,
+                resultModelLabel: nil,
+                allowedOperations: ["state", "start", "retry"]
+            )
+        )
     }
 
     private func analysisMessage(for error: Error) -> String {
@@ -629,6 +653,7 @@ final class ReviewAppModel {
 
     /// Sets whether Qaptr starts at login.
     func setLoginItemEnabled(_ enabled: Bool) {
+        preferences.loginItemEnabledPreference = enabled
         guard let bridge else { return }
         settings.loginItemEnabled = bridge.setLoginItemEnabled(enabled)
     }
@@ -649,11 +674,20 @@ final class ReviewAppModel {
         let marker = "\(shortVersion)(\(buildVersion))"
         guard UserDefaults.standard.string(forKey: markerKey) != marker else { return }
 
+        guard Self.shouldRebindLoginItem(userPreference: preferences.loginItemEnabledPreference) else {
+            UserDefaults.standard.set(marker, forKey: markerKey)
+            return
+        }
+
         let enabled = bridge.setLoginItemEnabled(true)
         settings.loginItemEnabled = enabled
         if enabled {
             UserDefaults.standard.set(marker, forKey: markerKey)
         }
+    }
+
+    nonisolated static func shouldRebindLoginItem(userPreference: Bool?) -> Bool {
+        userPreference != false
     }
 
     func setCacheLifetime(_ lifetime: CacheLifetime) {

@@ -103,6 +103,57 @@ final class AnalysisSessionModelTests: XCTestCase {
         XCTAssertEqual(model.analysisSessionState, .idle)
     }
 
+    func testPollingFailureTransitionsToRecoverableFailure() async throws {
+        let fixture = try makeFixture()
+        let session = FakeAnalysisSession(states: [])
+        session.stateError = FakeAnalysisSessionError.stateUnavailable
+        let model = ReviewAppModel(
+            preferences: fixture.preferences,
+            credentialStore: EmptyCredentialStore(),
+            openRouterChecker: UnusedOpenRouterChecker(),
+            progressReader: fixture.progressReader,
+            controlStore: fixture.controlStore,
+            cliProviderChecker: ConnectedCLIChecker(),
+            analysisSessionFactory: { _ in session },
+            storePath: fixture.storePath
+        )
+
+        model.connectProvider(.jcodeCLI)
+        await waitUntil { model.providerConnection == .connected }
+        model.startAnalysis()
+        await waitUntil { model.analysisSessionState.phase == .failed }
+
+        XCTAssertEqual(model.analysisError, "state unavailable")
+        XCTAssertEqual(model.analysisSessionState.outcome, "session_state_unavailable")
+        XCTAssertTrue(model.analysisSessionState.allowedOperations.contains("retry"))
+    }
+
+    func testConsentDecisionFailureKeepsConsentVisibleWithAnError() async throws {
+        let fixture = try makeFixture()
+        let session = FakeAnalysisSession(states: [makeState(phase: .readyForConsent, consent: consentSummary)])
+        session.decisionError = FakeAnalysisSessionError.consentUnavailable
+        let model = ReviewAppModel(
+            preferences: fixture.preferences,
+            credentialStore: EmptyCredentialStore(),
+            openRouterChecker: UnusedOpenRouterChecker(),
+            progressReader: fixture.progressReader,
+            controlStore: fixture.controlStore,
+            cliProviderChecker: ConnectedCLIChecker(),
+            analysisSessionFactory: { _ in session },
+            storePath: fixture.storePath
+        )
+
+        model.connectProvider(.jcodeCLI)
+        await waitUntil { model.providerConnection == .connected }
+        model.startAnalysis()
+        await waitUntil { model.analysisSessionState.phase == .readyForConsent }
+
+        model.decideAnalysisConsent(granted: true)
+
+        XCTAssertEqual(model.analysisSessionState.phase, .readyForConsent)
+        XCTAssertEqual(model.analysisError, "consent unavailable")
+    }
+
     private func makeFixture() throws -> (
         preferences: SettingsPreferences,
         progressReader: CaptureProgressReader,
@@ -175,6 +226,8 @@ private final class FakeAnalysisSession: AnalysisSessionControlling, @unchecked 
     private let lock = NSLock()
     private var states: [ReviewSessionState]
     var decisionResult = makeState(phase: .analyzing)
+    var stateError: Error?
+    var decisionError: Error?
     private(set) var consentDecisions: [Bool] = []
 
     init(states: [ReviewSessionState]) {
@@ -182,8 +235,9 @@ private final class FakeAnalysisSession: AnalysisSessionControlling, @unchecked 
     }
 
     func state() throws -> ReviewSessionState {
-        lock.withLock {
-            states.isEmpty ? decisionResult : states.removeFirst()
+        try lock.withLock {
+            if let stateError { throw stateError }
+            return states.isEmpty ? decisionResult : states.removeFirst()
         }
     }
 
@@ -193,14 +247,27 @@ private final class FakeAnalysisSession: AnalysisSessionControlling, @unchecked 
     }
 
     func decideConsent(granted: Bool) throws -> ReviewSessionState {
-        lock.withLock {
+        try lock.withLock {
             consentDecisions.append(granted)
+            if let decisionError { throw decisionError }
             return decisionResult
         }
     }
 
     func cancel() throws -> ReviewSessionState { makeState(phase: .cancelled, allowed: ["state", "start", "retry"]) }
     func retry() throws -> ReviewSessionState { makeState(phase: .ingesting) }
+}
+
+private enum FakeAnalysisSessionError: Error, CustomStringConvertible {
+    case stateUnavailable
+    case consentUnavailable
+
+    var description: String {
+        switch self {
+        case .stateUnavailable: "state unavailable"
+        case .consentUnavailable: "consent unavailable"
+        }
+    }
 }
 
 private final class ProviderRecorder: @unchecked Sendable {

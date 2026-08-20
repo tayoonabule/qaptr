@@ -14,6 +14,10 @@ final class AnalysisConsentPresentationTests: XCTestCase {
             exclusionCount: 0
         )
 
+        XCTAssertEqual(
+            AnalysisConsentPresentation.privacyTitle(summary),
+            "Screenshot files stay on this Mac"
+        )
         XCTAssertEqual(AnalysisConsentPresentation.payloadLabel(summary), "Privacy-filtered OCR text")
         XCTAssertEqual(
             AnalysisConsentPresentation.privacyExplanation(summary),
@@ -32,6 +36,10 @@ final class AnalysisConsentPresentationTests: XCTestCase {
             exclusionCount: 0
         )
 
+        XCTAssertEqual(
+            AnalysisConsentPresentation.privacyTitle(summary),
+            "Screenshot files are included in this request"
+        )
         XCTAssertEqual(AnalysisConsentPresentation.payloadLabel(summary), "multimodal")
         XCTAssertEqual(
             AnalysisConsentPresentation.privacyExplanation(summary),

@@ -11,6 +11,12 @@ import XCTest
 /// or filesystem access is needed to exercise this decision logic).
 @MainActor
 final class ReviewAppModelOnboardingCompletionTests: XCTestCase {
+    func testLoginItemRebindHonorsAnExplicitOptOut() {
+        XCTAssertTrue(ReviewAppModel.shouldRebindLoginItem(userPreference: nil))
+        XCTAssertTrue(ReviewAppModel.shouldRebindLoginItem(userPreference: true))
+        XCTAssertFalse(ReviewAppModel.shouldRebindLoginItem(userPreference: false))
+    }
+
     func testHasSelectedDisplayReflectsWhetherAnyDisplayIsAvailable() {
         let noDisplays = ReviewAppModel.onboardingCompletionInputs(
             screenRecordingStatus: .granted,
