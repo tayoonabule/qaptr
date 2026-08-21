@@ -1192,5 +1192,179 @@ import ArcDial from "../components/ArcDial.astro";
         order: 1;
       }
     }
+
+    /* Card system: keep the five visual moments distinct at every width. */
+    .product-bento {
+      gap: clamp(var(--spacing-24), 4vw, var(--spacing-40));
+    }
+
+    .product-bento__intro {
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-large-card);
+      background: linear-gradient(135deg, var(--color-paper-mist), var(--color-canvas-white));
+      padding: clamp(var(--spacing-24), 4vw, var(--spacing-40));
+      box-shadow: var(--shadow-subtle);
+    }
+
+    .product-bento__intro-visual {
+      border-block: 1px solid var(--color-ash);
+      padding-block: var(--spacing-16);
+    }
+
+    .product-bento__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas: none;
+      grid-template-rows: none;
+      gap: clamp(var(--spacing-16), 2.5vw, var(--spacing-24));
+    }
+
+    .product-card,
+    .product-card--capture,
+    .product-card--privacy,
+    .product-card--document,
+    .product-card--handoff {
+      display: flex;
+      grid-area: auto;
+      min-height: 31rem;
+      flex-direction: column;
+      gap: var(--spacing-24);
+      border: 1px solid var(--color-ash);
+      border-radius: var(--radius-large-card);
+      padding: clamp(var(--spacing-24), 3vw, var(--spacing-32));
+      box-shadow: var(--shadow-subtle);
+    }
+
+    .product-card__copy {
+      max-width: 34rem;
+    }
+
+    .product-card__copy h3 {
+      max-width: 16ch;
+      font-size: clamp(1.6rem, 2.6vw, 2.25rem);
+    }
+
+    .mini-timeline,
+    .privacy-orbit,
+    .mini-document,
+    .mini-handoff {
+      flex: 1 1 auto;
+      min-height: 11rem;
+      margin-top: auto;
+    }
+
+    .mini-timeline {
+      padding: var(--spacing-16) var(--spacing-16) var(--spacing-16) var(--spacing-32);
+    }
+
+    .mini-timeline__line {
+      top: var(--spacing-16);
+      bottom: var(--spacing-16);
+      left: 1rem;
+    }
+
+    .privacy-orbit {
+      min-height: 11rem;
+    }
+
+    .mini-document {
+      min-height: 11rem;
+      padding: var(--spacing-20);
+    }
+
+    .mini-handoff {
+      min-height: 11rem;
+      padding: var(--spacing-16);
+    }
+
+    @media (min-width: 640px) {
+      .product-card:nth-child(odd) .product-card__copy,
+      .product-card:nth-child(even) .product-card__copy,
+      .product-card:nth-child(odd) > :not(.product-card__copy),
+      .product-card:nth-child(even) > :not(.product-card__copy) {
+        order: initial;
+      }
+    }
+
+    @media (max-width: 639px) {
+      .product-bento {
+        gap: var(--spacing-20);
+        padding-block: var(--spacing-64);
+      }
+
+      .product-bento__intro {
+        gap: var(--spacing-24);
+        padding: var(--spacing-20);
+      }
+
+      .product-bento__intro-copy,
+      .product-bento__intro-visual {
+        order: initial;
+      }
+
+      .product-bento__intro-visual {
+        min-height: 0;
+        margin-top: var(--spacing-4);
+      }
+
+      .product-bento__grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: none;
+        grid-template-rows: none;
+        gap: var(--spacing-16);
+      }
+
+      .product-card,
+      .product-card--capture,
+      .product-card--privacy,
+      .product-card--document,
+      .product-card--handoff {
+        grid-area: auto;
+        min-height: 0;
+        gap: var(--spacing-20);
+        padding: var(--spacing-20);
+      }
+
+      .product-card__copy h3 {
+        max-width: 18ch;
+        font-size: clamp(1.5rem, 7vw, 1.9rem);
+      }
+
+      .product-card__copy > p:last-child {
+        margin-top: var(--spacing-12);
+      }
+
+      .mini-timeline,
+      .privacy-orbit,
+      .mini-document,
+      .mini-handoff {
+        min-height: 9.5rem;
+      }
+
+      .privacy-orbit__ring {
+        width: 7.5rem;
+        height: 7.5rem;
+      }
+
+      .privacy-orbit__lock {
+        width: 3rem;
+        height: 3rem;
+        font-size: 1.7rem;
+      }
+
+      .privacy-orbit__label {
+        right: var(--spacing-8);
+        bottom: var(--spacing-8);
+      }
+
+      .mini-document {
+        padding: var(--spacing-16);
+      }
+
+      .mini-handoff {
+        padding: var(--spacing-16);
+      }
+    }
   </style>
 </BaseLayout>
