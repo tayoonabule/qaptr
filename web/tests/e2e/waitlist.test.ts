@@ -58,6 +58,44 @@ test("submitting the hero form without JavaScript reaches the confirmation page"
   await context.close();
 });
 
+test("the five-card surface stays separated across responsive breakpoints", async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  for (const width of [320, 640, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${server.baseUrl}/`);
+
+    const result = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll<HTMLElement>(".product-bento__intro, .product-card")];
+      const rects = cards.map((card) => {
+        const rect = card.getBoundingClientRect();
+        return { top: rect.top + window.scrollY, left: rect.left, right: rect.right, bottom: rect.bottom + window.scrollY };
+      });
+      return {
+        cardCount: cards.length,
+        hasHorizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+        ordered: rects.every((rect, index) => index === 0 || rect.top >= rects[index - 1].top - 1),
+        separated: rects.slice(1).every(
+          (rect, index) =>
+            rect.top >= rects[index].bottom - 1 ||
+            rect.left >= rects[index].right - 1 ||
+            rects[index].left >= rect.right - 1,
+        ),
+      };
+    });
+
+    assert.deepEqual(result, {
+      cardCount: 5,
+      hasHorizontalOverflow: false,
+      ordered: true,
+      separated: true,
+    }, `responsive card layout should remain stable at ${width}px`);
+  }
+
+  await context.close();
+});
+
 test("an invalid email is rejected with a clear message and no crash", async () => {
   const context = await browser.newContext({
     extraHTTPHeaders: { "cf-connecting-ip": uniqueTestIp() },

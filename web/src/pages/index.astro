@@ -1213,7 +1213,7 @@ import ArcDial from "../components/ArcDial.astro";
 
     .product-bento__grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: minmax(0, 1fr);
       grid-template-areas: none;
       grid-template-rows: none;
       gap: clamp(var(--spacing-16), 2.5vw, var(--spacing-24));
@@ -1235,6 +1235,22 @@ import ArcDial from "../components/ArcDial.astro";
       box-shadow: var(--shadow-subtle);
     }
 
+    .product-card--capture {
+      background: var(--color-orange-wash);
+    }
+
+    .product-card--privacy {
+      background: var(--color-green-wash);
+    }
+
+    .product-card--document {
+      background: var(--color-violet-wash);
+    }
+
+    .product-card--handoff {
+      background: var(--color-blue-wash);
+    }
+
     .product-card__copy {
       max-width: 34rem;
     }
@@ -1248,7 +1264,8 @@ import ArcDial from "../components/ArcDial.astro";
     .privacy-orbit,
     .mini-document,
     .mini-handoff {
-      flex: 1 1 auto;
+      flex: 0 0 11rem;
+      height: 11rem;
       min-height: 11rem;
       margin-top: auto;
     }
@@ -1277,7 +1294,15 @@ import ArcDial from "../components/ArcDial.astro";
       padding: var(--spacing-16);
     }
 
-    @media (min-width: 640px) {
+    @media (min-width: 768px) {
+      .product-bento__intro {
+        grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
+      }
+
+      .product-bento__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .product-card:nth-child(odd) .product-card__copy,
       .product-card:nth-child(even) .product-card__copy,
       .product-card:nth-child(odd) > :not(.product-card__copy),
@@ -1286,23 +1311,24 @@ import ArcDial from "../components/ArcDial.astro";
       }
     }
 
-    @media (max-width: 639px) {
+    @media (max-width: 767px) {
       .product-bento {
         gap: var(--spacing-20);
         padding-block: var(--spacing-64);
       }
 
       .product-bento__intro {
+        grid-template-columns: 1fr;
         gap: var(--spacing-24);
         padding: var(--spacing-20);
       }
 
-      .product-bento__intro-copy,
-      .product-bento__intro-visual {
-        order: initial;
+      .product-bento__intro-copy {
+        order: 1;
       }
 
       .product-bento__intro-visual {
+        order: 2;
         min-height: 0;
         margin-top: var(--spacing-4);
       }
@@ -1340,6 +1366,22 @@ import ArcDial from "../components/ArcDial.astro";
       .mini-document,
       .mini-handoff {
         min-height: 9.5rem;
+      }
+
+      .product-card .product-card__copy {
+        order: 1;
+      }
+
+      .product-card > :not(.product-card__copy) {
+        order: 2;
+      }
+
+      .mini-timeline,
+      .privacy-orbit,
+      .mini-document,
+      .mini-handoff {
+        flex-basis: 9.5rem;
+        height: 9.5rem;
       }
 
       .privacy-orbit__ring {
