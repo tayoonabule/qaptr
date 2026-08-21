@@ -1074,14 +1074,16 @@ import ArcDial from "../components/ArcDial.astro";
       width: 100%;
     }
 
-    .product-card--privacy .product-card__copy,
-    .product-card--handoff .product-card__copy {
-      order: 2;
-    }
+    @media (min-width: 640px) {
+      .product-card--privacy .product-card__copy,
+      .product-card--handoff .product-card__copy {
+        order: 2;
+      }
 
-    .product-card--privacy .privacy-orbit,
-    .product-card--handoff .mini-handoff {
-      order: 1;
+      .product-card--privacy .privacy-orbit,
+      .product-card--handoff .mini-handoff {
+        order: 1;
+      }
     }
 
     .mini-timeline,
@@ -1131,20 +1133,22 @@ import ArcDial from "../components/ArcDial.astro";
       height: auto;
     }
 
-    .product-card:nth-child(odd) .product-card__copy {
-      order: 2;
-    }
+    @media (min-width: 640px) {
+      .product-card:nth-child(odd) .product-card__copy {
+        order: 2;
+      }
 
-    .product-card:nth-child(odd) > :not(.product-card__copy) {
-      order: 1;
-    }
+      .product-card:nth-child(odd) > :not(.product-card__copy) {
+        order: 1;
+      }
 
-    .product-card:nth-child(even) .product-card__copy {
-      order: 1;
-    }
+      .product-card:nth-child(even) .product-card__copy {
+        order: 1;
+      }
 
-    .product-card:nth-child(even) > :not(.product-card__copy) {
-      order: 2;
+      .product-card:nth-child(even) > :not(.product-card__copy) {
+        order: 2;
+      }
     }
 
     .product-card:last-child {
@@ -1164,15 +1168,12 @@ import ArcDial from "../components/ArcDial.astro";
         grid-template-columns: 1fr;
       }
 
-      .product-card--privacy .product-card__copy,
-      .product-card--handoff .product-card__copy,
-      .product-card--capture .product-card__copy,
-      .product-card--document .product-card__copy,
-      .product-card--privacy .privacy-orbit,
-      .product-card--handoff .mini-handoff,
-      .product-card--capture .mini-timeline,
-      .product-card--document .mini-document {
-        order: initial;
+      .product-bento__intro-visual {
+        order: 1;
+      }
+
+      .product-bento__intro-copy {
+        order: 2;
       }
 
       .product-card,
@@ -1181,6 +1182,14 @@ import ArcDial from "../components/ArcDial.astro";
       .product-card--document,
       .product-card--handoff {
         grid-template-columns: 1fr;
+      }
+
+      .product-card .product-card__copy {
+        order: 2;
+      }
+
+      .product-card > :not(.product-card__copy) {
+        order: 1;
       }
     }
   </style>
