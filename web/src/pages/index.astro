@@ -127,18 +127,20 @@ import ArcDial from "../components/ArcDial.astro";
           <p>Qaptr records the apps and windows that make up your session, so you do not have to reconstruct the day later.</p>
         </div>
         <div class="mini-timeline" aria-hidden="true">
-          <span class="mini-timeline__line"></span>
-          <span class="mini-timeline__row">
-            <span class="mini-timeline__dot"></span>
-            <span class="mini-timeline__event mini-timeline__event--one"><b>09:42</b> Outlined the brief</span>
-          </span>
-          <span class="mini-timeline__row">
-            <span class="mini-timeline__dot"></span>
-            <span class="mini-timeline__event mini-timeline__event--two"><b>10:18</b> Checked source notes</span>
-          </span>
-          <span class="mini-timeline__row">
-            <span class="mini-timeline__dot"></span>
-            <span class="mini-timeline__event mini-timeline__event--three"><b>11:06</b> Mapped next step</span>
+          <span class="mini-timeline__rows">
+            <span class="mini-timeline__line"></span>
+            <span class="mini-timeline__row">
+              <span class="mini-timeline__dot"></span>
+              <span class="mini-timeline__event mini-timeline__event--one"><b>09:42</b> Outlined the brief</span>
+            </span>
+            <span class="mini-timeline__row">
+              <span class="mini-timeline__dot"></span>
+              <span class="mini-timeline__event mini-timeline__event--two"><b>10:18</b> Checked source notes</span>
+            </span>
+            <span class="mini-timeline__row">
+              <span class="mini-timeline__dot"></span>
+              <span class="mini-timeline__event mini-timeline__event--three"><b>11:06</b> Mapped next step</span>
+            </span>
           </span>
         </div>
       </article>
@@ -661,11 +663,12 @@ import ArcDial from "../components/ArcDial.astro";
       background: var(--color-canvas-white);
     }
 
-    .mini-timeline { --timeline-axis-gutter: 2.5rem; display: grid; grid-template-columns: var(--timeline-axis-gutter) 1fr; align-content: center; gap: var(--spacing-12); min-height: 12rem; padding: var(--spacing-20); }
-    .mini-timeline__line { grid-column: 1; grid-row: 1 / -1; align-self: stretch; justify-self: center; width: 1px; margin-block: var(--spacing-16); background: var(--color-smoke); }
+    .mini-timeline { --timeline-axis-gutter: 2.5rem; display: grid; align-content: center; min-height: 12rem; padding: var(--spacing-20); }
+    .mini-timeline__rows { position: relative; display: grid; grid-template-columns: var(--timeline-axis-gutter) 1fr; grid-template-rows: repeat(3, 2.25rem); gap: var(--spacing-12); align-items: center; }
+    .mini-timeline__line { position: absolute; top: 1.125rem; bottom: 1.125rem; left: calc(var(--timeline-axis-gutter) / 2); width: 1px; background: var(--color-smoke); transform: translateX(-50%); }
     .mini-timeline__row { display: contents; }
-    .mini-timeline__dot { grid-column: 1; justify-self: center; width: 9px; height: 9px; border: 2px solid var(--color-canvas-white); border-radius: 50%; background: var(--color-charcoal); }
-    .mini-timeline__event { grid-column: 2; display: flex; align-items: center; min-height: 2.25rem; border-radius: var(--radius-input); background: var(--color-paper-mist); padding: var(--spacing-8) var(--spacing-12); color: var(--color-steel); font-size: var(--text-caption); line-height: 1.35; }
+    .mini-timeline__dot { position: relative; z-index: 1; grid-column: 1; justify-self: center; width: 9px; height: 9px; border: 2px solid var(--color-canvas-white); border-radius: 50%; background: var(--color-charcoal); }
+    .mini-timeline__event { position: relative; z-index: 1; grid-column: 2; display: flex; align-items: center; min-height: 2.25rem; border-radius: var(--radius-input); background: var(--color-paper-mist); padding: var(--spacing-8) var(--spacing-12); color: var(--color-steel); font-size: var(--text-caption); line-height: 1.35; white-space: nowrap; }
     .mini-timeline__event b { margin-right: var(--spacing-8); color: var(--color-charcoal); font-family: var(--font-geist-mono); font-weight: 500; }
 
     .privacy-orbit { position: relative; display: grid; min-height: 12rem; place-items: center; overflow: hidden; }
@@ -709,9 +712,10 @@ import ArcDial from "../components/ArcDial.astro";
     }
 
     @media (max-width: 767px) {
-      .product-bento { gap: var(--spacing-20); padding-block: var(--spacing-64); }
+      .product-bento { gap: var(--spacing-40); padding-block: var(--spacing-64); }
       .product-bento__intro { grid-template-columns: 1fr; gap: var(--spacing-24); padding: var(--spacing-20); }
       .product-card { grid-template-columns: 1fr; gap: var(--spacing-20); padding-block: var(--spacing-32); }
+      .product-bento__grid { row-gap: var(--spacing-32); border-top: 0; }
       .product-card--privacy .product-card__copy { padding-left: 0; }
       .product-card__copy h3 { max-width: 18ch; font-size: clamp(1.5rem, 7vw, 1.9rem); }
       .product-card__copy > p:last-child { margin-top: var(--spacing-12); }
