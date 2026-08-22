@@ -709,6 +709,12 @@ import ArcDial from "../components/ArcDial.astro";
     @media (min-width: 768px) {
       .dial-section__inner,
       .join__inner { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); }
+
+      .product-card:nth-child(odd) .product-card__copy { grid-column: 2; grid-row: 1; }
+      .product-card:nth-child(odd) > .mini-timeline,
+      .product-card:nth-child(odd) > .privacy-orbit,
+      .product-card:nth-child(odd) > .mini-document,
+      .product-card:nth-child(odd) > .mini-handoff { grid-column: 1; grid-row: 1; }
     }
 
     @media (max-width: 767px) {
