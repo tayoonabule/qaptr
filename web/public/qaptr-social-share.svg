@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#F5F5F5"/>
+  <rect x="32" y="32" width="1136" height="566" rx="24" fill="#fff" stroke="#D4D4D4"/>
+
+  <g transform="translate(80 74)">
+    <circle cx="20" cy="20" r="15" stroke="#2563EB" stroke-width="3"/>
+    <path d="M28 7.39v15.4M34.5 16.7L23 28.2M32.5 28.2H17M23.5 34.5l-11-11M12 32.5V17M5.5 23.3l11-11M7.5 12h14M16.8 5.5l11 11" stroke="#2563EB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="52" y="28" fill="#171717" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="600" letter-spacing="-0.8">Qaptr</text>
+  </g>
+
+  <text x="80" y="250" fill="#171717" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="600" letter-spacing="-2.8">Remember what you did.</text>
+  <text x="80" y="320" fill="#171717" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="600" letter-spacing="-2.8">Without stopping.</text>
+
+  <text x="80" y="404" fill="#525252" font-family="Arial, Helvetica, sans-serif" font-size="28">Private review for your Mac.</text>
+  <path d="M80 462h250" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/>
+
+  <g transform="translate(820 106)">
+    <rect width="276" height="370" rx="18" fill="#0A0A0A"/>
+    <circle cx="224" cy="52" r="18" fill="#16A34A"/>
+    <path d="m216 52 6 6 11-13" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="28" y="60" fill="#A3A3A3" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="14" letter-spacing="1.5">SESSION RECORD</text>
+    <text x="28" y="120" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="25">Work captured</text>
+    <path d="M28 148h220" stroke="#404040"/>
+    <text x="28" y="198" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="25">Context organized</text>
+    <path d="M28 226h220" stroke="#404040"/>
+    <text x="28" y="276" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="25">Ready to review</text>
+    <rect x="28" y="312" width="220" height="1" fill="#404040"/>
+    <text x="28" y="346" fill="#16A34A" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600">APPROVAL REQUIRED</text>
+  </g>
+</svg>

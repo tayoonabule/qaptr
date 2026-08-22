@@ -7,6 +7,7 @@ interface Props {
 }
 
   const { title, description = "Qaptr quietly records your work on Mac, then gives you a clear timeline to review and share." } = Astro.props;
+  const socialImage = new URL("/qaptr-social-share.svg", Astro.site ?? Astro.url).href;
 ---
 
 <!doctype html>
@@ -16,6 +17,17 @@ interface Props {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Qaptr private review for work on your Mac" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
     <link rel="icon" type="image/svg+xml" href="/qaptr-aperture.svg" />
     <script is:inline type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
     <script is:inline nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
@@ -50,7 +62,7 @@ interface Props {
           <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>
           Your email is used only for the waitlist. No tracking.
         </p>
-        <span class="meta">{new Date().getFullYear()}</span>
+        <span class="meta site-footer__copyright">© {new Date().getFullYear()} Drewl</span>
       </div>
     </footer>
 
