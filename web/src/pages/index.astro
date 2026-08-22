@@ -634,7 +634,7 @@ import ArcDial from "../components/ArcDial.astro";
       padding-block: clamp(var(--spacing-32), 6vw, var(--spacing-64));
     }
 
-    .product-card--privacy { background: var(--color-paper-mist); }
+    .product-card--privacy { background: var(--color-canvas-white); }
     .product-card--privacy .product-card__copy { padding-left: var(--spacing-16); }
     .product-card--privacy .meta { color: var(--color-vivid-green); }
 
@@ -655,7 +655,7 @@ import ArcDial from "../components/ArcDial.astro";
     .mini-timeline { position: relative; display: grid; align-content: center; gap: var(--spacing-12); min-height: 12rem; padding: var(--spacing-20) var(--spacing-20) var(--spacing-20) var(--spacing-40); }
     .mini-timeline__line { position: absolute; top: var(--spacing-24); bottom: var(--spacing-24); left: var(--spacing-20); width: 1px; background: var(--color-smoke); }
     .mini-timeline__event { position: relative; z-index: 1; display: flex; align-items: center; min-height: 2.25rem; border-radius: var(--radius-input); background: var(--color-paper-mist); padding: var(--spacing-8) var(--spacing-12); color: var(--color-steel); font-size: var(--text-caption); line-height: 1.35; }
-    .mini-timeline__event::before { position: absolute; top: 50%; left: calc(-1.75rem + 0.4px); width: 9px; height: 9px; border: 2px solid var(--color-canvas-white); border-radius: 50%; background: var(--color-charcoal); content: ""; transform: translateY(-50%); }
+    .mini-timeline__event::before { position: absolute; top: 50%; left: calc(-1.75rem + 4.4px); width: 9px; height: 9px; border: 2px solid var(--color-canvas-white); border-radius: 50%; background: var(--color-charcoal); content: ""; transform: translateY(-50%); }
     .mini-timeline__event b { margin-right: var(--spacing-8); color: var(--color-charcoal); font-family: var(--font-geist-mono); font-weight: 500; }
 
     .privacy-orbit { position: relative; display: grid; min-height: 12rem; place-items: center; overflow: hidden; }
@@ -711,7 +711,7 @@ import ArcDial from "../components/ArcDial.astro";
       .mini-handoff { min-height: 9.5rem; }
       .mini-timeline { min-height: 10.5rem; padding-inline: var(--spacing-16) var(--spacing-16); padding-left: var(--spacing-32); }
       .mini-timeline__line { left: var(--spacing-16); }
-      .mini-timeline__event::before { left: calc(-1.5rem + 0.4px); }
+      .mini-timeline__event::before { left: calc(-1.5rem + 4.4px); }
       .privacy-orbit { min-height: 10.5rem; }
       .privacy-orbit__ring { width: 8rem; height: 8rem; }
       .privacy-orbit__lock { width: 3.25rem; height: 3.25rem; font-size: 1.8rem; }
