@@ -27,7 +27,7 @@ The installer downloads the newest GitHub prerelease, verifies `SHA256SUMS` when
 To install a specific prerelease:
 
 ```sh
-QAPTR_BETA_TAG=v0.1.1-beta.1 \
+QAPTR_BETA_TAG=v0.1.1-beta.2 \
   curl -fsSL https://raw.githubusercontent.com/tayoonabule/qaptr/main/scripts/install-beta.sh | bash
 ```
 

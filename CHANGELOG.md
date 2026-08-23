@@ -25,6 +25,28 @@ named, because "tests pass" and "the app works" are different claims.
 
 - Future additions will be recorded here.
 
+## [0.1.1-beta.2] - 2026-08-23 (build 11)
+
+This public Apple-silicon beta is distributed through GitHub Releases as an
+ad-hoc signed DMG. Apple Developer signing and notarization are not part of
+this beta path. The installer verifies the published checksum when available.
+
+### Fixed
+
+- First-run onboarding now refreshes Screen Recording after returning from
+  System Settings instead of remaining stuck on “Not yet requested”. The
+  permission helper is restarted only after the previous process releases its
+  lock, so the live helper snapshot can reflect the new macOS decision.
+- The first-run permission handoff uses a more compact panel with less padding
+  and tighter spacing, keeping the required action and its status together on
+  smaller displays.
+
+### Evidence
+
+- Review Swift tests passed: 195 tests, 0 failures.
+- The fix was built from commit `HEAD` and is included in the signed beta
+  package and checksum asset published with this release.
+
 ## [0.1.1-beta.1] - 2026-08-23 (build 10)
 
 This public Apple-silicon beta is distributed through GitHub Releases as an
@@ -89,6 +111,7 @@ itemized, since it predates this file.
   rendered). These make acceptance checks scriptable against a real signed
   build. They are inert unless the variable is set.
 
-[Unreleased]: https://github.com/tayoonabule/qaptr/compare/v0.1.1-beta.1...HEAD
+[Unreleased]: https://github.com/tayoonabule/qaptr/compare/v0.1.1-beta.2...HEAD
+[0.1.1-beta.2]: https://github.com/tayoonabule/qaptr/releases/tag/v0.1.1-beta.2
 [0.1.1-beta.1]: https://github.com/tayoonabule/qaptr/releases/tag/v0.1.1-beta.1
 [0.1.0]: https://github.com/tayoonabule/qaptr/releases/tag/v0.1.0
