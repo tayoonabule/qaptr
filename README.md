@@ -16,7 +16,7 @@ Qaptr is a native Apple-silicon macOS app with a local capture helper, a review 
 
 ## Beta install
 
-Qaptr beta releases are distributed through GitHub Releases as ad-hoc signed Apple-silicon builds. Apple Developer signing and notarization are not required for this private beta path.
+Qaptr beta releases are distributed through GitHub Releases as ad-hoc signed Apple-silicon builds. Apple Developer signing and notarization are not required for this public beta path.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/tayoonabule/qaptr/main/scripts/install-beta.sh | bash

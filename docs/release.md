@@ -1,5 +1,28 @@
 # Qaptr v1 release evidence
 
+## Public beta 0.1.1-beta.1 evidence
+
+Prepared from commit `3a89042e3402d269e5b5100018b6dd0288dd4ac8` with
+`QAPTR_BUILD_VERSION=10` on Apple silicon.
+
+- Rust formatting, Clippy, workspace tests, and workspace docs passed.
+- Helper Swift tests passed.
+- Review Swift tests passed: 195 tests, 0 failures.
+- macOS command validation passed.
+- `packaging/release.sh --dry-run --skip-reproducibility` built the ad-hoc
+  package, verified the outer app and nested helper signatures, and created the
+  DMG and `SHA256SUMS` asset.
+- Developer ID signing, notarization, stapling, and Gatekeeper assessment are
+  intentionally blocked for this beta path.
+- The packaged fixture smoke reached the helper permission-only status probe,
+  but its clean isolated review launch was blocked by the macOS login-keychain
+  authorization prompt while bootstrapping a new generation key. This is not
+  recorded as a first-paint pass and remains an acceptance issue for a future
+  clean-machine gate.
+
+The beta is suitable for a public ad-hoc distribution only with this boundary
+clearly called out in the GitHub release notes.
+
 This document records the release-evidence baseline used by the U23 report; the
 report records the exact validated commit. It is not a release approval. Locally
 verified components do not override blocked U23 gates. Each run writes its
