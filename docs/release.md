@@ -1,5 +1,24 @@
 # Qaptr v1 release evidence
 
+## Public beta 0.1.1-beta.2 evidence
+
+Prepared from commit `7eb4db6` with `QAPTR_BUILD_VERSION=11` on Apple silicon.
+
+- Rust formatting, Clippy, workspace tests, and workspace docs passed.
+- Helper Swift tests passed.
+- Review Swift tests passed: 195 tests, 0 failures.
+- `packaging/release.sh --dry-run --skip-reproducibility` built the ad-hoc
+  package, verified the outer app and nested helper signatures, and created the
+  DMG and `SHA256SUMS` asset.
+- The package was built with version `0.1.1-beta.2` and build `11`.
+- Developer ID signing, notarization, stapling, and Gatekeeper assessment are
+  intentionally blocked for this beta path.
+- The packaged fixture smoke remains subject to the existing macOS
+  login-keychain authorization limitation described below for beta 1.
+
+The beta is suitable for public ad-hoc distribution with that limitation called
+out in the GitHub release notes.
+
 ## Public beta 0.1.1-beta.1 evidence
 
 Prepared from commit `3a89042e3402d269e5b5100018b6dd0288dd4ac8` with
