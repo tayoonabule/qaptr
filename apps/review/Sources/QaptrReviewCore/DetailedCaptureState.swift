@@ -14,11 +14,9 @@ public enum DetailedCaptureActionOutcome: Equatable, Sendable {
     case stopFailed(String)
 }
 
-/// The review-core side of the future helper command boundary.
-///
-/// There is intentionally no qaptr-review-ffi or live RPC call here. The
-/// unavailable implementation keeps the UI honest until a real helper
-/// transport can be connected and tested end to end.
+/// The review-core side of the helper command boundary. The production review
+/// app uses the helper's distributed-notification transport; this unavailable
+/// implementation remains useful for explicit failure-state tests.
 public protocol DetailedCaptureCommandClient: Sendable {
     func startDetailedCapture(intervalSeconds: Int) -> DetailedCaptureActionOutcome
     func stopDetailedCapture() -> DetailedCaptureActionOutcome

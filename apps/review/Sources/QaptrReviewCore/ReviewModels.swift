@@ -68,6 +68,84 @@ public struct WorkflowSummary: Identifiable, Equatable, Sendable {
     }
 }
 
+/// The three evidence states a persisted workflow candidate may report.
+///
+/// These values are decoded from the native workflow result. The SwiftUI layer
+/// never derives them from confidence thresholds or observation counts.
+public enum WorkflowEvidenceStatus: String, Equatable, Sendable {
+    case enoughInformation = "enough_information"
+    case needsMoreDetail = "needs_more_detail"
+    case needsMoreFrequentObservation = "needs_more_frequent_observation"
+}
+
+/// A bounded recommendation emitted with a candidate that needs more evidence.
+public struct WorkflowCaptureRecommendation: Equatable, Sendable {
+    public let intervalSeconds: Int
+    public let durationSeconds: Int
+
+    public init(intervalSeconds: Int, durationSeconds: Int) {
+        self.intervalSeconds = intervalSeconds
+        self.durationSeconds = durationSeconds
+    }
+}
+
+/// One persisted, provider-produced workflow hypothesis.
+///
+/// The record contains scalar explanation and provenance only. It never carries
+/// source screenshots, provider payloads, credentials, or raw model output.
+public struct WorkflowCandidate: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let analysisSessionID: String
+    public let rank: Int
+    public let title: String
+    public let rationale: String
+    public let evidenceStatus: WorkflowEvidenceStatus
+    public let evidenceConfidence: Double
+    public let evidenceBasis: String
+    public let evidenceCaptureCount: Int
+    public let observedStartAtMillis: Int64?
+    public let observedEndAtMillis: Int64?
+    public let recommendation: WorkflowCaptureRecommendation?
+    public let createdAtMillis: Int64
+    public let revisedAtMillis: Int64
+
+    public init(
+        id: String,
+        analysisSessionID: String,
+        rank: Int,
+        title: String,
+        rationale: String,
+        evidenceStatus: WorkflowEvidenceStatus,
+        evidenceConfidence: Double,
+        evidenceBasis: String,
+        evidenceCaptureCount: Int,
+        observedStartAtMillis: Int64?,
+        observedEndAtMillis: Int64?,
+        recommendation: WorkflowCaptureRecommendation?,
+        createdAtMillis: Int64,
+        revisedAtMillis: Int64
+    ) {
+        self.id = id
+        self.analysisSessionID = analysisSessionID
+        self.rank = rank
+        self.title = title
+        self.rationale = rationale
+        self.evidenceStatus = evidenceStatus
+        self.evidenceConfidence = evidenceConfidence
+        self.evidenceBasis = evidenceBasis
+        self.evidenceCaptureCount = evidenceCaptureCount
+        self.observedStartAtMillis = observedStartAtMillis
+        self.observedEndAtMillis = observedEndAtMillis
+        self.recommendation = recommendation
+        self.createdAtMillis = createdAtMillis
+        self.revisedAtMillis = revisedAtMillis
+    }
+
+    public var confidenceBand: ConfidenceBand {
+        ConfidenceBand(score: evidenceConfidence)
+    }
+}
+
 /// A quiet, count-and-reason exclusion notice with no capture content.
 public struct ExclusionNotice: Identifiable, Equatable, Sendable {
     public let id: String
@@ -88,11 +166,18 @@ public struct ReviewSnapshot: Equatable, Sendable {
     public let observations: [QaptrObservation]
     public let workflows: [WorkflowSummary]
     public let notices: [ExclusionNotice]
+    public let workflowCandidates: [WorkflowCandidate]
 
-    public init(observations: [QaptrObservation], workflows: [WorkflowSummary], notices: [ExclusionNotice]) {
+    public init(
+        observations: [QaptrObservation],
+        workflows: [WorkflowSummary],
+        notices: [ExclusionNotice],
+        workflowCandidates: [WorkflowCandidate] = []
+    ) {
         self.observations = observations
         self.workflows = workflows
         self.notices = notices
+        self.workflowCandidates = workflowCandidates
     }
 
     /// An empty snapshot, shown before any capture has been analyzed.
@@ -101,6 +186,11 @@ public struct ReviewSnapshot: Equatable, Sendable {
     /// Observations ordered most-recent-first, the order the sheet displays.
     public var recentObservations: [QaptrObservation] {
         observations.sorted { $0.createdAtMillis > $1.createdAtMillis }
+    }
+
+    /// Candidates in the provider-supplied rank order shown by the review app.
+    public var rankedWorkflowCandidates: [WorkflowCandidate] {
+        workflowCandidates.sorted { $0.rank < $1.rank }
     }
 }
 

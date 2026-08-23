@@ -112,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // normally from that point on.
         window.makeFirstResponder(nil)
         NSApp.activate(ignoringOtherApps: true)
+        restartPackagedHelperForFreshPermissionState()
         applyLaunchCommandIfPresent()
         // Recorded after routing, so the probe reflects the surface the user
         // actually lands on rather than the one the command asked for; the
@@ -119,6 +120,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // elsewhere when onboarding is incomplete.
         recordResolvedSurfaceIfRequested(navigation.surface)
         recordFirstPaintIfRequested()
+    }
+
+    /// TCC can cache Screen Recording and Accessibility decisions for the
+    /// lifetime of the helper process. The system permission sheet explicitly
+    /// tells the user to quit and reopen the app, but the helper is a separate
+    /// login-item process and would otherwise survive that reopen with its old
+    /// cached decision. Restart only the helper inside this exact packaged app
+    /// before offering capture or routing onboarding commands.
+    private func restartPackagedHelperForFreshPermissionState() {
+        guard let helperURL = packagedHelperURL else { return }
+        let helperPath = helperURL.path
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: "com.qaptr.helper")
+            .filter { application in
+                guard let executableURL = application.executableURL else { return false }
+                return executableURL.path.hasPrefix(helperPath + "/Contents/")
+            }
+        for application in running {
+            application.terminate()
+        }
+
+        if !model.onboardingCompleted {
+            // During first-run onboarding the helper is intentionally started
+            // in permission-only mode. Without this relaunch, the native
+            // Screen Recording sheet's required "Quit & Reopen" action leaves
+            // the review app with no live helper heartbeat, so onboarding
+            // falls back to "Not yet requested" even after the user granted
+            // the permission in System Settings.
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.arguments = ["--permission-only", "true"]
+            NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            guard NSRunningApplication.runningApplications(withBundleIdentifier: "com.qaptr.helper")
+                .filter({ $0.executableURL?.path.hasPrefix(helperPath + "/Contents/") == true })
+                .isEmpty else { return }
+            self.offerCaptureStartIfNeeded()
+        }
+    }
+
+    private var packagedHelperURL: URL? {
+        Bundle.main.bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("LoginItems", isDirectory: true)
+            .appendingPathComponent("QaptrHelper.app", isDirectory: true)
+            .alsoIfExists()
+    }
+
+    /// The packaged launcher used to offer this prompt before opening the
+    /// nested review app. The review app is now the top-level product, so keep
+    /// the same returning-user behavior here.
+    private func offerCaptureStartIfNeeded() {
+        guard model.onboardingCompleted,
+              NSRunningApplication.runningApplications(withBundleIdentifier: "com.qaptr.helper").isEmpty,
+              let helperURL = packagedHelperURL
+        else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Start Qaptr capture?"
+        alert.informativeText = "Qaptr will start periodic, local screen captures at your configured interval. macOS may still require Screen Recording permission for Qaptr Helper. No provider request is made."
+        alert.addButton(withTitle: "Start Capture")
+        alert.addButton(withTitle: "Not Now")
+        if alert.runModal() == .alertFirstButtonReturn {
+            _ = NSWorkspace.shared.open(helperURL)
+        }
     }
 
     /// Honors a command the helper passed as a launch argument.
@@ -195,6 +263,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ) -> Bool {
         if !flag { showMainWindow() }
         return true
+    }
+}
+
+private extension URL {
+    func alsoIfExists() -> URL? {
+        FileManager.default.fileExists(atPath: path) ? self : nil
     }
 }
 

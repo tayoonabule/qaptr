@@ -59,6 +59,7 @@ func qaptrSurfaceNSColor(appearance: NSAppearance) -> NSColor {
 
 extension Color {
     static let qaptrSurface = qaptrDynamicColor(light: QaptrHex.canvasWhite, dark: QaptrHex.canvasWhite)
+    static let qaptrGlassCanvas = Color(nsColor: QaptrHex.canvasWhite)
     static let qaptrSurfaceRaised = Color(nsColor: QaptrHex.paperMist)
     static let qaptrPaperMist = Color(nsColor: QaptrHex.paperMist)
     static let qaptrInk = Color(nsColor: QaptrHex.charcoal)
@@ -154,10 +155,90 @@ enum QaptrMotion {
     }
 
     static let press = Animation.easeOut(duration: 0.12)
+    static let spring = Animation.spring(response: 0.42, dampingFraction: 0.86)
+    /// Deliberately slower than a spring for whole-surface navigation. The
+    /// opacity component in each transition keeps the handoff calm instead of
+    /// making two opaque canvases collide during the move.
+    static let navigation = Animation.timingCurve(0.22, 0.61, 0.36, 1, duration: 0.38)
 }
 
-/// A real product card surface: white fill, one ash border, no decorative
-/// elevation. The component keeps padding and radius consistent everywhere.
+/// A quiet animated macOS glass backdrop. The color movement is intentionally
+/// slow and low contrast so it gives the window depth without becoming a
+/// decorative distraction.
+struct QaptrGlassBackdrop<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ViewBuilder let content: Content
+    @State private var isSettled = false
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            Color.qaptrGlassCanvas.ignoresSafeArea()
+
+            Circle()
+                .fill(Color.qaptrAccent.opacity(0.16))
+                .frame(width: 420, height: 420)
+                .blur(radius: 90)
+                .offset(x: isSettled ? 260 : 170, y: isSettled ? -240 : -180)
+
+            Circle()
+                .fill(Color.qaptrTeal.opacity(0.12))
+                .frame(width: 360, height: 360)
+                .blur(radius: 100)
+                .offset(x: isSettled ? -280 : -210, y: isSettled ? 250 : 190)
+
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+
+            content
+        }
+        .task {
+            guard !reduceMotion else { return }
+            withAnimation(QaptrMotion.spring.repeatForever(autoreverses: true)) {
+                isSettled = true
+            }
+        }
+    }
+}
+
+/// A reusable floating glass panel. It carries the depth, edge highlight, and
+/// shadow language that makes the utility feel native instead of like a flat
+/// document pasted into an AppKit window.
+struct QaptrGlassPanel<Content: View>: View {
+    let padding: CGFloat
+    @ViewBuilder let content: Content
+
+    init(padding: CGFloat = QaptrSpace.xl, @ViewBuilder content: () -> Content) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(padding)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.feature, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: QaptrRadius.feature, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.82), Color.qaptrHairline.opacity(0.55)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            }
+            .shadow(color: Color.black.opacity(0.10), radius: 28, y: 14)
+    }
+}
+
+/// A real product card surface with a translucent material base and one
+/// restrained highlight. Existing callers keep the same API while inheriting
+/// the new visual language.
 struct QaptrCard<Content: View>: View {
     let padding: CGFloat
     @ViewBuilder let content: Content
@@ -170,10 +251,11 @@ struct QaptrCard<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            .background(Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous))
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
-                    .strokeBorder(Color.qaptrHairline, lineWidth: 1)
+                    .strokeBorder(Color.white.opacity(0.62), lineWidth: 1)
             }
+            .shadow(color: Color.black.opacity(0.055), radius: 14, y: 7)
     }
 }

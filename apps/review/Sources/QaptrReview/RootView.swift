@@ -1,245 +1,151 @@
+import AppKit
 import QaptrReviewCore
 import Observation
 import SwiftUI
 
-// Hallmark · studied-DNA: Micro live-site · persistent rail + ledger work plane
+// Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V5
 
+/// The retained AppKit window still accepts review and settings commands, but
+/// the primary app no longer uses persistent in-window navigation.
 enum ReviewSurface: Equatable {
-  case review
-  case settings
+    case review
+    case settings
 
-  /// A stable name for logging and instrumentation.
-  ///
-  /// Kept separate from the case names so a rename of either side cannot
-  /// silently change the probe's wire format.
-  var probeName: String {
-    switch self {
-    case .review: return "review"
-    case .settings: return "settings"
+    var probeName: String {
+        switch self {
+        case .review: "review"
+        case .settings: "settings"
+        }
     }
-  }
 }
 
 @MainActor
 @Observable
 final class ReviewNavigation {
-  var surface: ReviewSurface = .review
+    var surface: ReviewSurface = .review
 }
 
-/// The post-onboarding product shell. Navigation is persistent and quiet: the
-/// left rail stays put while Review and Settings share one warm work plane.
+/// The post-onboarding shell. Review is one adaptive canvas. Settings remains a
+/// policy-checked destination for existing helper and menu commands, without
+/// becoming a permanent rail beside the user's work.
 struct ContentView: View {
-  @Bindable var model: ReviewAppModel
-  @Bindable var navigation: ReviewNavigation
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Bindable var model: ReviewAppModel
+    @Bindable var navigation: ReviewNavigation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  var body: some View {
-    HStack(spacing: 0) {
-      rail
-        .frame(width: 208)
-        .overlay(alignment: .trailing) {
-          Rectangle()
-            .fill(Color.qaptrHairline)
-            .frame(width: 1)
-            .ignoresSafeArea(.container, edges: .top)
+    var body: some View {
+        QaptrGlassBackdrop {
+            ZStack {
+                if navigation.surface == .settings {
+                    settingsSurface
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else {
+                    WorkflowSuggestionsView(
+                        model: model,
+                        openSettings: { setSurface(.settings) }
+                    )
+                    // Review leaves toward the leading edge when Settings is
+                    // opened. Settings uses the opposite edge, so the two
+                    // surfaces do not appear to chase each other rightward.
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-      ZStack {
-        if navigation.surface == .settings {
-          SettingsView(model: model)
-            .transition(.opacity)
+        .task {
+            while !Task.isCancelled {
+                model.refreshCaptureProgress()
+                do {
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    private var settingsSurface: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    setSurface(.review)
+                } label: {
+                    Label("Review", systemImage: "chevron.left")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Return to Review")
+
+                Spacer()
+
+                Text("Settings")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+            .background(.ultraThinMaterial)
+
+            Divider()
+
+            QaptrGlassPanel(padding: 0) {
+                SettingsView(model: model)
+            }
+            .padding(.horizontal, QaptrSpace.xxl)
+            .padding(.vertical, QaptrSpace.lg)
+        }
+    }
+
+    private func setSurface(_ surface: ReviewSurface) {
+        if reduceMotion {
+            navigation.surface = surface
         } else {
-          ObservationSheetView(model: model)
-            .transition(.opacity)
+            withAnimation(QaptrMotion.navigation) {
+                navigation.surface = surface
+            }
         }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    .background(Color.qaptrSurface)
-    .task {
-      while !Task.isCancelled {
-        model.refreshCaptureProgress()
-        do {
-          try await Task.sleep(nanoseconds: 1_000_000_000)
-        } catch {
-          return
-        }
-      }
-    }
-  }
-
-  private var rail: some View {
-    ZStack(alignment: .topLeading) {
-      // The rail owns the titlebar-facing background so the surface remains
-      // continuous when the window uses full-size content.
-      Color.qaptrPaperMist.opacity(0.42)
-        .ignoresSafeArea(.container, edges: .top)
-
-      VStack(alignment: .leading, spacing: QaptrSpace.xxl) {
-        VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-          HStack(spacing: QaptrSpace.xs) {
-            QaptrBrandLogo(iconSize: 20, textSize: 17)
-          }
-          Text("REVIEW / MAC")
-            .font(QaptrType.meta(9.5))
-            .tracking(0.8)
-            .foregroundStyle(Color.qaptrInkMuted)
-        }
-
-        VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-          railButton("Review", systemImage: "list.bullet.rectangle", selected: navigation.surface == .review) {
-            setSurface(.review)
-          }
-          railButton("Settings", systemImage: "slider.horizontal.3", selected: navigation.surface == .settings) {
-            setSurface(.settings)
-          }
-        }
-
-        Spacer()
-
-        VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-          CaptureSignalBar(status: captureStatus)
-          Text(captureStatus.label)
-            .font(QaptrType.meta(9))
-            .tracking(0.7)
-            .foregroundStyle(captureStatus.isActive ? Color.qaptrTeal : Color.qaptrInkMuted)
-        }
-      }
-      .padding(.horizontal, QaptrSpace.lg)
-      .padding(.vertical, QaptrSpace.xl)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
-    }
-  }
-
-  private func railButton(
-    _ title: String, systemImage: String, selected: Bool, action: @escaping () -> Void
-  ) -> some View {
-    Button(action: action) {
-      Label(title, systemImage: systemImage)
-        .font(QaptrType.body(12.5))
-        .foregroundStyle(selected ? Color.qaptrInk : Color.qaptrInkSoft)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, QaptrSpace.sm)
-        .padding(.vertical, QaptrSpace.sm)
-        .background(
-          selected ? Color.qaptrAccentTint : Color.clear,
-          in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
-    }
-    .buttonStyle(.plain)
-    .frame(maxWidth: .infinity)
-    // The `Label` inside a `.plain` button does not reliably surface its text
-    // as the button's accessibility label, which left both rail items exposed
-    // to assistive technology and UI automation as untitled buttons
-    // distinguishable only by position. Naming the control explicitly restores
-    // that.
-    .accessibilityLabel(title)
-    .accessibilityAddTraits(selected ? .isSelected : [])
-  }
-
-  private var captureStatus: CaptureStatusPresentation {
-    CaptureStatusPresentation.present(
-      intent: model.captureControlIntent,
-      helperIsRunning: model.captureHelperIsRunning
-    )
-  }
-
-  private func setSurface(_ surface: ReviewSurface) {
-    if reduceMotion {
-      navigation.surface = surface
-    } else {
-      withAnimation(QaptrMotion.easeOut(0.22)) {
-        navigation.surface = surface
-      }
-    }
-  }
 }
 
 enum CaptureStatusPresentation: Equatable {
-  case live
-  case paused
-  case needsAttention
+    case live
+    case paused
+    case needsAttention
 
-  static func present(
-    intent: CaptureControlIntent,
-    helperIsRunning: Bool
-  ) -> CaptureStatusPresentation {
-    if intent == .paused { return .paused }
-    return helperIsRunning ? .live : .needsAttention
-  }
-
-  var label: String {
-    switch self {
-    case .live: "CAPTURE LIVE"
-    case .paused: "CAPTURE PAUSED"
-    case .needsAttention: "CAPTURE NEEDS ATTENTION"
+    static func present(
+        intent: CaptureControlIntent,
+        helperIsRunning: Bool
+    ) -> CaptureStatusPresentation {
+        if intent == .paused { return .paused }
+        return helperIsRunning ? .live : .needsAttention
     }
-  }
 
-  var accessibilityLabel: String {
-    switch self {
-    case .live: "Capture live"
-    case .paused: "Capture paused"
-    case .needsAttention: "Capture needs attention"
-    }
-  }
-
-  var isActive: Bool { self == .live }
-}
-
-struct CaptureSignalBar: View {
-  let status: CaptureStatusPresentation
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  private var isActive: Bool { status.isActive }
-
-  var body: some View {
-    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-      let cycle =
-        context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.6) / 3.6
-      let breathing = isActive && !reduceMotion ? 1 + (sin(cycle * .pi * 2) * 0.07) : 1
-      let shimmer = isActive && !reduceMotion ? cycle : 0
-
-      Capsule()
-        .fill(Color.qaptrSignalGradient)
-        .frame(height: 4)
-        .scaleEffect(y: breathing, anchor: .center)
-        .opacity(isActive ? 1 : 0.5)
-        .overlay {
-          GeometryReader { proxy in
-            Capsule()
-              .fill(
-                LinearGradient(
-                  colors: [.clear, Color.white.opacity(isActive ? 0.65 : 0), .clear],
-                  startPoint: .leading,
-                  endPoint: .trailing
-                )
-              )
-              .frame(width: proxy.size.width * 0.38)
-              .offset(x: ((shimmer * 1.65) - 0.38) * proxy.size.width)
-          }
-          .clipShape(Capsule())
+    var label: String {
+        switch self {
+        case .live: "Capture on"
+        case .paused: "Capture paused"
+        case .needsAttention: "Capture needs attention"
         }
-        .animation(.easeInOut(duration: 0.2), value: isActive)
     }
-    .frame(height: 8)
-    .accessibilityLabel(status.accessibilityLabel)
-  }
+
+    var accessibilityLabel: String { label }
+
+    var isActive: Bool { self == .live }
 }
 
-/// The root view: onboarding until completed, then the main content.
+/// The root view keeps the existing privacy/onboarding gate intact.
 struct RootView: View {
-  @Bindable var model: ReviewAppModel
-  @Bindable var navigation: ReviewNavigation
+    @Bindable var model: ReviewAppModel
+    @Bindable var navigation: ReviewNavigation
 
-  var body: some View {
-    Group {
-      if model.onboardingCompleted {
-        ContentView(model: model, navigation: navigation)
-      } else {
-        OnboardingView(model: model)
-      }
+    var body: some View {
+        Group {
+            if model.onboardingCompleted {
+                ContentView(model: model, navigation: navigation)
+            } else {
+                OnboardingView(model: model)
+            }
+        }
+        .frame(minWidth: 820, minHeight: 600)
     }
-    .frame(minWidth: 960, minHeight: 640)
-  }
 }

@@ -37,7 +37,7 @@ public enum HelperRuntimePaths {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        guard enclosingReview.lastPathComponent == "QaptrReview.app",
+        guard ["Qaptr.app", "QaptrReview.app"].contains(enclosingReview.lastPathComponent),
               fileExists(enclosingReview.path) else {
             return nil
         }

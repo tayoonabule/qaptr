@@ -89,9 +89,143 @@ private struct Options {
 private enum ReviewCommandNotification {
     static let openSettings = Notification.Name("com.qaptr.review.command.openSettings")
     static let showObservations = Notification.Name("com.qaptr.review.command.showObservations")
+    static let showDetailedSummary = Notification.Name("com.qaptr.review.command.showDetailedSummary")
     static let requestScreenRecording = Notification.Name("com.qaptr.review.command.requestScreenRecording")
     static let requestAccessibility = Notification.Name("com.qaptr.review.command.requestAccessibility")
     static let startCapture = Notification.Name("com.qaptr.review.command.startCapture")
+    static let startDetailedCapture = Notification.Name("com.qaptr.review.command.startDetailedCapture")
+    static let stopDetailedCapture = Notification.Name("com.qaptr.review.command.stopDetailedCapture")
+}
+
+private enum HelperMenuState: Equatable {
+    case normal(status: String, paused: Bool, captureCount: Int)
+    case detailed(remainingSeconds: Int, detailedCount: Int, generalCount: Int)
+    case analysisInProgress(phase: ReviewActivitySnapshot.Phase, captureCount: Int, message: String?)
+    case analysisAvailable(captureCount: Int)
+    case recovery(message: String, captureCount: Int)
+}
+
+private struct AnalysisMenuPresentation {
+    let title: String
+    let subtitle: String
+    let symbolName: String
+
+    init(phase: ReviewActivitySnapshot.Phase) {
+        switch phase {
+        case .preparing:
+            title = "Preparing local review"
+            subtitle = "Protecting captures on this Mac"
+            symbolName = "lock.shield"
+        case .waitingForConsent:
+            title = "Approval ready"
+            subtitle = "Review the privacy boundary in Qaptr"
+            symbolName = "checkmark.shield"
+        case .analyzing:
+            title = "Qaptr is analyzing"
+            subtitle = "The approved context is being reviewed"
+            symbolName = "sparkles"
+        case .resultReady:
+            title = "Analysis available"
+            subtitle = "Your capture summary is ready"
+            symbolName = "sparkles"
+        case .failed:
+            title = "Analysis needs attention"
+            subtitle = "The last analysis could not finish"
+            symbolName = "exclamationmark.triangle"
+        }
+    }
+}
+
+private struct DetailedCaptureSession: Codable, Equatable {
+    static let schemaVersion = 1
+
+    let version: Int
+    let sessionID: String
+    let startedAtMillis: Int64
+    let endsAtMillis: Int64
+    let normalIntervalSeconds: Int
+    let detailedIntervalSeconds: Int
+    let baselineCaptureCount: Int
+
+    init(
+        sessionID: String,
+        startedAtMillis: Int64,
+        endsAtMillis: Int64,
+        normalIntervalSeconds: Int,
+        detailedIntervalSeconds: Int,
+        baselineCaptureCount: Int
+    ) {
+        self.version = Self.schemaVersion
+        self.sessionID = sessionID
+        self.startedAtMillis = startedAtMillis
+        self.endsAtMillis = endsAtMillis
+        self.normalIntervalSeconds = normalIntervalSeconds
+        self.detailedIntervalSeconds = detailedIntervalSeconds
+        self.baselineCaptureCount = max(0, baselineCaptureCount)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case sessionID = "session_id"
+        case startedAtMillis = "started_at_ms"
+        case endsAtMillis = "ends_at_ms"
+        case normalIntervalSeconds = "normal_interval_seconds"
+        case detailedIntervalSeconds = "detailed_interval_seconds"
+        case baselineCaptureCount = "baseline_capture_count"
+    }
+}
+
+private struct DetailedCaptureSummary: Codable, Equatable {
+    let version: Int
+    let sessionID: String
+    let startedAtMillis: Int64
+    let endedAtMillis: Int64
+    let normalIntervalSeconds: Int
+    let detailedIntervalSeconds: Int
+    let detailedCaptureCount: Int
+    let stopReason: String
+
+    init(session: DetailedCaptureSession, endedAtMillis: Int64, detailedCaptureCount: Int, stopReason: String) {
+        self.version = 1
+        self.sessionID = session.sessionID
+        self.startedAtMillis = session.startedAtMillis
+        self.endedAtMillis = endedAtMillis
+        self.normalIntervalSeconds = session.normalIntervalSeconds
+        self.detailedIntervalSeconds = session.detailedIntervalSeconds
+        self.detailedCaptureCount = max(0, detailedCaptureCount)
+        self.stopReason = stopReason
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case sessionID = "session_id"
+        case startedAtMillis = "started_at_ms"
+        case endedAtMillis = "ended_at_ms"
+        case normalIntervalSeconds = "normal_interval_seconds"
+        case detailedIntervalSeconds = "detailed_interval_seconds"
+        case detailedCaptureCount = "detailed_capture_count"
+        case stopReason = "stop_reason"
+    }
+}
+
+private struct ReviewActivitySnapshot: Decodable {
+    enum Phase: String, Decodable, Equatable {
+        case preparing
+        case waitingForConsent = "waiting_for_consent"
+        case analyzing
+        case resultReady = "result_ready"
+        case failed
+    }
+
+    let phase: Phase
+    let updatedAtMillis: Int64
+    let message: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case phase
+        case updatedAtMillis = "updated_at_ms"
+        case message
+    }
 }
 
 @MainActor
@@ -117,6 +251,8 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     private var captureIntent: CaptureControlIntent
     private var capturePrepared = false
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private var detailedSession: DetailedCaptureSession?
+    private var presentedMenuState: HelperMenuState?
 
     init(options: Options, instanceLock: SingleInstanceLock, sealer: BundleSealer) {
         self.options = options
@@ -139,6 +275,7 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             && persistedControl.intent == .running
         self.captureIntent = .running
         super.init()
+        self.detailedSession = Self.readDetailedSession()
         // Canonicalize missing or corrupt control data without discarding the
         // persisted lifecycle intent.
         try? controlStore.write(persistedControl)
@@ -165,9 +302,33 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             name: ReviewCommandNotification.startCapture,
             object: nil
         )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(startDetailedCaptureCommand(_:)),
+            name: ReviewCommandNotification.startDetailedCapture,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(stopDetailedCaptureCommand(_:)),
+            name: ReviewCommandNotification.stopDetailedCapture,
+            object: nil
+        )
         syncControl(at: Self.currentTimestamp())
+        if options.permissionOnly, !capture.screenRecordingAccessGranted() {
+            permissionDefaults.set(true, forKey: Self.screenRecordingRequestedKey)
+            // macOS does not register a nested LSUIElement login item in the
+            // Screen Recording list reliably. Temporarily present the helper
+            // as a regular app while it makes its process-scoped request, then
+            // return to the accessory policy used during normal capture.
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+            _ = capture.requestScreenRecordingAccess()
+            NSApp.setActivationPolicy(.accessory)
+        }
         writePermissionStatus()
         configureStatusItem()
+        refreshMenu()
         prepareCaptureIfNeeded()
         scheduleTimer()
     }
@@ -201,6 +362,15 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         DistributedNotificationCenter.default().removeObserver(self)
         timer?.cancel()
         timer = nil
+        if let detailedSession {
+            writeDetailedSummary(
+                for: detailedSession,
+                endedAtMillis: Self.currentTimestamp(),
+                detailedCaptureCount: detailedCaptureCount(for: detailedSession),
+                stopReason: "helper-terminated"
+            )
+            removeDetailedSession()
+        }
         if captureIntent == .paused {
             progressTracker.pause(
                 at: Self.currentTimestamp(),
@@ -218,39 +388,219 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     }
 
     private func configureStatusItem() {
-        statusItem.button?.title = "Q"
         statusItem.button?.toolTip = "Qaptr capture helper"
+        statusItem.button?.setAccessibilityTitle("Qaptr capture helper")
+        refreshMenu(force: true)
+    }
+
+    private func refreshMenu(force: Bool = false) {
+        let state = menuState(at: Self.currentTimestamp())
+        guard force || state != presentedMenuState else { return }
+        presentedMenuState = state
+
         let menu = NSMenu()
-
-        let showQaptr = NSMenuItem(
-            title: "Show Capture Observations",
-            action: #selector(showQaptr(_:)),
-            keyEquivalent: "1"
-        )
-        showQaptr.target = self
-        showQaptr.keyEquivalentModifierMask = [.command]
-        menu.addItem(showQaptr)
-
-        let openSettings = NSMenuItem(
-            title: "Open Settings",
-            action: #selector(openReviewSettings(_:)),
-            keyEquivalent: ","
-        )
-        openSettings.target = self
-        openSettings.keyEquivalentModifierMask = [.command]
-        menu.addItem(openSettings)
-
-        menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit", action: #selector(quit(_:)), keyEquivalent: "q")
-        quit.target = self
-        quit.keyEquivalentModifierMask = [.command]
-        menu.addItem(quit)
+        menu.autoenablesItems = false
+        switch state {
+        case let .normal(status, paused, captureCount):
+            configureStatusItemButton(symbolName: paused ? "pause.circle" : "circle.fill", title: "Normal capture")
+            addHeader("Normal capture", subtitle: status, to: menu)
+            addItem(
+                title: paused ? "Resume Capture" : "Pause Capture",
+                action: #selector(toggleCapture(_:)),
+                keyEquivalent: "p",
+                to: menu
+            )
+            addItem(
+                title: "Start Detailed Capture…",
+                action: #selector(startDetailedCapture(_:)),
+                to: menu
+            )
+            addItem(title: "General captures: \(captureCount)", enabled: false, to: menu)
+            addSeparator(to: menu)
+            addCommonActions(to: menu)
+        case let .detailed(remainingSeconds, detailedCount, generalCount):
+            configureStatusItemButton(symbolName: "scope", title: "Detailed capture")
+            addHeader(
+                "Detailed capture",
+                subtitle: "\(formatDuration(remainingSeconds)) remaining",
+                to: menu
+            )
+            addItem(title: "Detailed captures: \(detailedCount)", enabled: false, to: menu)
+            addItem(title: "General captures: \(generalCount)", enabled: false, to: menu)
+            addSeparator(to: menu)
+            addItem(
+                title: "Stop Detailed Capture and Review",
+                action: #selector(stopDetailedCaptureAndReview(_:)),
+                to: menu
+            )
+            addItem(
+                title: "Return to Normal Capture",
+                action: #selector(returnToNormalCapture(_:)),
+                to: menu
+            )
+            addSeparator(to: menu)
+            addCommonActions(to: menu)
+        case let .analysisInProgress(phase, captureCount, message):
+            let presentation = AnalysisMenuPresentation(phase: phase)
+            configureStatusItemButton(symbolName: presentation.symbolName, title: presentation.title)
+            addHeader(presentation.title, subtitle: message ?? presentation.subtitle, to: menu)
+            addItem(title: "General captures: \(captureCount)", enabled: false, to: menu)
+            if phase == .waitingForConsent {
+                addItem(title: "Open Qaptr to review approval", action: #selector(showQaptr(_:)), keyEquivalent: "1", to: menu)
+            } else {
+                addItem(title: "Open Qaptr", action: #selector(showQaptr(_:)), keyEquivalent: "1", to: menu)
+            }
+            addSeparator(to: menu)
+            addCommonActions(to: menu, includeShow: false)
+        case let .analysisAvailable(captureCount):
+            configureStatusItemButton(symbolName: "sparkles", title: "Analysis available")
+            addHeader("Analysis available", subtitle: "Your capture summary is ready", to: menu)
+            addItem(title: "General captures: \(captureCount)", enabled: false, to: menu)
+            addItem(title: "Open Qaptr", action: #selector(showQaptr(_:)), keyEquivalent: "1", to: menu)
+            addSeparator(to: menu)
+            addCommonActions(to: menu, includeShow: false)
+        case let .recovery(message, captureCount):
+            configureStatusItemButton(symbolName: "exclamationmark.triangle", title: "Qaptr needs attention")
+            addHeader("Qaptr needs attention", subtitle: message, to: menu)
+            addItem(title: "General captures: \(captureCount)", enabled: false, to: menu)
+            addItem(
+                title: "Retry Capture",
+                action: #selector(retryCapture(_:)),
+                to: menu
+            )
+            addSeparator(to: menu)
+            addCommonActions(to: menu)
+        }
         statusItem.menu = menu
+    }
+
+    private func configureStatusItemButton(symbolName: String, title: String) {
+        let button = statusItem.button
+        button?.title = ""
+        button?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: title)
+        button?.image?.isTemplate = true
+        button?.toolTip = title
+        button?.setAccessibilityTitle(title)
+    }
+
+    private func addHeader(_ title: String, subtitle: String, to menu: NSMenu) {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        item.attributedTitle = NSAttributedString(
+            string: "\(title)\n\(subtitle)",
+            attributes: [
+                .font: NSFont.menuFont(ofSize: 0),
+                .foregroundColor: NSColor.labelColor
+            ]
+        )
+        item.setAccessibilityLabel("\(title). \(subtitle)")
+        menu.addItem(item)
+    }
+
+    private func addItem(
+        title: String,
+        action: Selector? = nil,
+        keyEquivalent: String = "",
+        enabled: Bool = true,
+        to menu: NSMenu
+    ) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.target = action == nil ? nil : self
+        item.isEnabled = enabled
+        if !keyEquivalent.isEmpty {
+            item.keyEquivalentModifierMask = [.command]
+        }
+        item.setAccessibilityLabel(title)
+        menu.addItem(item)
+    }
+
+    private func addSeparator(to menu: NSMenu) {
+        menu.addItem(.separator())
+    }
+
+    private func addCommonActions(to menu: NSMenu, includeShow: Bool = true) {
+        if includeShow {
+            addItem(title: "Open Qaptr", action: #selector(showQaptr(_:)), keyEquivalent: "1", to: menu)
+        }
+        addItem(title: "Open Settings", action: #selector(openReviewSettings(_:)), keyEquivalent: ",", to: menu)
+        addItem(title: "Quit Qaptr Helper", action: #selector(quit(_:)), keyEquivalent: "q", to: menu)
     }
 
     @objc private func showQaptr(_ sender: Any?) {
         _ = sender
         openReviewApp(requestSettings: false)
+    }
+
+    @objc private func toggleCapture(_ sender: Any?) {
+        _ = sender
+        let intent: CaptureControlIntent = captureIntent == .running ? .paused : .running
+        writeControl(intervalSeconds: activeInterval.seconds, intent: intent)
+        syncControl(at: Self.currentTimestamp())
+        refreshMenu(force: true)
+    }
+
+    @objc private func startDetailedCapture(_ sender: Any?) {
+        _ = sender
+        guard detailedSession == nil else { return }
+        guard captureIntent == .running, Self.finalConsentGranted else {
+            refreshMenu(force: true)
+            return
+        }
+
+        let now = Self.currentTimestamp()
+        let detailedInterval = Self.validInterval(
+            permissionDefaults.integer(forKey: Self.detailedIntervalKey),
+            fallback: 5
+        )
+        let durationSeconds = max(
+            30,
+            permissionDefaults.integer(forKey: Self.detailedDurationKey) == 0
+                ? 300
+                : permissionDefaults.integer(forKey: Self.detailedDurationKey)
+        )
+        let session = DetailedCaptureSession(
+            sessionID: UUID().uuidString,
+            startedAtMillis: now,
+            endsAtMillis: now + Int64(durationSeconds) * 1_000,
+            normalIntervalSeconds: activeInterval.seconds,
+            detailedIntervalSeconds: detailedInterval,
+            baselineCaptureCount: progressTracker.progress.captureCount
+        )
+        guard writeDetailedSession(session) else {
+            print("event=detailed_capture_failed reason=session_persistence")
+            return
+        }
+        detailedSession = session
+        guard writeControl(intervalSeconds: detailedInterval, intent: .running) else {
+            detailedSession = nil
+            removeDetailedSession()
+            refreshMenu(force: true)
+            return
+        }
+        syncControl(at: now)
+        refreshMenu(force: true)
+    }
+
+    @objc private func stopDetailedCaptureAndReview(_ sender: Any?) {
+        _ = sender
+        finishDetailedCapture(stopReason: "manual-stop", resumeNormalCapture: false)
+    }
+
+    @objc private func returnToNormalCapture(_ sender: Any?) {
+        _ = sender
+        finishDetailedCapture(stopReason: "returned-to-normal", resumeNormalCapture: true)
+    }
+
+    @objc private func retryCapture(_ sender: Any?) {
+        _ = sender
+        if !capture.screenRecordingAccessGranted() {
+            permissionDefaults.set(true, forKey: Self.screenRecordingRequestedKey)
+            _ = capture.requestScreenRecordingAccess()
+        }
+        captureEnabled = captureIntent == .running && Self.finalConsentGranted
+        capturePrepared = false
+        prepareCaptureIfNeeded()
+        refreshMenu(force: true)
     }
 
     @objc private func openReviewSettings(_ sender: Any?) {
@@ -260,6 +610,30 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
 
     @objc private func quit(_ sender: Any?) {
         NSApp.terminate(sender)
+    }
+
+    private func finishDetailedCapture(stopReason: String, resumeNormalCapture: Bool) {
+        guard let session = detailedSession else { return }
+        let now = Self.currentTimestamp()
+        let count = detailedCaptureCount(for: session)
+        writeDetailedSummary(
+            for: session,
+            endedAtMillis: now,
+            detailedCaptureCount: count,
+            stopReason: stopReason
+        )
+        guard writeControl(
+            intervalSeconds: session.normalIntervalSeconds,
+            intent: resumeNormalCapture ? .running : .paused
+        ) else {
+            refreshMenu(force: true)
+            return
+        }
+        detailedSession = nil
+        removeDetailedSession()
+        syncControl(at: now)
+        refreshMenu(force: true)
+        openDetailedSummary(sessionID: session.sessionID)
     }
 
     @objc private func requestAccessibilityPermission(_ notification: Notification) {
@@ -281,6 +655,16 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         guard accepts(notification), Self.finalConsentGranted else { return }
         captureEnabled = captureIntent == .running
         prepareCaptureIfNeeded()
+    }
+
+    @objc private func startDetailedCaptureCommand(_ notification: Notification) {
+        guard accepts(notification), Self.finalConsentGranted else { return }
+        startDetailedCapture(nil)
+    }
+
+    @objc private func stopDetailedCaptureCommand(_ notification: Notification) {
+        guard accepts(notification) else { return }
+        finishDetailedCapture(stopReason: "review-request", resumeNormalCapture: true)
     }
 
     private func accepts(_ notification: Notification) -> Bool {
@@ -324,6 +708,25 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func openDetailedSummary(sessionID: String) {
+        guard let reviewAppURL else {
+            print("event=command_failed command=show_detailed_summary reason=review_app_not_found")
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.arguments = ReviewLaunchCommandRequest.showObservations.launchArguments
+        NSWorkspace.shared.openApplication(at: reviewAppURL, configuration: configuration) { _, error in
+            if let error {
+                print("event=command_failed command=show_detailed_summary detail=\(error)")
+                return
+            }
+            DistributedNotificationCenter.default().post(
+                name: ReviewCommandNotification.showDetailedSummary,
+                object: sessionID
+            )
+        }
+    }
+
     private var reviewAppURL: URL? {
         HelperRuntimePaths.reviewApplicationURL(
             environment: ProcessInfo.processInfo.environment,
@@ -340,6 +743,8 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             }
             self.writePermissionStatus()
             self.syncControl(at: Self.currentTimestamp())
+            self.expireDetailedCaptureIfNeeded(at: Self.currentTimestamp())
+            self.refreshMenu()
             guard self.captureEnabled,
                   self.planner.action(at: ProcessInfo.processInfo.systemUptime) == .capture else {
                 return
@@ -392,6 +797,130 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
                 prepareCaptureIfNeeded()
             }
         }
+    }
+
+    private func menuState(at timestamp: Int64) -> HelperMenuState {
+        let captureCount = progressTracker.progress.captureCount
+        if let session = detailedSession {
+            return .detailed(
+                remainingSeconds: max(0, Int((session.endsAtMillis - timestamp) / 1_000)),
+                detailedCount: detailedCaptureCount(for: session),
+                generalCount: session.baselineCaptureCount
+            )
+        }
+        if let activity = readReviewActivity() {
+            switch activity.phase {
+            case .resultReady:
+                return .analysisAvailable(captureCount: captureCount)
+            case .failed:
+                return .recovery(
+                    message: activity.message ?? "The last analysis could not finish",
+                    captureCount: captureCount
+                )
+            case .preparing, .waitingForConsent, .analyzing:
+                return .analysisInProgress(
+                    phase: activity.phase,
+                    captureCount: captureCount,
+                    message: activity.message
+                )
+            }
+        }
+        if progressTracker.progress.state == .permissionRequired {
+            return .recovery(message: "Screen Recording permission is required", captureCount: captureCount)
+        }
+        if progressTracker.progress.state == .noDisplays {
+            return .recovery(message: "No display is available to capture", captureCount: captureCount)
+        }
+        if progressTracker.progress.state == .error {
+            return .recovery(
+                message: progressTracker.progress.failureReason ?? "Capture needs attention",
+                captureCount: captureCount
+            )
+        }
+        let status: String
+        switch progressTracker.progress.state {
+        case .capturing:
+            status = "Capturing now"
+        case .paused:
+            status = "Capture paused"
+        case .starting:
+            status = "Starting capture"
+        default:
+            status = captureIntent == .paused ? "Capture paused" : "Capture is on"
+        }
+        return .normal(
+            status: status,
+            paused: captureIntent == .paused,
+            captureCount: captureCount
+        )
+    }
+
+    private func expireDetailedCaptureIfNeeded(at timestamp: Int64) {
+        guard let session = detailedSession, timestamp >= session.endsAtMillis else { return }
+        finishDetailedCapture(stopReason: "expired", resumeNormalCapture: true)
+    }
+
+    private func detailedCaptureCount(for session: DetailedCaptureSession) -> Int {
+        max(0, progressTracker.progress.captureCount - session.baselineCaptureCount)
+    }
+
+    @discardableResult
+    private func writeControl(intervalSeconds: Int, intent: CaptureControlIntent) -> Bool {
+        do {
+            try controlStore.write(try CaptureControl(intervalSeconds: intervalSeconds, intent: intent))
+            return true
+        } catch {
+            print("event=control_failed interval_seconds=\(intervalSeconds) intent=\(intent.rawValue) detail=\(error)")
+            return false
+        }
+    }
+
+    private func writeDetailedSession(_ session: DetailedCaptureSession) -> Bool {
+        do {
+            let data = try JSONEncoder().encode(session)
+            try writeAtomically(data, to: Self.detailedSessionURL())
+            return true
+        } catch {
+            print("event=detailed_capture_failed reason=session_write detail=\(error)")
+            return false
+        }
+    }
+
+    private func writeDetailedSummary(
+        for session: DetailedCaptureSession,
+        endedAtMillis: Int64,
+        detailedCaptureCount: Int,
+        stopReason: String
+    ) {
+        let summary = DetailedCaptureSummary(
+            session: session,
+            endedAtMillis: endedAtMillis,
+            detailedCaptureCount: detailedCaptureCount,
+            stopReason: stopReason
+        )
+        do {
+            let data = try JSONEncoder().encode(summary)
+            try writeAtomically(data, to: Self.detailedSummaryURL())
+        } catch {
+            print("event=detailed_summary_failed detail=\(error)")
+        }
+    }
+
+    private func removeDetailedSession() {
+        try? FileManager.default.removeItem(at: Self.detailedSessionURL())
+    }
+
+    private func writeAtomically(_ data: Data, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: url, options: .atomic)
+    }
+
+    private func readReviewActivity() -> ReviewActivitySnapshot? {
+        guard let data = try? Data(contentsOf: Self.reviewActivityURL()) else { return nil }
+        return try? JSONDecoder().decode(ReviewActivitySnapshot.self, from: data)
     }
 
     private func runTick() {
@@ -488,9 +1017,8 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
     }
 
     private func updateStatus(_ title: String) {
-        DispatchQueue.main.async { [weak self] in
-            self?.statusItem.button?.title = title
-        }
+        _ = title
+        refreshMenu(force: true)
     }
 
     private func persistProgress() {
@@ -544,12 +1072,51 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             .appendingPathComponent("permission-status.json")
     }
 
+    private static func detailedSessionURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_DETAILED_SESSION_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
+            .appendingPathComponent("detailed-capture-session.json")
+    }
+
+    private static func detailedSummaryURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_DETAILED_SUMMARY_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
+            .appendingPathComponent("detailed-capture-summary.json")
+    }
+
+    private static func reviewActivityURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["QAPTR_REVIEW_ACTIVITY_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Qaptr", isDirectory: true)
+            .appendingPathComponent("review-activity.json")
+    }
+
+    private static func readDetailedSession() -> DetailedCaptureSession? {
+        guard let data = try? Data(contentsOf: detailedSessionURL()) else { return nil }
+        return try? JSONDecoder().decode(DetailedCaptureSession.self, from: data)
+    }
+
+    private static func validInterval(_ value: Int, fallback: Int) -> Int {
+        guard (try? CaptureInterval(seconds: value)) != nil else { return fallback }
+        return value
+    }
+
     private static func currentTimestamp() -> Int64 {
         Int64(Date().timeIntervalSince1970 * 1_000)
     }
 
     private static let screenRecordingRequestedKey = "com.qaptr.helper.permission.screen-recording-requested"
     private static let accessibilityRequestedKey = "com.qaptr.helper.permission.accessibility-requested"
+    private static let detailedIntervalKey = "com.qaptr.helper.detailed.interval-seconds"
+    private static let detailedDurationKey = "com.qaptr.helper.detailed.duration-seconds"
     private static let onboardingCompletedKey = "com.qaptr.review.onboarding.completed"
 
     private static var finalConsentGranted: Bool {
@@ -572,6 +1139,15 @@ private final class HelperApplication: NSObject, NSApplicationDelegate {
             print("event=skip display_id=\(displayID) reason=sealing_failed detail=\(reason)")
         }
     }
+}
+
+private func formatDuration(_ seconds: Int) -> String {
+    let minutes = seconds / 60
+    let remainder = seconds % 60
+    if minutes > 0 {
+        return remainder == 0 ? "\(minutes)m" : "\(minutes)m \(remainder)s"
+    }
+    return "\(remainder)s"
 }
 
 private struct UnavailableSealer: BundleSealer {

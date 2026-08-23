@@ -23,6 +23,22 @@ final class HelperRuntimePathsTests: XCTestCase {
         XCTAssertEqual(resolved, expected)
     }
 
+    func testReviewApplicationResolvesFromTopLevelQaptrBundle() {
+        let helper = URL(
+            fileURLWithPath: "/Applications/Qaptr.app/Contents/Library/LoginItems/QaptrHelper.app",
+            isDirectory: true
+        )
+        let expected = URL(fileURLWithPath: "/Applications/Qaptr.app", isDirectory: true)
+
+        let resolved = HelperRuntimePaths.reviewApplicationURL(
+            environment: [:],
+            helperBundleURL: helper,
+            fileExists: { $0 == expected.path }
+        )
+
+        XCTAssertEqual(resolved, expected)
+    }
+
     func testReviewApplicationHonorsAnExistingExplicitOverride() {
         let expected = URL(fileURLWithPath: "/Test/QaptrReview.app", isDirectory: true)
         let resolved = HelperRuntimePaths.reviewApplicationURL(

@@ -192,6 +192,60 @@ import ArcDial from "../components/ArcDial.astro";
     </div>
   </section>
 
+  <section class="privacy-lens" data-privacy-lens aria-labelledby="privacy-lens-title">
+    <div class="privacy-lens__copy">
+      <p class="meta"><ion-icon name="eye-off-outline" aria-hidden="true"></ion-icon>Private by default</p>
+      <h2 id="privacy-lens-title">The useful part appears. The boundary stays.</h2>
+      <p>Scroll to turn a captured work session into a reviewable record. Qaptr keeps the source material on your Mac until you decide what is worth sharing.</p>
+      <div class="privacy-lens__status" aria-live="polite">
+        <span data-privacy-state>capture held privately</span>
+        <b data-privacy-progress>00%</b>
+      </div>
+    </div>
+
+    <figure class="privacy-lens__visual" aria-describedby="privacy-lens-caption">
+      <div class="privacy-lens__frame">
+        <img src="/qaptr-workspace.webp" alt="A Qaptr workspace with a captured work session ready to review" loading="lazy" />
+        <div class="privacy-lens__veil" aria-hidden="true"></div>
+        <div class="privacy-lens__boundary" aria-hidden="true">
+          <span>private on this Mac</span>
+        </div>
+        <div class="privacy-lens__record" aria-hidden="true">
+          <span class="privacy-lens__record-kicker">session record</span>
+          <strong>Review the shape of the work.</strong>
+          <span class="privacy-lens__record-row"><i></i>Drafted the brief <b>09:42</b></span>
+          <span class="privacy-lens__record-row"><i></i>Compared source notes <b>10:18</b></span>
+          <span class="privacy-lens__record-row"><i></i>Wrote the next step <b>11:06</b></span>
+        </div>
+      </div>
+      <figcaption id="privacy-lens-caption">A sample session. Scroll is the lens. Nothing is shared automatically.</figcaption>
+    </figure>
+  </section>
+
+  <script is:inline>
+    const privacyLens = document.querySelector("[data-privacy-lens]");
+    if (privacyLens instanceof HTMLElement) {
+      const state = privacyLens.querySelector("[data-privacy-state]");
+      const progress = privacyLens.querySelector("[data-privacy-progress]");
+      let raf = 0;
+      const updatePrivacyLens = () => {
+        raf = 0;
+        const bounds = privacyLens.getBoundingClientRect();
+        const travel = Math.max(bounds.height - window.innerHeight, 1);
+        const p = Math.min(1, Math.max(0, -bounds.top / travel));
+        privacyLens.style.setProperty("--privacy-p", p.toFixed(3));
+        if (state) state.textContent = p < 0.32 ? "capture held privately" : p < 0.78 ? "context becoming useful" : "ready to review";
+        if (progress) progress.textContent = `${String(Math.round(p * 100)).padStart(2, "0")}%`;
+      };
+      const requestPrivacyUpdate = () => {
+        if (!raf) raf = window.requestAnimationFrame(updatePrivacyLens);
+      };
+      window.addEventListener("scroll", requestPrivacyUpdate, { passive: true });
+      window.addEventListener("resize", requestPrivacyUpdate);
+      updatePrivacyLens();
+    }
+  </script>
+
   <section id="join" class="join join--paper reveal">
     <div class="wrap join__inner">
       <div>
@@ -213,10 +267,44 @@ import ArcDial from "../components/ArcDial.astro";
      * contrast: pass (40-41) · chrome: pass (47, no re-drawn window bar) · tokens: pass (48) · responsive: pass (34, 49-51)
      */
     .hero {
+      position: relative;
+      isolation: isolate;
       display: grid;
       gap: var(--spacing-40);
       align-items: start;
       padding-block: clamp(var(--spacing-40), 5vw, var(--spacing-64)) clamp(var(--spacing-64), 10vw, var(--spacing-96));
+    }
+
+    .hero::before {
+      position: absolute;
+      top: -18rem;
+      right: -14rem;
+      z-index: -1;
+      width: min(62vw, 54rem);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background:
+        conic-gradient(from 210deg, rgb(37 99 235 / 0.16), rgb(124 58 237 / 0.12), rgb(234 88 12 / 0.16), rgb(22 163 74 / 0.12), rgb(37 99 235 / 0.16)),
+        radial-gradient(circle at 42% 44%, rgb(255 255 255 / 0.7), transparent 56%);
+      filter: blur(18px) saturate(125%);
+      opacity: 0.86;
+      transform: rotate(-18deg);
+      content: "";
+      pointer-events: none;
+    }
+
+    .hero::after {
+      position: absolute;
+      top: 8rem;
+      right: 8%;
+      z-index: -1;
+      width: min(26vw, 20rem);
+      aspect-ratio: 1;
+      border: 1px solid rgb(37 99 235 / 0.18);
+      border-radius: 50%;
+      box-shadow: 0 0 0 1.25rem rgb(124 58 237 / 0.04), 0 0 0 3rem rgb(234 88 12 / 0.035);
+      content: "";
+      pointer-events: none;
     }
 
     .hero__lede {
@@ -701,6 +789,60 @@ import ArcDial from "../components/ArcDial.astro";
     .join__body { margin-top: var(--spacing-12); color: var(--color-steel); }
     .join__form { min-width: 0; }
     .join :global(.waitlist-form) { max-width: 40rem; }
+
+    .privacy-lens {
+      --privacy-p: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+      gap: clamp(var(--spacing-32), 8vw, var(--spacing-112));
+      align-items: center;
+      min-height: 170vh;
+      border-top: 1px solid var(--color-ash);
+      background: var(--color-midnight-ink);
+      color: var(--color-canvas-white);
+      padding: clamp(var(--spacing-64), 10vw, var(--spacing-112)) var(--spacing-16);
+    }
+
+    .privacy-lens__copy {
+      position: sticky;
+      top: 28vh;
+      align-self: start;
+      max-width: 30rem;
+      padding-left: max(0px, calc((100vw - 75rem) / 2));
+    }
+
+    .privacy-lens__copy .meta { color: var(--color-vivid-green); }
+    .privacy-lens__copy h2 { max-width: 12ch; margin-top: var(--spacing-12); color: var(--color-canvas-white); font-family: var(--font-satoshi); font-size: clamp(2.25rem, 5vw, 4.8rem); font-weight: 500; letter-spacing: -0.045em; line-height: 0.98; }
+    .privacy-lens__copy > p:not(.meta) { max-width: 34ch; margin-top: var(--spacing-24); color: var(--color-smoke); font-size: var(--text-body-xl); }
+    .privacy-lens__status { display: flex; justify-content: space-between; gap: var(--spacing-16); max-width: 24rem; margin-top: clamp(var(--spacing-32), 5vw, var(--spacing-64)); border-top: 1px solid var(--color-slate); padding-top: var(--spacing-12); color: var(--color-smoke); font-family: var(--font-geist-mono); font-size: var(--text-caption); letter-spacing: var(--tracking-meta); text-transform: uppercase; }
+    .privacy-lens__status b { color: var(--color-vivid-green); font-weight: 400; }
+
+    .privacy-lens__visual { position: sticky; top: 12vh; align-self: start; width: min(100%, 56rem); margin: 0; }
+    .privacy-lens__frame { position: relative; overflow: hidden; aspect-ratio: 1200 / 751; border: 1px solid var(--color-slate); background: var(--color-graphite); box-shadow: 0 2rem 5rem rgb(0 0 0 / 0.38); }
+    .privacy-lens__frame img { width: 100%; height: 100%; object-fit: cover; opacity: calc(0.42 + var(--privacy-p) * 0.58); filter: saturate(calc(0.45 + var(--privacy-p) * 0.55)); transform: scale(calc(1.04 - var(--privacy-p) * 0.04)); }
+    .privacy-lens__veil { position: absolute; inset: 0; background: rgb(10 10 10 / calc(0.54 - var(--privacy-p) * 0.44)); mix-blend-mode: multiply; pointer-events: none; }
+    .privacy-lens__boundary { position: absolute; inset: 10% auto 10% 8%; width: 1px; background: var(--color-vivid-green); transform: translateX(calc(var(--privacy-p) * 52vw)); transition: transform 120ms linear; }
+    .privacy-lens__boundary span { position: absolute; top: -1.5rem; left: 0.75rem; width: max-content; color: var(--color-vivid-green); font-family: var(--font-geist-mono); font-size: var(--text-caption); letter-spacing: var(--tracking-meta); text-transform: uppercase; }
+    .privacy-lens__record { position: absolute; right: 5%; bottom: 8%; display: grid; gap: var(--spacing-8); width: min(78%, 24rem); border: 1px solid rgb(255 255 255 / 0.38); background: rgb(10 10 10 / calc(0.94 - var(--privacy-p) * 0.12)); padding: clamp(var(--spacing-16), 3vw, var(--spacing-24)); transform: translateY(calc((1 - var(--privacy-p)) * 2.5rem)); }
+    .privacy-lens__record-kicker { color: #86efac; font-family: var(--font-geist-mono); font-size: var(--text-caption); letter-spacing: var(--tracking-meta); text-transform: uppercase; }
+    .privacy-lens__record strong { max-width: 18ch; color: var(--color-canvas-white); font-family: var(--font-satoshi); font-size: clamp(1.35rem, 2.5vw, 2.1rem); font-weight: 500; letter-spacing: -0.025em; line-height: 1.02; }
+    .privacy-lens__record-row { display: grid; grid-template-columns: 0.6rem minmax(0, 1fr) auto; gap: var(--spacing-8); align-items: center; border-top: 1px solid rgb(255 255 255 / 0.24); padding-top: var(--spacing-8); color: #f5f5f5; font-size: var(--text-caption); }
+    .privacy-lens__record-row i { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--color-vivid-green); }
+    .privacy-lens__record-row b { color: #d4d4d4; font-family: var(--font-geist-mono); font-size: 0.65rem; font-weight: 400; }
+    .privacy-lens__visual figcaption { margin-top: var(--spacing-12); color: #a3a3a3; font-family: var(--font-geist-mono); font-size: var(--text-caption); letter-spacing: var(--tracking-meta); text-transform: uppercase; }
+
+    @media (max-width: 767px) {
+      .privacy-lens { grid-template-columns: 1fr; gap: var(--spacing-48); min-height: 150vh; padding-block: var(--spacing-64); }
+      .privacy-lens__copy { position: relative; top: auto; padding-left: 0; }
+      .privacy-lens__visual { top: 18vh; }
+      .privacy-lens__boundary { transform: translateX(calc(var(--privacy-p) * 86vw)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .privacy-lens__frame img,
+      .privacy-lens__boundary,
+      .privacy-lens__record { transition: none; }
+    }
 
     @media (min-width: 1000px) {
       .hero { grid-template-columns: minmax(22rem, 1fr) minmax(26rem, 1fr); gap: clamp(var(--spacing-40), 5vw, var(--spacing-64)); align-items: center; }

@@ -54,6 +54,56 @@ enum DevMockData {
                 count: 2,
                 text: "2 captures were skipped while a protected application was active."
             )
+        ],
+        workflowCandidates: [
+            WorkflowCandidate(
+                id: "mock-candidate-1",
+                analysisSessionID: "mock-session",
+                rank: 1,
+                title: "Validate a product change before release",
+                rationale: "Qaptr repeatedly saw implementation, review feedback, and a packaged-build check in the same work period.",
+                evidenceStatus: .enoughInformation,
+                evidenceConfidence: 0.91,
+                evidenceBasis: "8 captures across 42 minutes showed the same implementation-to-verification sequence.",
+                evidenceCaptureCount: 8,
+                observedStartAtMillis: 1_755_292_680_000,
+                observedEndAtMillis: 1_755_295_200_000,
+                recommendation: nil,
+                createdAtMillis: 1_755_295_200_000,
+                revisedAtMillis: 1_755_295_200_000
+            ),
+            WorkflowCandidate(
+                id: "mock-candidate-2",
+                analysisSessionID: "mock-session-2",
+                rank: 2,
+                title: "Compare launch plans and record the decision",
+                rationale: "A product brief and planning document appeared together while tradeoffs were reviewed.",
+                evidenceStatus: .needsMoreDetail,
+                evidenceConfidence: 0.73,
+                evidenceBasis: "4 captures show comparison work, but not the final decision or handoff.",
+                evidenceCaptureCount: 4,
+                observedStartAtMillis: 1_755_291_600_000,
+                observedEndAtMillis: 1_755_292_320_000,
+                recommendation: WorkflowCaptureRecommendation(intervalSeconds: 15, durationSeconds: 1_800),
+                createdAtMillis: 1_755_295_200_000,
+                revisedAtMillis: 1_755_295_200_000
+            ),
+            WorkflowCandidate(
+                id: "mock-candidate-3",
+                analysisSessionID: "mock-session-3",
+                rank: 3,
+                title: "Refine a native interface from review feedback",
+                rationale: "Qaptr saw the same SwiftUI surface, review notes, and repeated visual adjustments.",
+                evidenceStatus: .needsMoreFrequentObservation,
+                evidenceConfidence: 0.61,
+                evidenceBasis: "3 captures establish the task, but the important edits happened between observations.",
+                evidenceCaptureCount: 3,
+                observedStartAtMillis: 1_755_288_000_000,
+                observedEndAtMillis: 1_755_291_600_000,
+                recommendation: WorkflowCaptureRecommendation(intervalSeconds: 10, durationSeconds: 1_200),
+                createdAtMillis: 1_755_295_200_000,
+                revisedAtMillis: 1_755_295_200_000
+            ),
         ]
     )
 

@@ -53,7 +53,22 @@ public enum ReviewSnapshotDecoder {
         let observations = try (root["observations"] as? [[String: Any]] ?? []).map(decodeObservation)
         let workflows = try (root["workflows"] as? [[String: Any]] ?? []).map(decodeWorkflow)
         let notices = try (root["notices"] as? [[String: Any]] ?? []).map(decodeNotice)
-        return ReviewSnapshot(observations: observations, workflows: workflows, notices: notices)
+        let candidateFields = root["workflow_candidates"] as? [[String: Any]] ?? []
+        guard candidateFields.count <= 3 else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("snapshot contains more than three workflow candidates")
+        }
+        let candidates = try candidateFields.map(decodeWorkflowCandidate)
+        guard Set(candidates.map(\.id)).count == candidates.count,
+              Set(candidates.map(\.rank)).count == candidates.count
+        else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("workflow candidates contain duplicate ids or ranks")
+        }
+        return ReviewSnapshot(
+            observations: observations,
+            workflows: workflows,
+            notices: notices,
+            workflowCandidates: candidates
+        )
     }
 
     static func decodeObservation(_ fields: [String: Any]) throws -> QaptrObservation {
@@ -99,6 +114,62 @@ public enum ReviewSnapshotDecoder {
         )
     }
 
+    static func decodeWorkflowCandidate(_ fields: [String: Any]) throws -> WorkflowCandidate {
+        guard
+            let id = nonEmptyString(fields, "id"),
+            let analysisSessionID = nonEmptyString(fields, "analysis_session_id"),
+            let rank = (fields["rank"] as? NSNumber)?.intValue,
+            (1...3).contains(rank),
+            let title = nonEmptyString(fields, "title"),
+            let rationale = nonEmptyString(fields, "rationale"),
+            let evidenceStatusValue = fields["evidence_status"] as? String,
+            let evidenceStatus = WorkflowEvidenceStatus(rawValue: evidenceStatusValue),
+            let evidenceConfidence = fields["evidence_confidence"] as? Double,
+            (0...1).contains(evidenceConfidence),
+            let evidenceBasis = nonEmptyString(fields, "evidence_basis"),
+            let evidenceCaptureCount = (fields["evidence_capture_count"] as? NSNumber)?.intValue,
+            evidenceCaptureCount >= 0,
+            let createdAtMillis = (fields["created_at_ms"] as? NSNumber)?.int64Value,
+            let revisedAtMillis = (fields["revised_at_ms"] as? NSNumber)?.int64Value
+        else {
+            throw ReviewSnapshotDecodeError.unexpectedShape("workflow candidate missing or invalid required field")
+        }
+
+        let interval = (fields["recommended_interval_seconds"] as? NSNumber)?.intValue
+        let duration = (fields["recommended_duration_seconds"] as? NSNumber)?.intValue
+        let recommendation: WorkflowCaptureRecommendation?
+        switch (interval, duration) {
+        case (nil, nil):
+            recommendation = nil
+        case let (interval?, duration?)
+            where CaptureIntervalPolicy.isValid(interval)
+                && DetailedSessionDuration.allCases.map(\.seconds).contains(duration):
+            recommendation = WorkflowCaptureRecommendation(
+                intervalSeconds: interval,
+                durationSeconds: duration
+            )
+        default:
+            throw ReviewSnapshotDecodeError.unexpectedShape("workflow candidate has an incomplete recommendation")
+        }
+
+        return WorkflowCandidate(
+            id: id,
+            analysisSessionID: analysisSessionID,
+            rank: rank,
+            title: title,
+            rationale: rationale,
+            evidenceStatus: evidenceStatus,
+            evidenceConfidence: evidenceConfidence,
+            evidenceBasis: evidenceBasis,
+            evidenceCaptureCount: evidenceCaptureCount,
+            observedStartAtMillis: (fields["observed_start_at_ms"] as? NSNumber)?.int64Value,
+            observedEndAtMillis: (fields["observed_end_at_ms"] as? NSNumber)?.int64Value,
+            recommendation: recommendation,
+            createdAtMillis: createdAtMillis,
+            revisedAtMillis: revisedAtMillis
+        )
+    }
+
     private static func decodeNotice(_ fields: [String: Any]) throws -> ExclusionNotice {
         guard
             let id = fields["id"] as? String,
@@ -109,5 +180,11 @@ public enum ReviewSnapshotDecoder {
             throw ReviewSnapshotDecodeError.unexpectedShape("notice missing a required field")
         }
         return ExclusionNotice(id: id, createdAtMillis: createdAtMillis, count: count, text: text)
+    }
+
+    private static func nonEmptyString(_ fields: [String: Any], _ key: String) -> String? {
+        guard let value = fields[key] as? String else { return nil }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import CoreGraphics
 import QaptrReviewCore
 import Observation
 
@@ -35,9 +36,11 @@ private enum HelperCommand {
     static let requestScreenRecording = Notification.Name("com.qaptr.review.command.requestScreenRecording")
     static let requestAccessibility = Notification.Name("com.qaptr.review.command.requestAccessibility")
     static let startCapture = Notification.Name("com.qaptr.review.command.startCapture")
+    static let startDetailedCapture = Notification.Name("com.qaptr.review.command.startDetailedCapture")
+    static let stopDetailedCapture = Notification.Name("com.qaptr.review.command.stopDetailedCapture")
 }
 
-private enum HelperPermission {
+private enum HelperPermission: Equatable {
     case screenRecording
     case accessibility
 
@@ -80,6 +83,8 @@ final class ReviewAppModel {
     private(set) var cliProviderReadiness: [String: ProviderReadiness] = [:]
     private(set) var analysisSessionState: ReviewSessionState = .idle
     private(set) var analysisError: String?
+    private(set) var detailedCaptureState = DetailedCaptureState()
+    private(set) var reviewHasLoaded = false
     var providerSetupRequest: ProviderChoice?
     var onboardingCompleted: Bool
 
@@ -162,6 +167,7 @@ final class ReviewAppModel {
 
     /// Reloads the durable-history snapshot from `qaptr-store`.
     func refresh() {
+        defer { reviewHasLoaded = true }
         if usesMockData {
             #if DEBUG
             snapshot = DevMockData.snapshot
@@ -265,6 +271,10 @@ final class ReviewAppModel {
         return provider != .openRouter
             && providerConnection == .connected
             && analysisSessionState.allowedOperations.contains("start")
+    }
+
+    var workflowCandidates: [WorkflowCandidate] {
+        snapshot.rankedWorkflowCandidates
     }
 
     private func beginAnalysisPolling() {
@@ -602,6 +612,7 @@ final class ReviewAppModel {
     func requestScreenRecording() {
         if settings.screenRecordingStatus == .denied {
             openPrivacySettings(anchor: HelperPermission.screenRecording.privacyAnchor)
+            refreshPermissionAfterSystemPrompt(.screenRecording)
             return
         }
         settings.screenRecordingStatus = .notDetermined
@@ -612,10 +623,37 @@ final class ReviewAppModel {
     func requestAccessibilityContext() {
         if settings.accessibilityContextStatus == .denied {
             openPrivacySettings(anchor: HelperPermission.accessibility.privacyAnchor)
+            refreshPermissionAfterSystemPrompt(.accessibility)
             return
         }
         settings.accessibilityContextStatus = .notDetermined
         requestHelperPermission(.accessibility)
+    }
+
+    /// Starts or stops a real detailed session in QaptrHelper. The command is
+    /// accepted only when a fresh, path-bound helper heartbeat exists; the
+    /// helper remains the authority that owns capture timing and persistence.
+    func startDetailedCapture() {
+        guard let snapshot = currentHelperPermissionSnapshot() else {
+            detailedCaptureState = detailedCaptureState.applying(.helperUnavailable)
+            return
+        }
+        let intervalSeconds = 5
+        UserDefaults.standard.set(intervalSeconds, forKey: "com.qaptr.helper.detailed.interval-seconds")
+        if let duration = DetailedSessionDuration(rawValue: UserDefaults.standard.string(forKey: "com.qaptr.review.settings.detailedSessionDuration") ?? "oneHour") {
+            UserDefaults.standard.set(duration.seconds, forKey: "com.qaptr.helper.detailed.duration-seconds")
+        }
+        post(HelperCommand.startDetailedCapture, commandToken: snapshot.commandToken)
+        detailedCaptureState = detailedCaptureState.applying(.started(intervalSeconds: intervalSeconds))
+    }
+
+    func stopDetailedCapture() {
+        guard let snapshot = currentHelperPermissionSnapshot() else {
+            detailedCaptureState = detailedCaptureState.applying(.helperUnavailable)
+            return
+        }
+        post(HelperCommand.stopDetailedCapture, commandToken: snapshot.commandToken)
+        detailedCaptureState = detailedCaptureState.applying(.stopped)
     }
 
     private func requestHelperPermission(_ permission: HelperPermission) {
@@ -626,6 +664,7 @@ final class ReviewAppModel {
 
         if let snapshot = currentHelperPermissionSnapshot() {
             post(permission.notification, commandToken: snapshot.commandToken)
+            openPermissionSettingsIfNeeded(for: permission)
             refreshPermissionAfterSystemPrompt(permission)
             return
         }
@@ -673,6 +712,7 @@ final class ReviewAppModel {
             for _ in 0..<40 {
                 if let snapshot = self.currentHelperPermissionSnapshot() {
                     self.post(permission.notification, commandToken: snapshot.commandToken)
+                    self.openPermissionSettingsIfNeeded(for: permission)
                     self.refreshPermissionAfterSystemPrompt(permission)
                     return
                 }
@@ -720,6 +760,14 @@ final class ReviewAppModel {
         }
     }
 
+    /// Screen Recording has no useful in-app approval dialog on macOS. The
+    /// helper still performs the process-scoped request, but onboarding must
+    /// also take the person directly to the toggle for `QaptrHelper`.
+    private func openPermissionSettingsIfNeeded(for permission: HelperPermission) {
+        guard permission == .screenRecording else { return }
+        openPrivacySettings(anchor: permission.privacyAnchor)
+    }
+
     /// The helper publishes every second. Poll long enough for a person to read
     /// and answer the macOS prompt instead of sampling three arbitrary moments.
     private func refreshPermissionAfterSystemPrompt(_ permission: HelperPermission) {
@@ -758,7 +806,7 @@ final class ReviewAppModel {
     /// SMAppService pointing at a removed copy such as `~/Applications/Qaptr.app`.
     private func rebindLoginItemForCurrentBuildIfNeeded() {
         guard onboardingCompleted,
-              Bundle.main.bundleIdentifier == "com.qaptr.review",
+              ["com.qaptr.app", "com.qaptr.review"].contains(Bundle.main.bundleIdentifier),
               let bridge,
               let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
               let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String

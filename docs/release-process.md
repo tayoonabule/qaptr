@@ -124,3 +124,36 @@ swift test --package-path apps/review
 `docs/release.md` holds the longer-form evidence log. Keep the distinction it
 draws: locally verified components do not override blocked gates, and a green
 test suite is not an observation of the shipped app.
+
+## Public beta path without Apple Developer credentials
+
+The public beta is a GitHub prerelease, not a notarized distribution. It uses
+the same deterministic package assembly and ad-hoc structural checks as the
+local dry run, then publishes the DMG and a checksum manifest as release
+assets. This path does not claim Gatekeeper approval.
+
+```sh
+QAPTR_VERSION=0.1.1-beta.1 \
+QAPTR_BUILD_VERSION=10 \
+QAPTR_SKIP_REPRODUCIBILITY=1 \
+bash packaging/release.sh --dry-run --skip-reproducibility
+
+shasum -a 256 packaging/.build/Qaptr-0.1.1-beta.1.dmg > packaging/.build/SHA256SUMS
+gh release create v0.1.1-beta.1 --prerelease --verify-tag \
+  packaging/.build/Qaptr-0.1.1-beta.1.dmg \
+  packaging/.build/SHA256SUMS \
+  --title 'Qaptr 0.1.1-beta.1 (build 10)' \
+  --notes-file <(sed -n '/## \[0.1.1-beta.1\]/,/^## \[/p' CHANGELOG.md)
+```
+
+After the release is public, a new user can install it with:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tayoonabule/qaptr/main/scripts/install-beta.sh | bash
+```
+
+The installer selects the newest prerelease, verifies `SHA256SUMS` when
+available, replaces `~/Applications/Qaptr.app`, and reports the installed
+version/build. It does not remove Qaptr application data or silently bypass
+macOS quarantine. First-launch approval for an ad-hoc beta must be described
+as an expected limitation, not recorded as notarization evidence.

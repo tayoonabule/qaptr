@@ -61,9 +61,9 @@ if [[ -z "$packaged_app" ]]; then
 fi
 
 packaged_app=$(cd "$packaged_app" && pwd)
-review_app="$packaged_app/Contents/Applications/QaptrReview.app"
-helper_app="$review_app/Contents/Library/LoginItems/QaptrHelper.app"
-review_executable="$review_app/Contents/MacOS/QaptrReview"
+review_app="$packaged_app"
+helper_app="$packaged_app/Contents/Library/LoginItems/QaptrHelper.app"
+review_executable="$review_app/Contents/MacOS/Qaptr"
 helper_executable="$helper_app/Contents/MacOS/QaptrHelper"
 review_ffi="$review_app/Contents/Frameworks/libqaptr_review_ffi.dylib"
 helper_ffi="$helper_app/Contents/Frameworks/libqaptr_ffi.dylib"
@@ -83,7 +83,7 @@ done
 [[ -x "$review_executable" ]] || exit 1
 [[ -x "$helper_executable" ]] || exit 1
 [[ "$(plutil -extract CFBundleIdentifier raw -o - "$packaged_app/Contents/Info.plist")" == "com.qaptr.app" ]]
-[[ "$(plutil -extract CFBundleIdentifier raw -o - "$review_app/Contents/Info.plist")" == "com.qaptr.review" ]]
+[[ "$(plutil -extract CFBundleIdentifier raw -o - "$review_app/Contents/Info.plist")" == "com.qaptr.app" ]]
 [[ "$(plutil -extract CFBundleIdentifier raw -o - "$helper_app/Contents/Info.plist")" == "com.qaptr.helper" ]]
 [[ "$(plutil -extract LSUIElement raw -o - "$helper_app/Contents/Info.plist")" == "true" ]]
 codesign --verify --deep --strict "$packaged_app" >/dev/null

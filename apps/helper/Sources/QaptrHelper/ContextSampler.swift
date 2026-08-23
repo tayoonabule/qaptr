@@ -5,7 +5,10 @@ import QaptrHelperCore
 
 struct PointInTimeContextSampler {
     var accessibilityPermissionGranted: Bool {
-        AXIsProcessTrusted()
+        // Be explicit that status reads must never show a system prompt. The
+        // request path below is the only place that opts into prompting.
+        let options = ["AXTrustedCheckOptionPrompt": false] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
     }
 
     func sample() -> SampledContext {

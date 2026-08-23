@@ -9,40 +9,62 @@ import Foundation
 /// chosen, and the interval line always reflects the person's real current
 /// setting rather than a hardcoded default.
 public enum OnboardingCopy {
-    /// The capture-explanation stage's periodic-capture statement, phrased in
-    /// the single interval-choice vocabulary (no pause/sparse/frequency
-    /// terms). Always reflects the live configured interval.
-    public static func periodicCaptureStatement(intervalSeconds: Int) -> String {
-        "Qaptr takes one screenshot every \(CaptureIntervalPolicy.humanized(intervalSeconds))."
+  public static let welcomeTitle = "Capture your work, quietly."
+
+  public static let welcomeStatement =
+    "Qaptr takes an occasional screenshot on this Mac so you can review patterns later. Capture stays local until you choose an analysis session."
+
+  public static let screenRecordingStep =
+    "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here."
+
+  public static let accessibilityStep =
+    "Optional: allow Qaptr to read the frontmost app and window title. This adds context, but capture does not depend on it."
+
+  public static let captureBeginsAfterPermission =
+    "When you finish this step, capture starts immediately. There is no separate start screen."
+
+  public static let unavailablePermissionRecovery =
+    "QaptrHelper is unavailable. Reopen Qaptr or reinstall the helper, then try the permission again."
+
+  public static let detailedSessionUnavailable =
+    "Detailed capture changes the helper's cadence locally and stays active only while the helper reports a real session."
+
+  /// The capture-explanation stage's periodic-capture statement, phrased in
+  /// the single interval-choice vocabulary (no pause/sparse/frequency
+  /// terms). Always reflects the live configured interval.
+  public static func periodicCaptureStatement(intervalSeconds: Int) -> String {
+    "Qaptr takes one screenshot every \(CaptureIntervalPolicy.humanized(intervalSeconds))."
+  }
+
+  /// The capture-explanation stage's boundary statement: what capture does
+  /// not do. Stable regardless of settings, since it describes an
+  /// invariant rather than a configured value.
+  public static let captureBoundaryStatement =
+    "It does not record all the time. It does not read your clipboard or keys."
+
+  /// The privacy-consent stage's local-preparation statement (R-P5, R-P8).
+  /// States plainly that redaction happens on this Mac before anything
+  /// leaves it.
+  public static let localPreparationStatement =
+    "Qaptr redacts likely personal information, such as email addresses and phone numbers, on this Mac before any content is shared with a provider."
+
+  /// The privacy-consent stage's just-in-time consent statement (KTD10,
+  /// AE9). Makes explicit that consent is asked again for every session,
+  /// not granted once during onboarding.
+  public static let justInTimeConsentStatement =
+    "Qaptr asks again, every time, before sending anything to a provider. Choosing a provider here does not send anything yet."
+
+  /// The provider-selection stage's transmission statement. Names the
+  /// chosen provider when one is set, so the person sees exactly who will
+  /// receive analysis requests; falls back to a provider-agnostic
+  /// statement when no provider has been chosen, since naming an
+  /// unselected provider would misrepresent the current state.
+  public static func providerTransmissionStatement(provider: ProviderChoice?) -> String {
+    guard let provider else {
+      return
+        "Choosing a provider only saves your choice. Qaptr will not send anything until you separately consent to a review."
     }
-
-    /// The capture-explanation stage's boundary statement: what capture does
-    /// not do. Stable regardless of settings, since it describes an
-    /// invariant rather than a configured value.
-    public static let captureBoundaryStatement =
-        "It does not record all the time. It does not read your clipboard or keys."
-
-    /// The privacy-consent stage's local-preparation statement (R-P5, R-P8).
-    /// States plainly that redaction happens on this Mac before anything
-    /// leaves it.
-    public static let localPreparationStatement =
-        "Qaptr redacts likely personal information, such as email addresses and phone numbers, on this Mac before any content is shared with a provider."
-
-    /// The privacy-consent stage's just-in-time consent statement (KTD10,
-    /// AE9). Makes explicit that consent is asked again for every session,
-    /// not granted once during onboarding.
-    public static let justInTimeConsentStatement =
-        "Qaptr asks again, every time, before sending anything to a provider. Choosing a provider here does not send anything yet."
-
-    /// The provider-selection stage's transmission statement. Names the
-    /// chosen provider when one is set, so the person sees exactly who will
-    /// receive analysis requests; falls back to a provider-agnostic
-    /// statement when no provider has been chosen, since naming an
-    /// unselected provider would misrepresent the current state.
-    public static func providerTransmissionStatement(provider: ProviderChoice?) -> String {
-        guard let provider else {
-            return "Choosing a provider only saves your choice. Qaptr will not send anything until you separately consent to a review."
-        }
-        return "\(provider.displayName) will only receive redacted content after you separately consent to a review."
-    }
+    return
+      "\(provider.displayName) will only receive redacted content after you separately consent to a review."
+  }
 }

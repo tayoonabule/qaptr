@@ -19,16 +19,36 @@ named, because "tests pass" and "the app works" are different claims.
 
 ### Changed
 
-- `packaging/release.sh` reads the default version from
-  `[workspace.package].version` in `Cargo.toml` instead of repeating it as a
-  shell default, so the manifest and the packaging script cannot drift. An
-  explicit `QAPTR_VERSION` still overrides it, and a missing manifest section
-  is now a hard error rather than a silent fall back to a stale literal.
+- Future changes will be recorded here.
 
 ### Added
 
-- `CHANGELOG.md` and `docs/release-process.md`, so the release convention is
-  written down rather than reconstructed per release.
+- Future additions will be recorded here.
+
+## [0.1.1-beta.1] - 2026-08-23 (build 10)
+
+This public Apple-silicon beta is distributed through GitHub Releases as an
+ad-hoc signed DMG. Apple Developer signing and notarization are not part of
+this beta path. The installer verifies the published checksum when available.
+
+### Added
+
+- A curl-installable GitHub prerelease bootstrap at
+  `scripts/install-beta.sh`.
+- Public privacy, security, contribution, and release documentation.
+- Honest analysis progress stages for finding captures, protecting content
+  locally, and creating observations, including live evidence counts.
+- Menu-bar states for local preparation, approval-ready analysis, active
+  analysis, completed results, and recovery.
+
+### Changed
+
+- Review surfaces use a quieter glass-backed progress treatment with reduced
+  motion support.
+- Settings navigation now moves the review surface left and the settings
+  surface in from the right, with a slower, softer fade transition.
+- The packaged Qaptr app owns the Screen Recording permission boundary through
+  its nested helper and reports helper state honestly.
 
 ## [0.1.0] - 2026-08-20 (build 9)
 
@@ -69,5 +89,6 @@ itemized, since it predates this file.
   rendered). These make acceptance checks scriptable against a real signed
   build. They are inert unless the variable is set.
 
-[Unreleased]: https://github.com/tayoonabule/qaptr/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/tayoonabule/qaptr/compare/v0.1.1-beta.1...HEAD
+[0.1.1-beta.1]: https://github.com/tayoonabule/qaptr/releases/tag/v0.1.1-beta.1
 [0.1.0]: https://github.com/tayoonabule/qaptr/releases/tag/v0.1.0
