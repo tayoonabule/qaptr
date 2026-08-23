@@ -2,7 +2,8 @@
 
 ## Public beta 0.1.1-beta.2 evidence
 
-Prepared from commit `7eb4db6` with `QAPTR_BUILD_VERSION=11` on Apple silicon.
+Prepared from the beta 2 release commit with `QAPTR_BUILD_VERSION=11` on Apple
+silicon.
 
 - Rust formatting, Clippy, workspace tests, and workspace docs passed.
 - Helper Swift tests passed.
