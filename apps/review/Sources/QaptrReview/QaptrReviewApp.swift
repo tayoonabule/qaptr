@@ -147,9 +147,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // the review app with no live helper heartbeat, so onboarding
             // falls back to "Not yet requested" even after the user granted
             // the permission in System Settings.
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.arguments = ["--permission-only", "true"]
-            NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration)
+            Task {
+                for _ in 0..<20 where !Self.runningPackagedHelpers(matching: helperPath).isEmpty {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+                for application in Self.runningPackagedHelpers(matching: helperPath) {
+                    application.forceTerminate()
+                }
+                for _ in 0..<10 where !Self.runningPackagedHelpers(matching: helperPath).isEmpty {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.arguments = ["--permission-only", "true"]
+                _ = try? await NSWorkspace.shared.openApplication(
+                    at: helperURL,
+                    configuration: configuration
+                )
+            }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -168,6 +182,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .appendingPathComponent("LoginItems", isDirectory: true)
             .appendingPathComponent("QaptrHelper.app", isDirectory: true)
             .alsoIfExists()
+    }
+
+    private static func runningPackagedHelpers(matching helperPath: String) -> [NSRunningApplication] {
+        NSRunningApplication.runningApplications(withBundleIdentifier: "com.qaptr.helper")
+            .filter { $0.executableURL?.path.hasPrefix(helperPath + "/Contents/") == true }
     }
 
     /// The packaged launcher used to offer this prompt before opening the
@@ -212,6 +231,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         _ = notification
         model.refreshSettings()
+        model.refreshPermissions()
+        if !model.onboardingCompleted,
+           model.settings.screenRecordingStatus != .granted {
+            restartPackagedHelperForFreshPermissionState()
+        }
         model.refreshCaptureProgress()
     }
 

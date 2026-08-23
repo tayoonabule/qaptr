@@ -14,7 +14,7 @@ struct OnboardingView: View {
 
   var body: some View {
     QaptrGlassBackdrop {
-      QaptrGlassPanel(padding: QaptrSpace.xxxl) {
+      QaptrGlassPanel(padding: QaptrSpace.xl) {
         VStack(alignment: .leading, spacing: 0) {
           header
             .padding(.bottom, QaptrSpace.xl)
@@ -35,8 +35,8 @@ struct OnboardingView: View {
           footer
         }
       }
-      .frame(maxWidth: 700, maxHeight: 760)
-      .padding(QaptrSpace.xxl)
+      .frame(maxWidth: 760, maxHeight: 680)
+      .padding(QaptrSpace.xl)
     }
     .onAppear {
       model.refreshSettings()
@@ -124,7 +124,7 @@ struct OnboardingView: View {
     action: @escaping () -> Void,
     actionLabel: String
   ) -> some View {
-    VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+    VStack(alignment: .leading, spacing: QaptrSpace.md) {
       Text("STEP \(stage.rawValue + 1) / \(OnboardingStage.allCases.count)")
         .font(QaptrType.meta(10.5))
         .tracking(0.9)
@@ -152,7 +152,7 @@ struct OnboardingView: View {
           .foregroundStyle(Color.qaptrInkSoft)
           .fixedSize(horizontal: false, vertical: true)
       }
-      .padding(QaptrSpace.lg)
+      .padding(QaptrSpace.md)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(
         Color.qaptrPaperMist,

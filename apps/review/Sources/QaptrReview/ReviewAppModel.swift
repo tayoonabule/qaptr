@@ -535,9 +535,6 @@ final class ReviewAppModel {
         if let permissionSnapshot = currentHelperPermissionSnapshot() {
             next.screenRecordingStatus = permissionSnapshot.screenRecordingStatus
             next.accessibilityContextStatus = permissionSnapshot.accessibilityStatus
-        } else {
-            next.screenRecordingStatus = .notDetermined
-            next.accessibilityContextStatus = .notDetermined
         }
         if let bridge {
             next.loginItemEnabled = bridge.loginItemEnabled()
