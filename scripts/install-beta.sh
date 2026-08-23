@@ -89,7 +89,13 @@ curl --fail --silent --show-error --location --retry 3 "$asset_url" -o "$dmg"
 if [[ -n "$checksum_url" ]]; then
   checksums="$WORK_ROOT/SHA256SUMS"
   curl --fail --silent --show-error --location --retry 3 "$checksum_url" -o "$checksums"
-  expected="$(awk -v file="$(basename "$asset_url")" '$2 == file || $2 == "*" file {print $1; exit}' "$checksums")"
+  expected="$(awk -v file="$(basename "$asset_url")" '
+    {
+      name = $2
+      sub(/^\*?[^*]*\//, "", name)
+      if (name == file || name == "*" file) { print $1; exit }
+    }
+  ' "$checksums")"
   [[ -n "$expected" ]] || fail "checksum manifest does not contain $(basename "$asset_url")"
   actual="$(shasum -a 256 "$dmg" | awk '{print $1}')"
   [[ "$actual" == "$expected" ]] || fail "DMG checksum mismatch"
