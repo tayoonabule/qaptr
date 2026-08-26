@@ -42,6 +42,68 @@ struct ReviewGlassCard<Content: View>: View {
     }
 }
 
+/// The recommendation block follows the dedicated Figma glass recipe rather
+/// than the larger editorial card recipe used elsewhere in the review flow.
+struct ReviewSuggestionCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(24)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.white.opacity(0.25))
+                    .blendMode(.plusLighter)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Color(red: 0.859, green: 0.859, blue: 0.859), lineWidth: 0.5)
+            }
+            .overlay {
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black.opacity(0.10)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 12)
+                    Spacer()
+                    LinearGradient(colors: [.black.opacity(0.10), .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 12)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .opacity(0.35)
+                .allowsHitTesting(false)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 16, y: 12)
+    }
+}
+
+struct ReviewSuggestionPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 24)
+            .frame(height: 32)
+            .background(Color(red: 0.145, green: 0.388, blue: 0.922), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(configuration.isPressed ? 0.05 : 0.0))
+            }
+            .shadow(color: Color(red: 0.145, green: 0.388, blue: 0.922).opacity(0.20), radius: 6, y: 4)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 struct ReviewEvidenceChip: View {
     let text: String
 
@@ -544,21 +606,27 @@ struct FindingDetailView: View {
             }
 
             if let recommendation = candidate.recommendation {
-                ReviewGlassCard {
+                ReviewSuggestionCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Capture more detail")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(ReviewDesign.ink)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color(red: 0.294, green: 0.333, blue: 0.388))
                         Text("The broad pattern is visible, but Qaptr missed an important decision or handoff.")
-                            .font(.system(size: 14))
-                            .foregroundStyle(ReviewDesign.slate)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color(red: 0.294, green: 0.333, blue: 0.388))
                             .fixedSize(horizontal: false, vertical: true)
+                        HStack(spacing: 20) {
+                            Button("Capture more detail", action: captureMoreDetail)
+                                .buttonStyle(ReviewSuggestionPrimaryButtonStyle())
+                            Button("Keep it as is", action: back)
+                                .buttonStyle(.plain)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color(red: 0.294, green: 0.333, blue: 0.388))
+                        }
+                        .padding(.top, 4)
                         Text("Watch every \(recommendation.intervalSeconds) seconds for \(recommendation.reviewDurationLabel).")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(ReviewDesign.accent)
-                        Button("Capture more detail", action: captureMoreDetail)
-                            .buttonStyle(.borderedProminent)
-                            .tint(ReviewDesign.accent)
                     }
                 }
             }
