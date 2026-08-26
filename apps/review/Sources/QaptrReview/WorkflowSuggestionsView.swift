@@ -208,6 +208,22 @@ private struct HomeReviewView: View {
     NavigationStack(path: $path) {
       VStack(spacing: 0) {
         homeToolbar
+        ReviewStatusStrip(
+          progress: model.captureProgress,
+          helperIsRunning: model.captureHelperIsRunning,
+          captureIntent: model.captureControlIntent,
+          session: model.analysisSessionState,
+          detailedCapture: model.detailedCaptureState,
+          analyze: model.startAnalysis,
+          pause: model.pauseCapture,
+          resume: model.resumeCapture,
+          cancel: cancel,
+          retry: retry,
+          requestPermission: model.requestScreenRecording,
+          restart: model.restartCaptureHelper,
+          stopDetailed: model.stopDetailedCapture,
+          openSettings: openSettings
+        )
         ScrollView {
           VStack(alignment: .leading, spacing: 20) {
             banners

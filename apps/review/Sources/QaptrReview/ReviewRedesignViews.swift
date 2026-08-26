@@ -325,26 +325,34 @@ struct ReviewStatusStrip: View {
   @State private var isHovering = false
 
   var body: some View {
-    ReviewGlassCard(padding: 18) {
-      HStack(spacing: 14) {
-        Circle()
-          .fill(statusColor)
-          .frame(width: 9, height: 9)
-          .shadow(color: statusColor.opacity(0.35), radius: 5)
+    HStack(spacing: 14) {
+      Circle()
+        .fill(statusColor)
+        .frame(width: 6, height: 6)
+        .shadow(color: statusColor.opacity(0.35), radius: 5)
 
-        VStack(alignment: .leading, spacing: 3) {
-          Text(statusTitle)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(ReviewDesign.ink)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(statusTitle)
+          .font(.system(size: 13, weight: .medium))
+          .foregroundStyle(ReviewDesign.ink)
+        if displayState == .working {
           Text(statusDetail)
             .font(.system(size: 12))
             .foregroundStyle(ReviewDesign.muted)
-            .lineLimit(1)
         }
-
-        Spacer(minLength: 12)
-        action
       }
+
+      Spacer(minLength: 12)
+      action
+    }
+    .padding(.horizontal, 40)
+    .frame(height: 60)
+    .frame(maxWidth: .infinity)
+    .background(.ultraThinMaterial)
+    .overlay(alignment: .bottom) {
+      Rectangle()
+        .fill(Color.white.opacity(0.75))
+        .frame(height: 1)
     }
     .onHover { isHovering = $0 }
     .accessibilityElement(children: .contain)
