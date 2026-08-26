@@ -1,14 +1,7 @@
 import QaptrReviewCore
 import SwiftUI
 
-/// The capture status copy is kept separate from the settings layout so the
-/// recovery contract remains directly unit-testable.
-enum CaptureSettingsAction: Equatable {
-  case pause
-  case resume
-  case restart
-  case openPrivacy
-}
+enum CaptureSettingsAction: Equatable { case pause, resume, restart, openPrivacy }
 
 struct CaptureSettingsPresentation: Equatable {
   let title: String
@@ -16,361 +9,143 @@ struct CaptureSettingsPresentation: Equatable {
   let action: CaptureSettingsAction?
   let actionLabel: String?
 
-  static func present(
-    intent: CaptureControlIntent,
-    progress: CaptureProgressSnapshot,
-    helperIsRunning: Bool,
-    helperProcessExists: Bool
-  ) -> Self {
-    if intent == .paused {
-      return Self(
-        title: "Capture paused",
-        detail: "No new ticks will start until you resume.",
-        action: .resume,
-        actionLabel: "Resume"
-      )
-    }
-
+  static func present(intent: CaptureControlIntent, progress: CaptureProgressSnapshot, helperIsRunning: Bool, helperProcessExists: Bool) -> Self {
+    if intent == .paused { return .init(title: "Capture paused", detail: "No new ticks will start until you resume.", action: .resume, actionLabel: "Resume") }
     switch progress.state {
-    case .permissionRequired:
-      return Self(
-        title: "Screen Recording required",
-        detail: progress.failureReason ?? "Grant Screen Recording permission to continue.",
-        action: .openPrivacy,
-        actionLabel: "Review privacy"
-      )
-    case .noDisplays:
-      return Self(
-        title: "No display available",
-        detail: progress.failureReason ?? "Connect a display before Qaptr can capture.",
-        action: nil,
-        actionLabel: nil
-      )
-    case .error, .stopped, .unknown:
-      return Self(
-        title: "Capture needs attention",
-        detail: progress.actionableReason ?? "The background helper is not running.",
-        action: .restart,
-        actionLabel: "Try again"
-      )
-    case .paused where helperProcessExists:
-      return Self(
-        title: "Capture resuming",
-        detail: "The helper is applying your request.",
-        action: .pause,
-        actionLabel: "Pause"
-      )
-    case .starting where helperProcessExists:
-      return Self(
-        title: "Capture starting",
-        detail: "The helper is preparing the first capture tick.",
-        action: .pause,
-        actionLabel: "Pause"
-      )
-    case .waiting where helperIsRunning, .capturing where helperIsRunning:
-      return Self(
-        title: "Capture running",
-        detail: "The helper owns capture timing in the background.",
-        action: .pause,
-        actionLabel: "Pause"
-      )
-    case .starting, .waiting, .capturing, .paused:
-      return Self(
-        title: "Capture needs attention",
-        detail: "The background helper is not responding.",
-        action: .restart,
-        actionLabel: "Try again"
-      )
+    case .permissionRequired: return .init(title: "Screen Recording required", detail: progress.failureReason ?? "Grant Screen Recording permission to continue.", action: .openPrivacy, actionLabel: "Review privacy")
+    case .noDisplays: return .init(title: "No display available", detail: progress.failureReason ?? "Connect a display before Qaptr can capture.", action: nil, actionLabel: nil)
+    case .error, .stopped, .unknown: return .init(title: "Capture needs attention", detail: progress.actionableReason ?? "The background helper is not running.", action: .restart, actionLabel: "Try again")
+    case .paused where helperProcessExists: return .init(title: "Capture resuming", detail: "The helper is applying your request.", action: .pause, actionLabel: "Pause")
+    case .starting where helperProcessExists: return .init(title: "Capture starting", detail: "The helper is preparing the first capture tick.", action: .pause, actionLabel: "Pause")
+    case .waiting where helperIsRunning, .capturing where helperIsRunning: return .init(title: "Capture running", detail: "The helper owns capture timing in the background.", action: .pause, actionLabel: "Pause")
+    case .starting, .waiting, .capturing, .paused: return .init(title: "Capture needs attention", detail: "The background helper is not responding.", action: .restart, actionLabel: "Try again")
     }
   }
 }
 
-/// Compact native settings. Each section has one job: capture cadence and
-/// retention, detailed-session controls, provider readiness, privacy/recovery
-/// controls, and exclusions.
 struct SettingsView: View {
   @Bindable var model: ReviewAppModel
-  @AppStorage("com.qaptr.review.settings.detailedSessionDuration")
-  private var detailedSessionDurationRaw = DetailedSessionDuration.oneHour.rawValue
   @State private var showsProviderSetup = false
-  @State private var excludedApplication = ""
-  @State private var excludedWindowTitle = ""
+  @State private var showsNeverCapture = false
   @Environment(\.scenePhase) private var scenePhase
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    Form {
-      captureSection
-      detailedSessionSection
-      privacySection
-      providerSection
-      exclusionsSection
+    ScrollView {
+      VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+        VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+          Text("Settings").font(QaptrType.editorial(34)).foregroundStyle(Color.qaptrInk)
+          Text("Set the quiet defaults. Qaptr keeps capture local and asks before every analysis.")
+            .font(QaptrType.body(14)).foregroundStyle(Color.qaptrInkSoft)
+        }
+        captureSection
+        privacySection
+        analysisSection
+      }
+      .frame(maxWidth: 620, alignment: .leading)
+      .padding(.horizontal, QaptrSpace.xxl).padding(.vertical, QaptrSpace.xl)
+      .frame(maxWidth: .infinity)
     }
-    .formStyle(.grouped)
-    .frame(maxWidth: 620)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .background(Color.qaptrSurface)
-    .navigationTitle("Settings")
     .onAppear { model.refreshSettings() }
-    .onChange(of: scenePhase) { _, phase in
-      if phase == .active { model.refreshSettings() }
-    }
-    .sheet(isPresented: $showsProviderSetup, onDismiss: model.dismissProviderSetup) {
-      ProviderSetupSheet(model: model)
-    }
+    .onChange(of: scenePhase) { _, phase in if phase == .active { model.refreshSettings() } }
+    .sheet(isPresented: $showsProviderSetup) { ProviderSetupSheet(model: model) }
+    .sheet(isPresented: $showsNeverCapture) { NeverCaptureSheet(model: model) }
     .accessibilityElement(children: .contain)
   }
 
   private var captureSection: some View {
-    let presentation = CaptureSettingsPresentation.present(
-      intent: model.captureControlIntent,
-      progress: model.captureProgress,
-      helperIsRunning: model.captureHelperIsRunning,
-      helperProcessExists: model.captureHelperProcessExists
-    )
-
-    return Section {
-      LabeledContent {
-        if let action = presentation.action, let actionLabel = presentation.actionLabel {
-          Button(actionLabel) {
-            switch action {
-            case .pause: model.pauseCapture()
-            case .resume: model.resumeCapture()
-            case .restart: model.restartCaptureHelper()
-            case .openPrivacy: model.requestScreenRecording()
-            }
-          }
-          .buttonStyle(.bordered)
-          .keyboardShortcut(.defaultAction)
-        }
-      } label: {
+    card("Capture", icon: "record.circle") {
+      Toggle(isOn: Binding(get: { model.captureControlIntent == .running }, set: { $0 ? model.resumeCapture() : model.pauseCapture() })) {
         VStack(alignment: .leading, spacing: 3) {
-          Text(presentation.title)
-            .font(.headline)
-          Text(presentation.detail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+          Text("Capture").font(QaptrType.title(14)).foregroundStyle(Color.qaptrInk)
+          Text("Mirrors pause and resume in the menu bar").font(QaptrType.caption()).foregroundStyle(Color.qaptrInkSoft)
         }
       }
-
-      if let restartError = model.captureRestartError {
-        recoveryLine(restartError)
+      .toggleStyle(.switch)
+      Divider().overlay(Color.qaptrHairline)
+      Picker("Cadence", selection: Binding(get: { model.captureIntervalSeconds }, set: { model.setCaptureIntervalSeconds($0) })) {
+        ForEach(CaptureIntervalPreset.allCases, id: \.self) { Text("Every \($0.displayName)").tag($0.seconds) }
       }
-
-      Picker("Capture cadence", selection: captureIntervalBinding) {
-        ForEach(CaptureIntervalPreset.allCases, id: \.self) { preset in
-          Text("Every \(preset.displayName)")
-            .tag(preset.seconds)
-        }
+      Picker("Keep captures", selection: Binding(get: { model.settings.cacheLifetime }, set: { model.setCacheLifetime($0) })) {
+        ForEach(CacheLifetime.allCases, id: \.self) { Text($0.displayName).tag($0) }
       }
-      .accessibilityValue(CaptureIntervalPolicy.humanized(model.captureIntervalSeconds))
-
-      Picker("Keep local captures for", selection: cacheLifetimeBinding) {
-        ForEach(CacheLifetime.allCases, id: \.self) { lifetime in
-          Text(lifetime.displayName).tag(lifetime)
-        }
-      }
-
-      LabeledContent("Displays available") {
-        Text("\(model.settings.availableDisplayIDs.count)")
-          .foregroundStyle(.secondary)
-      }
-    } header: {
-      Text("Capture")
-    } footer: {
-      Text(
-        "Cadence changes are written to the helper's scalar control file. Screenshots remain local until an explicit analysis consent."
-      )
-    }
-  }
-
-  private var detailedSessionSection: some View {
-    Section {
-      Picker("Detailed session duration", selection: detailedDurationBinding) {
-        ForEach(DetailedSessionDuration.allCases, id: \.self) { duration in
-          Text(duration.displayName).tag(duration)
-        }
-      }
-      .accessibilityHint("Controls how long the helper captures more frequently")
-
-      if model.detailedCaptureState.lifecycle == .capturing {
-        Button("Stop detailed capture") {
-          model.stopDetailedCapture()
-        }
-        .buttonStyle(.borderedProminent)
-      } else {
-        Button("Capture more detail now") {
-          model.startDetailedCapture()
-        }
-        .buttonStyle(.borderedProminent)
-      }
-
-      if case .helperUnavailable? = model.detailedCaptureState.outcome {
-        recoveryLine("QaptrHelper is not available. Start the helper, then try again.")
-      }
-    } header: {
-      Text("Detailed capture")
-    } footer: {
-      Text(
-        "The lightweight helper changes cadence locally. Stop it here or from the menu bar; stopping opens the capture summary."
-      )
+      Text("Screenshots stay on this Mac until you approve an analysis.")
+        .font(QaptrType.caption()).foregroundStyle(Color.qaptrInkMuted)
     }
   }
 
   private var privacySection: some View {
-    Section {
-      PermissionControlRow(
-        title: "Screen Recording",
-        status: model.settings.screenRecordingStatus,
-        action: model.requestScreenRecording
-      )
-      PermissionControlRow(
-        title: "App and window names (optional)",
-        status: model.settings.accessibilityContextStatus,
-        action: model.requestAccessibilityContext
-      )
-
-      Toggle("Open Qaptr at login", isOn: loginItemBinding)
-        .accessibilityHint("Starts the lightweight capture helper, not an analysis provider")
-    } header: {
-      Text("Privacy and access")
-    } footer: {
-      Text(
-        "Screen Recording is required for capture. App and window names are optional context. Provider consent is requested separately for each analysis session."
-      )
-    }
-  }
-
-  private var providerSection: some View {
-    Section {
-      ForEach(ProviderChoice.allCases, id: \.self) { provider in
-        let selected = model.settings.provider == provider
-        let presentation = model.providerRowPresentation(for: provider)
-        Button {
-          model.connectProvider(provider)
-          if model.providerSetupRequest == .openRouter { showsProviderSetup = true }
-        } label: {
-          HStack {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(provider.displayName)
-                .foregroundStyle(.primary)
-              Text(presentation.reason ?? presentation.statusLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-              .foregroundStyle(selected ? Color.accentColor : .secondary)
+    card("Privacy", icon: "lock.shield") {
+      permissionRow("Screen Recording", model.settings.screenRecordingStatus, model.requestScreenRecording)
+      permissionRow("App and window names", model.settings.accessibilityContextStatus, model.requestAccessibilityContext)
+      Divider().overlay(Color.qaptrHairline)
+      Button { showsNeverCapture = true } label: {
+        HStack(spacing: QaptrSpace.md) {
+          Image(systemName: "eye.slash").foregroundStyle(Color.qaptrAccent).frame(width: 22)
+          VStack(alignment: .leading, spacing: 3) {
+            Text("Never capture").font(QaptrType.title(14)).foregroundStyle(Color.qaptrInk)
+            Text(exclusionSummary).font(QaptrType.caption()).foregroundStyle(Color.qaptrInkSoft)
           }
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(provider.displayName)
-        .accessibilityValue(
-          selected ? "Selected, \(presentation.statusLabel)" : presentation.statusLabel
-        )
-        .contextMenu {
-          if provider == .openRouter && selected && showsOpenRouterChangeKeyAction {
-            Button("Change key") {
-              model.openProviderSetup()
-              showsProviderSetup = true
-            }
+          Spacer(); Text("Edit").font(QaptrType.title(13)).foregroundStyle(Color.qaptrAccent)
+        }.contentShape(Rectangle())
+      }.buttonStyle(.plain)
+    }
+  }
+
+  private var analysisSection: some View {
+    card("Analysis", icon: "sparkles") {
+      Button {
+        if let provider = model.settings.provider { model.connectProvider(provider) }
+        showsProviderSetup = true
+      } label: {
+        HStack(spacing: QaptrSpace.md) {
+          Image(systemName: "network").foregroundStyle(Color.qaptrAccent).frame(width: 22)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(model.settings.provider?.displayName ?? "Choose a provider").font(QaptrType.title(14)).foregroundStyle(Color.qaptrInk)
+            Text(providerDetail).font(QaptrType.caption()).foregroundStyle(Color.qaptrInkSoft)
           }
-        }
-      }
-    } header: {
-      Text("Analysis provider")
-    } footer: {
-      Text(
-        "Choosing a provider does not send captures. Qaptr asks for consent before every analysis session."
-      )
+          Spacer(); Text("Change").font(QaptrType.title(13)).foregroundStyle(Color.qaptrAccent)
+        }.contentShape(Rectangle())
+      }.buttonStyle(.plain)
+      Text("Choosing a provider sends nothing. Qaptr asks before every analysis.")
+        .font(QaptrType.caption()).foregroundStyle(Color.qaptrInkMuted)
     }
   }
 
-  private var exclusionsSection: some View {
-    Section {
-      TextField("Application name", text: $excludedApplication)
-        .onSubmit(addExcludedApplication)
-      if !model.settings.excludedApplications.isEmpty {
-        ForEach(model.settings.excludedApplications, id: \.self) { entry in
-          exclusionRow(entry) { model.removeExcludedApplication(entry) }
-        }
-      }
+  private func card<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+    VStack(alignment: .leading, spacing: QaptrSpace.md) {
+      Label(title, systemImage: icon).font(QaptrType.title(14)).foregroundStyle(Color.qaptrInkMuted)
+      content()
+    }
+    .padding(QaptrSpace.xl)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.8), lineWidth: 1) }
+    .shadow(color: Color.black.opacity(0.06), radius: 18, y: 9)
+  }
 
-      TextField("Window title", text: $excludedWindowTitle)
-        .onSubmit(addExcludedWindowTitle)
-      if !model.settings.excludedWindowTitles.isEmpty {
-        ForEach(model.settings.excludedWindowTitles, id: \.self) { entry in
-          exclusionRow(entry) { model.removeExcludedWindowTitle(entry) }
-        }
-      }
-    } header: {
-      Text("Never capture")
-    } footer: {
-      Text("Excluded applications and window titles are filtered before capture is retained.")
+  private func permissionRow(_ title: String, _ status: PermissionStatus, _ action: @escaping () -> Void) -> some View {
+    HStack(spacing: QaptrSpace.md) {
+      Image(systemName: status == .granted ? "checkmark.shield" : "shield")
+        .foregroundStyle(status == .granted ? Color.qaptrSuccess : Color.qaptrWarning).frame(width: 22)
+      Text(title).font(QaptrType.body(14)).foregroundStyle(Color.qaptrInk); Spacer()
+      Text(status.label).font(QaptrType.caption()).foregroundStyle(status == .granted ? Color.qaptrSuccess : Color.qaptrWarning)
+        .padding(.horizontal, 9).padding(.vertical, 5)
+        .background((status == .granted ? Color.qaptrSuccess : Color.qaptrWarning).opacity(0.12), in: Capsule())
+      if status != .granted { Button(status == .denied ? "Open" : "Allow", action: action).buttonStyle(.qaptrQuiet) }
     }
   }
 
-  private func exclusionRow(_ value: String, remove: @escaping () -> Void) -> some View {
-    HStack {
-      Text(value)
-      Spacer()
-      Button("Remove", action: remove)
-        .buttonStyle(.borderless)
-    }
-    .accessibilityElement(children: .combine)
+  private var exclusionSummary: String {
+    let count = model.settings.excludedApplications.count + model.settings.excludedWindowTitles.count
+    return count == 0 ? "Nothing excluded. Add an app or a window title to keep it out of every capture." : "\(count) rule\(count == 1 ? "" : "s") active"
   }
 
-  private func addExcludedApplication() {
-    model.addExcludedApplication(excludedApplication)
-    excludedApplication = ""
+  private var providerDetail: String {
+    guard let provider = model.settings.provider else { return "No provider selected" }
+    let presentation = model.providerRowPresentation(for: provider)
+    return presentation.reason ?? presentation.statusLabel
   }
 
-  private func addExcludedWindowTitle() {
-    model.addExcludedWindowTitle(excludedWindowTitle)
-    excludedWindowTitle = ""
-  }
-
-  private var captureIntervalBinding: Binding<Int> {
-    Binding(
-      get: { model.captureIntervalSeconds },
-      set: { model.setCaptureIntervalSeconds($0) }
-    )
-  }
-
-  private var cacheLifetimeBinding: Binding<CacheLifetime> {
-    Binding(
-      get: { model.settings.cacheLifetime },
-      set: { model.setCacheLifetime($0) }
-    )
-  }
-
-  private var detailedDurationBinding: Binding<DetailedSessionDuration> {
-    Binding(
-      get: { DetailedSessionDuration(rawValue: detailedSessionDurationRaw) ?? .oneHour },
-      set: { detailedSessionDurationRaw = $0.rawValue }
-    )
-  }
-
-  private var loginItemBinding: Binding<Bool> {
-    Binding(
-      get: { model.settings.loginItemEnabled },
-      set: { model.setLoginItemEnabled($0) }
-    )
-  }
-
-  private var showsOpenRouterChangeKeyAction: Bool {
-    Self.showsOpenRouterChangeKeyAction(
-      provider: model.settings.provider,
-      connection: model.providerConnection
-    )
-  }
-
-  /// True only for OpenRouter after a key has been configured or checked.
-  static func showsOpenRouterChangeKeyAction(
-    provider: ProviderChoice?, connection: ProviderConnectionState
-  ) -> Bool {
+  static func showsOpenRouterChangeKeyAction(provider: ProviderChoice?, connection: ProviderConnectionState) -> Bool {
     guard provider == .openRouter else { return false }
     switch connection.kind {
     case .configured, .connected, .checking, .failed: return true
@@ -378,42 +153,54 @@ struct SettingsView: View {
     }
   }
 
-  /// True only when OpenRouter is selected and the local key is known to be
-  /// absent. This never performs a network request.
-  static func showsOpenRouterKeyNotice(
-    provider: ProviderChoice?, connection: ProviderConnectionState
-  ) -> Bool {
+  static func showsOpenRouterKeyNotice(provider: ProviderChoice?, connection: ProviderConnectionState) -> Bool {
     provider == .openRouter && connection.kind == .needsKey
   }
+}
 
-  private func recoveryLine(_ text: String) -> some View {
-    Label(text, systemImage: "exclamationmark.triangle")
-      .font(.caption)
-      .foregroundStyle(Color.qaptrError)
-      .fixedSize(horizontal: false, vertical: true)
-      .accessibilityLabel(text)
+struct NeverCaptureSheet: View {
+  @Bindable var model: ReviewAppModel
+  @Environment(\.dismiss) private var dismiss
+  @State private var entry = ""
+  @State private var kind: EntryKind = .app
+  private enum EntryKind: String, CaseIterable { case app = "App"; case windowTitle = "Window title" }
+
+  private var rows: [(String, String)] {
+    model.settings.excludedApplications.map { ("App", $0) } + model.settings.excludedWindowTitles.map { ("Window title", $0) }
   }
 
-  private struct PermissionControlRow: View {
-    let title: String
-    let status: PermissionStatus
-    let action: () -> Void
-
-    var body: some View {
-      LabeledContent {
-        if status != .granted {
-          Button(status == .denied ? "Open System Settings" : "Request", action: action)
-            .buttonStyle(.bordered)
-        }
-      } label: {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(title)
-          Text(status.label)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+  var body: some View {
+    VStack(alignment: .leading, spacing: QaptrSpace.lg) {
+      VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+        Text("Never capture").font(QaptrType.headline(22)).foregroundStyle(Color.qaptrInk)
+        Text("Keep sensitive apps and windows out of every capture.").font(QaptrType.body()).foregroundStyle(Color.qaptrInkSoft)
+      }
+      HStack(spacing: QaptrSpace.sm) {
+        Picker("Rule type", selection: $kind) { ForEach(EntryKind.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.labelsHidden()
+        TextField("App or window title…", text: $entry).textFieldStyle(.qaptr).onSubmit(add)
+        Button("Add", action: add).buttonStyle(.qaptrPrimary).disabled(entry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+      if rows.isEmpty {
+        Text("Nothing excluded. Add an app or a window title to keep it out of every capture.").font(QaptrType.caption()).foregroundStyle(Color.qaptrInkMuted)
+      } else {
+        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+          HStack {
+            Text(row.0).font(QaptrType.caption()).foregroundStyle(Color.qaptrInkMuted).frame(width: 90, alignment: .leading)
+            Text(row.1).font(QaptrType.body()).foregroundStyle(Color.qaptrInk); Spacer()
+            Button("Remove") { row.0 == "App" ? model.removeExcludedApplication(row.1) : model.removeExcludedWindowTitle(row.1) }.buttonStyle(.qaptrQuiet)
+          }
+          Divider().overlay(Color.qaptrHairline)
         }
       }
-      .accessibilityElement(children: .contain)
+      HStack { Spacer(); Button("Done") { dismiss() }.buttonStyle(.qaptrPrimary) }
     }
+    .padding(QaptrSpace.xxl).frame(width: 520).background(.regularMaterial)
+    .accessibilityElement(children: .contain).accessibilityLabel("Never capture settings")
+  }
+
+  private func add() {
+    let value = entry.trimmingCharacters(in: .whitespacesAndNewlines); guard !value.isEmpty else { return }
+    if kind == .app { model.addExcludedApplication(value) } else { model.addExcludedWindowTitle(value) }
+    entry = ""
   }
 }
