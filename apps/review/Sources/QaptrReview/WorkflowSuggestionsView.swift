@@ -210,23 +210,6 @@ private struct HomeReviewView: View {
         homeToolbar
         ScrollView {
           VStack(alignment: .leading, spacing: 20) {
-            homeHeader
-            ReviewStatusStrip(
-              progress: model.captureProgress,
-              helperIsRunning: model.captureHelperIsRunning,
-              captureIntent: model.captureControlIntent,
-              session: model.analysisSessionState,
-              detailedCapture: model.detailedCaptureState,
-              analyze: model.startAnalysis,
-              pause: model.pauseCapture,
-              resume: model.resumeCapture,
-              cancel: cancel,
-              retry: retry,
-              requestPermission: model.requestScreenRecording,
-              restart: model.restartCaptureHelper,
-              stopDetailed: model.stopDetailedCapture,
-              openSettings: openSettings
-            )
             banners
             feed
           }
@@ -287,26 +270,6 @@ private struct HomeReviewView: View {
       Rectangle()
         .fill(Color.white.opacity(0.75))
         .frame(height: 1)
-    }
-  }
-
-  private var homeHeader: some View {
-    HStack(alignment: .bottom) {
-      VStack(alignment: .leading, spacing: 5) {
-        Text("Findings")
-          .font(.system(size: 30, weight: .regular, design: .serif))
-          .foregroundStyle(ReviewDesign.ink)
-        Text("A quiet record of what Qaptr noticed on this Mac.")
-          .font(.system(size: 14))
-          .foregroundStyle(ReviewDesign.slate)
-      }
-      Spacer()
-      if !findings.isEmpty {
-        Text("\(findings.count) \(findings.count == 1 ? "finding" : "findings")")
-          .font(.system(size: 12, weight: .medium, design: .monospaced))
-          .foregroundStyle(ReviewDesign.muted)
-          .padding(.bottom, 3)
-      }
     }
   }
 
