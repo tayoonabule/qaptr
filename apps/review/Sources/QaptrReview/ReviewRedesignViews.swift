@@ -178,74 +178,50 @@ struct WelcomeView: View {
 
   var body: some View {
     QaptrGlassBackdrop {
-      ReviewGlassCard(padding: 36) {
-        VStack(alignment: .leading, spacing: 0) {
-          HStack {
-            QaptrBrandLogo(iconSize: 25, textSize: 21)
-            Spacer()
-            Text("WELCOME")
-              .font(.system(size: 11, weight: .semibold))
-              .tracking(1.1)
-              .foregroundStyle(ReviewDesign.muted)
-          }
-          .padding(.bottom, 42)
+      HStack(spacing: 24) {
+        Image(systemName: model.settings.screenRecordingStatus == .denied
+          ? "exclamationmark.shield.fill" : "rectangle.dashed.and.paperclip")
+          .font(.system(size: 28, weight: .medium))
+          .foregroundStyle(model.settings.screenRecordingStatus == .denied
+            ? ReviewDesign.orange : ReviewDesign.accent)
+          .frame(width: 48)
 
-          Text("Qaptr notices how you work.")
-            .font(.system(size: 38, weight: .regular, design: .serif))
+        VStack(alignment: .leading, spacing: 5) {
+          Text(model.settings.screenRecordingStatus == .denied
+            ? "Screen Recording is off" : "Allow Screen Recording")
+            .font(.system(size: 20, weight: .semibold))
             .foregroundStyle(ReviewDesign.ink)
+          Text(model.settings.screenRecordingStatus == .denied
+            ? "Enable QaptrHelper in Screen Recording, then return to Qaptr."
+            : "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here.")
+            .font(.system(size: 13))
+            .foregroundStyle(ReviewDesign.slate)
+            .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
-
-          Text(
-            "It takes an occasional screenshot, keeps everything on this Mac, and turns it into findings only when you ask."
-          )
-          .font(.system(size: 16))
-          .foregroundStyle(ReviewDesign.slate)
-          .lineSpacing(4)
-          .fixedSize(horizontal: false, vertical: true)
-          .padding(.top, 14)
-
           if let message {
             Text(message)
-              .font(.system(size: 13, weight: .medium))
+              .font(.system(size: 12, weight: .medium))
               .foregroundStyle(ReviewDesign.orange)
-              .padding(.top, 18)
+              .lineLimit(1)
           }
-
-          if model.settings.screenRecordingStatus == .denied {
-            Text("Screen Recording is off for Qaptr.")
-              .font(.system(size: 13, weight: .medium))
-              .foregroundStyle(ReviewDesign.orange)
-              .padding(.top, 26)
-          }
-
-          Button(primaryLabel, action: primaryAction)
-            .buttonStyle(.borderedProminent)
-            .tint(ReviewDesign.accent)
-            .controlSize(.large)
-            .padding(.top, 30)
-            .keyboardShortcut(.defaultAction)
-
-          if model.settings.screenRecordingStatus == .denied {
-            Text("Turn on QaptrHelper, then come back. Qaptr will notice on its own.")
-              .font(.system(size: 13))
-              .foregroundStyle(ReviewDesign.muted)
-              .fixedSize(horizontal: false, vertical: true)
-              .padding(.top, 12)
-          }
-
-          Text(
-            "One permission is required. Nothing leaves this Mac without your approval. You’ll see exactly what’s sent, every time."
-          )
-          .font(.system(size: 12))
-          .foregroundStyle(ReviewDesign.muted)
-          .lineSpacing(3)
-          .fixedSize(horizontal: false, vertical: true)
-          .padding(.top, 42)
         }
+        Spacer(minLength: 8)
+        Button(primaryLabel, action: primaryAction)
+          .buttonStyle(.borderedProminent)
+          .tint(ReviewDesign.accent)
+          .controlSize(.large)
+          .keyboardShortcut(.defaultAction)
       }
-      .frame(maxWidth: 650)
-      .padding(32)
+      .padding(.horizontal, 28)
+      .frame(width: 580, height: 160)
+      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+          .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
+      }
+      .shadow(color: .black.opacity(0.12), radius: 26, y: 12)
     }
+    .frame(width: 845, height: 706)
     .onAppear {
       refresh()
       advanceIfReady()
