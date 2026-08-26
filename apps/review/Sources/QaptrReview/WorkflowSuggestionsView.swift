@@ -198,34 +198,36 @@ private struct HomeReviewView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    homeHeader
-                    ReviewStatusStrip(
-                        progress: model.captureProgress,
-                        helperIsRunning: model.captureHelperIsRunning,
-                        captureIntent: model.captureControlIntent,
-                        session: model.analysisSessionState,
-                        detailedCapture: model.detailedCaptureState,
-                        analyze: model.startAnalysis,
-                        pause: model.pauseCapture,
-                        resume: model.resumeCapture,
-                        cancel: cancel,
-                        retry: retry,
-                        requestPermission: model.requestScreenRecording,
-                        restart: model.restartCaptureHelper,
-                        stopDetailed: model.stopDetailedCapture,
-                        openSettings: openSettings
-                    )
-                    banners
-                    feed
+            VStack(spacing: 0) {
+                homeToolbar
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        homeHeader
+                        ReviewStatusStrip(
+                            progress: model.captureProgress,
+                            helperIsRunning: model.captureHelperIsRunning,
+                            captureIntent: model.captureControlIntent,
+                            session: model.analysisSessionState,
+                            detailedCapture: model.detailedCaptureState,
+                            analyze: model.startAnalysis,
+                            pause: model.pauseCapture,
+                            resume: model.resumeCapture,
+                            cancel: cancel,
+                            retry: retry,
+                            requestPermission: model.requestScreenRecording,
+                            restart: model.restartCaptureHelper,
+                            stopDetailed: model.stopDetailedCapture,
+                            openSettings: openSettings
+                        )
+                        banners
+                        feed
+                    }
+                    .frame(width: 765, alignment: .leading)
+                    .padding(.top, 22)
+                    .padding(.bottom, 36)
                 }
-                .frame(maxWidth: 940, alignment: .leading)
-                .padding(.horizontal, 40)
-                .padding(.top, 30)
-                .padding(.bottom, 44)
-                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .navigationDestination(for: String.self) { id in
                 if let finding = findings.first(where: { $0.id == id }) {
                     FindingDetailView(
@@ -240,23 +242,60 @@ private struct HomeReviewView: View {
         }
     }
 
+    private var homeToolbar: some View {
+        HStack(spacing: 0) {
+            QaptrBrandLogo(iconSize: 22, textSize: 18)
+            Rectangle()
+                .fill(Color.black.opacity(0.10))
+                .frame(width: 1, height: 20)
+                .padding(.horizontal, 18)
+            Text("Home")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(ReviewDesign.ink)
+            Spacer()
+            Text("LOCAL REVIEW")
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .tracking(0.8)
+                .foregroundStyle(ReviewDesign.muted)
+            Button(action: openSettings) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(ReviewDesign.slate)
+            .contentShape(Rectangle())
+            .accessibilityLabel("Open Settings")
+            .padding(.leading, 12)
+        }
+        .padding(.horizontal, 40)
+        .frame(height: 60)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.75))
+                .frame(height: 1)
+        }
+    }
+
     private var homeHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Findings")
-                    .font(.system(size: 32, weight: .regular, design: .serif))
+                    .font(.system(size: 30, weight: .regular, design: .serif))
                     .foregroundStyle(ReviewDesign.ink)
                 Text("A quiet record of what Qaptr noticed on this Mac.")
                     .font(.system(size: 14))
                     .foregroundStyle(ReviewDesign.slate)
             }
             Spacer()
-            Button(action: openSettings) {
-                Image(systemName: "gearshape")
+            if !findings.isEmpty {
+                Text("\(findings.count) \(findings.count == 1 ? "finding" : "findings")")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(ReviewDesign.muted)
+                    .padding(.bottom, 3)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(ReviewDesign.muted)
-            .accessibilityLabel("Open Settings")
         }
     }
 
@@ -348,7 +387,7 @@ private struct HomeReviewView: View {
                 Text("From your last analysis")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(ReviewDesign.muted)
-                ReviewGlassCard(padding: 10) {
+                ReviewGlassCard(padding: 8) {
                     VStack(spacing: 2) {
                         ForEach(findings.filter { $0.kind == .workflow }) { finding in
                             ReviewFindingRow(finding: finding) { path.append(finding.id) }
@@ -360,7 +399,7 @@ private struct HomeReviewView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(ReviewDesign.muted)
                         .padding(.top, 8)
-                    ReviewGlassCard(padding: 10) {
+                    ReviewGlassCard(padding: 8) {
                         VStack(spacing: 2) {
                             ForEach(findings.filter { $0.kind == .observation }) { finding in
                                 ReviewFindingRow(finding: finding) { path.append(finding.id) }
