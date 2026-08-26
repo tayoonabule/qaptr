@@ -85,6 +85,11 @@ struct ProviderSetupSheet: View {
         }
         .padding(QaptrSpace.xxl)
         .frame(width: 460)
-        .background(Color.qaptrSurface)
+        .background(.regularMaterial)
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }

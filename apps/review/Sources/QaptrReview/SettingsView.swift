@@ -109,7 +109,7 @@ struct SettingsView: View {
     .formStyle(.grouped)
     .frame(maxWidth: 620)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .background(Color.qaptrSurface)
+    .background(.clear)
     .navigationTitle("Settings")
     .onAppear { model.refreshSettings() }
     .onChange(of: scenePhase) { _, phase in

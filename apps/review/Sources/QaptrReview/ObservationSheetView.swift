@@ -105,7 +105,7 @@ struct ObservationSheetView: View {
       .frame(maxWidth: 1080, alignment: .leading)
       .frame(maxWidth: .infinity)
     }
-    .background(Color.qaptrSurface)
+    .background(.clear)
     .sheet(item: $selectedObservation) { observation in
       ObservationDetailView(model: model, observation: observation)
     }
@@ -187,10 +187,11 @@ struct ObservationSheetView: View {
         Spacer(minLength: 0)
       }
       .padding(QaptrSpace.md)
-      .background(
-        Color.qaptrPaperMist,
-        in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-      )
+      .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+          .strokeBorder(Color.white.opacity(0.58), lineWidth: 1)
+      }
       .accessibilityElement(children: .contain)
     } else if progress.state == .noDisplays {
       Label(
@@ -572,10 +573,16 @@ private struct AnalysisConsentView: View {
         }
       }
       .padding(QaptrSpace.md)
-      .background(
-        Color.qaptrSoftMint.opacity(0.72),
-        in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-      )
+      .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+          .fill(Color.qaptrSoftMint.opacity(0.28))
+          .allowsHitTesting(false)
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+          .strokeBorder(Color.white.opacity(0.58), lineWidth: 1)
+      }
 
       VStack(alignment: .leading, spacing: QaptrSpace.sm) {
         HStack {
@@ -610,7 +617,7 @@ private struct AnalysisConsentView: View {
     }
     .padding(QaptrSpace.xxl)
     .frame(width: 540, alignment: .leading)
-    .background(Color.qaptrSurface)
+    .background(.clear)
     .sheet(isPresented: $showsProviderSetup) {
       ProviderSetupSheet(model: model)
     }
@@ -785,7 +792,7 @@ private struct ObservationDetailView: View {
     }
     .padding(QaptrSpace.xxxl)
     .frame(width: 480, alignment: .leading)
-    .background(Color.qaptrSurface)
+    .background(.clear)
   }
 
   @ViewBuilder

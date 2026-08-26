@@ -99,9 +99,7 @@ struct WelcomeView: View {
     @State private var message: String?
 
     var body: some View {
-        ZStack {
-            ReviewDesign.canvas.ignoresSafeArea()
-
+        QaptrGlassBackdrop {
             ReviewGlassCard(padding: 36) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {

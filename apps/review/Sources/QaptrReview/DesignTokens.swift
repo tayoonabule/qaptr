@@ -58,7 +58,9 @@ func qaptrSurfaceNSColor(appearance: NSAppearance) -> NSColor {
 }
 
 extension Color {
-    static let qaptrSurface = qaptrDynamicColor(light: QaptrHex.canvasWhite, dark: QaptrHex.canvasWhite)
+    // Keep the content surface transparent so materials can sample the
+    // window's gradient. The AppKit window still supplies a white fallback.
+    static let qaptrSurface = Color.clear
     static let qaptrGlassCanvas = Color(nsColor: QaptrHex.canvasWhite)
     static let qaptrSurfaceRaised = Color(nsColor: QaptrHex.paperMist)
     static let qaptrPaperMist = Color(nsColor: QaptrHex.paperMist)

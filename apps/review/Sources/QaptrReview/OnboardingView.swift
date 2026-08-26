@@ -154,10 +154,11 @@ struct OnboardingView: View {
       }
       .padding(QaptrSpace.md)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        Color.qaptrPaperMist,
-        in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
-      )
+      .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
+          .strokeBorder(Color.white.opacity(0.58), lineWidth: 1)
+      }
       .accessibilityElement(children: .combine)
 
       if status == .unavailable {
@@ -254,9 +255,11 @@ struct OnboardingView: View {
       Spacer()
     }
     .padding(QaptrSpace.lg)
-    .background(
-      Color.qaptrPaperMist, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
-    )
+    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
+        .strokeBorder(Color.white.opacity(0.58), lineWidth: 1)
+    }
     .accessibilityElement(children: .combine)
   }
 
