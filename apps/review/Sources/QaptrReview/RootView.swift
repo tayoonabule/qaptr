@@ -143,7 +143,7 @@ struct RootView: View {
             if model.onboardingCompleted {
                 ContentView(model: model, navigation: navigation)
             } else {
-                OnboardingView(model: model)
+                WelcomeView(model: model)
             }
         }
         .frame(minWidth: 820, minHeight: 600)

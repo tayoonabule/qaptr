@@ -86,6 +86,8 @@ final class ReviewAppModel {
     private(set) var detailedCaptureState = DetailedCaptureState()
     private(set) var reviewHasLoaded = false
     var providerSetupRequest: ProviderChoice?
+    var providerPickerPresented = false
+    private(set) var analysisWaitingForProvider = false
     var onboardingCompleted: Bool
 
     let preferences: SettingsPreferences
@@ -200,8 +202,14 @@ final class ReviewAppModel {
     /// runs first and the UI must separately answer the emitted consent request.
     func startAnalysis() {
         guard analysisSessionState.allowedOperations.contains("start") else { return }
-        guard let provider = settings.provider, provider != .openRouter else {
+        guard let provider = settings.provider else {
             analysisError = "Choose and connect a local CLI provider in Settings."
+            analysisWaitingForProvider = true
+            providerPickerPresented = true
+            return
+        }
+        guard provider != .openRouter else {
+            analysisError = "Reconnect the selected CLI provider in Settings before analyzing."
             return
         }
         guard providerConnection == .connected else {
@@ -217,6 +225,8 @@ final class ReviewAppModel {
             analysisSessionController = controller
             analysisError = nil
             applyAnalysisState(try controller.start(sessionID: UUID().uuidString.lowercased()))
+            analysisWaitingForProvider = false
+            providerPickerPresented = false
             beginAnalysisPolling()
         } catch {
             analysisError = analysisMessage(for: error)
@@ -267,10 +277,8 @@ final class ReviewAppModel {
     }
 
     var analysisCanStart: Bool {
-        guard let provider = settings.provider else { return false }
-        return provider != .openRouter
-            && providerConnection == .connected
-            && analysisSessionState.allowedOperations.contains("start")
+        guard analysisSessionState.allowedOperations.contains("start") else { return false }
+        return (captureProgress.captureCount ?? 0) > 0
     }
 
     var workflowCandidates: [WorkflowCandidate] {
@@ -904,6 +912,7 @@ final class ReviewAppModel {
                 switch result {
                 case .connected:
                     self.providerConnection = .connected
+                    if self.analysisWaitingForProvider { self.startAnalysis() }
                 case .failed(let failure):
                     self.providerConnection = .failed(.cli(failure))
                 }
@@ -945,7 +954,10 @@ final class ReviewAppModel {
                 else { return }
                 self.providerConnectionAttempt = nil
                 self.providerConnection = result
-                if result == .connected { self.providerSetupRequest = nil }
+                if result == .connected {
+                    self.providerSetupRequest = nil
+                    if self.analysisWaitingForProvider { self.startAnalysis() }
+                }
             }
         }
     }

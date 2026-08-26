@@ -115,6 +115,9 @@ struct ObservationSheetView: View {
           .interactiveDismissDisabled()
       }
     }
+    .sheet(isPresented: providerPickerPresented) {
+      ProviderSetupSheet(model: model)
+    }
     .onAppear { model.refresh() }
     .onChange(of: contentState, initial: true) { _, state in
       recordReviewContentStateIfRequested(state)
@@ -227,6 +230,13 @@ struct ObservationSheetView: View {
     Binding(
       get: { model.analysisSessionState.phase == .readyForConsent },
       set: { _ in }
+    )
+  }
+
+  private var providerPickerPresented: Binding<Bool> {
+    Binding(
+      get: { model.providerPickerPresented },
+      set: { model.providerPickerPresented = $0 }
     )
   }
 
@@ -532,17 +542,16 @@ private enum AnalysisProgressStage: Int, CaseIterable {
 private struct AnalysisConsentView: View {
   @Bindable var model: ReviewAppModel
   let summary: ReviewConsentSummary
+  @State private var showsProviderSetup = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: QaptrSpace.xl) {
       VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-        Text("Send prepared text?")
-          .font(QaptrType.editorial(30))
+        Text("Approve before anything leaves this Mac")
+          .font(QaptrType.headline(22))
           .foregroundStyle(Color.qaptrInk)
-        Text(
-          "Review the exact boundary before Qaptr contacts \(summary.provider). Nothing is sent unless you approve."
-        )
-        .font(QaptrType.body())
+        Text("Review exactly what will be sent, to whom, before anything leaves the Mac.")
+          .font(QaptrType.body())
         .foregroundStyle(Color.qaptrInkSoft)
         .fixedSize(horizontal: false, vertical: true)
       }
@@ -553,10 +562,10 @@ private struct AnalysisConsentView: View {
           .foregroundStyle(Color.qaptrSuccess)
           .frame(width: 24)
         VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-          Text(AnalysisConsentPresentation.privacyTitle(summary))
+          Text("Personal details were removed on this Mac")
             .font(QaptrType.title(13))
             .foregroundStyle(Color.qaptrInk)
-          Text(AnalysisConsentPresentation.privacyExplanation(summary))
+          Text("Qaptr asks every time. Nothing is sent until you approve below.")
             .font(QaptrType.caption())
             .foregroundStyle(Color.qaptrInkSoft)
             .fixedSize(horizontal: false, vertical: true)
@@ -569,13 +578,19 @@ private struct AnalysisConsentView: View {
       )
 
       VStack(alignment: .leading, spacing: QaptrSpace.sm) {
-        consentRow("Provider", summary.provider)
-        consentRow("Model", summary.modelLabel)
-        consentRow("Sent to provider", AnalysisConsentPresentation.payloadLabel(summary))
-        consentRow("Source captures", "\(summary.captureCount) prepared locally")
-        consentRow(
-          "Screenshot files", summary.imageCount == 0 ? "None sent" : "\(summary.imageCount) sent")
-        consentRow("Excluded locally", "\(summary.exclusionCount)")
+        HStack {
+          VStack(alignment: .leading, spacing: 3) {
+            Text("Sending to")
+              .font(QaptrType.meta(10.5)).foregroundStyle(Color.qaptrInkMuted)
+            Text("\(summary.provider) · \(summary.modelLabel)")
+              .font(QaptrType.body(13)).foregroundStyle(Color.qaptrInk)
+          }
+          Spacer()
+          Button("Change") { showsProviderSetup = true }
+            .buttonStyle(.qaptrQuiet)
+        }
+        consentRow("What", "Redacted text from \(summary.captureCount) captures")
+        consentRow("Not included", "\(summary.exclusionCount) excluded by your privacy rules · no images")
       }
 
       if let error = model.analysisError {
@@ -587,15 +602,18 @@ private struct AnalysisConsentView: View {
       }
 
       HStack(spacing: QaptrSpace.sm) {
-        Button("Keep local") { model.decideAnalysisConsent(granted: false) }
+        Button("Cancel") { model.decideAnalysisConsent(granted: false) }
           .buttonStyle(.qaptrOutline)
-        Button("Send text to \(summary.provider)") { model.decideAnalysisConsent(granted: true) }
+        Button("Approve & analyze") { model.decideAnalysisConsent(granted: true) }
           .buttonStyle(.qaptrPrimary)
       }
     }
     .padding(QaptrSpace.xxl)
     .frame(width: 540, alignment: .leading)
     .background(Color.qaptrSurface)
+    .sheet(isPresented: $showsProviderSetup) {
+      ProviderSetupSheet(model: model)
+    }
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Analysis consent for \(summary.provider)")
   }

@@ -2,27 +2,9 @@ import AppKit
 import QaptrReviewCore
 import SwiftUI
 
-// Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V5
-
-private enum EvidenceLensSpace {
-    static let compact: CGFloat = 6
-    static let small: CGFloat = 10
-    static let medium: CGFloat = 16
-    static let large: CGFloat = 24
-    static let section: CGFloat = 36
-    static let page: CGFloat = 48
-}
-
-private enum EvidenceLensColor {
-    static let canvas = Color(nsColor: .windowBackgroundColor)
-    static let selected = Color.accentColor.opacity(0.08)
-    static let enough = Color(nsColor: .systemGreen)
-    static let moreDetail = Color(nsColor: .systemOrange)
-    static let moreFrequent = Color(nsColor: .systemBlue)
-    static let attention = Color(nsColor: .systemRed)
-}
-
-/// The mutually exclusive primary bodies of the returning review canvas.
+/// The returning review states retained as a pure adapter for the existing
+/// session model and unit tests. The redesigned surface renders these as a
+/// status strip, feed content, or a transient consent sheet.
 enum ReviewWorkspaceState: Equatable {
     case loading
     case loadFailure(String)
@@ -57,33 +39,20 @@ enum ReviewWorkspaceState: Equatable {
     }
 
     static func resolve(_ input: ReviewWorkspaceInput) -> ReviewWorkspaceState {
-        if !input.hasLoaded {
-            return .loading
-        }
-        if let loadError = input.loadError {
-            return .loadFailure(loadError)
-        }
-
+        if !input.hasLoaded { return .loading }
+        if let loadError = input.loadError { return .loadFailure(loadError) }
         switch input.session.phase {
         case .readyForConsent:
-            if let summary = input.session.consentSummary {
-                return .consentNeeded(summary)
-            }
+            if let summary = input.session.consentSummary { return .consentNeeded(summary) }
             return .loadFailure("Analysis is waiting for approval, but its consent summary is unavailable.")
         case .ingesting, .preparing, .analyzing:
             return .working(input.session.phase, previousCandidates: input.candidates)
         case .failed:
             return .loadFailure(input.analysisError ?? input.session.error ?? "Analysis could not finish.")
-        case .cancelled:
-            return .cancelled
-        case .idle, .completed:
-            break
+        case .cancelled: return .cancelled
+        case .idle, .completed: break
         }
-
-        if !input.candidates.isEmpty {
-            return .candidatesReady(input.candidates)
-        }
-
+        if !input.candidates.isEmpty { return .candidatesReady(input.candidates) }
         if input.session.phase == .completed {
             if input.session.outcome == "no_eligible_payload" {
                 return .insufficientEvidence("No privacy-safe capture content was eligible for this analysis.")
@@ -96,26 +65,13 @@ enum ReviewWorkspaceState: Equatable {
             }
             return .insufficientEvidence("Analysis completed without a supported workflow candidate result.")
         }
-
-        guard let captureCount = input.captureCount else {
-            return .captureUnavailable
-        }
-        if captureCount == 0 {
-            return .noCaptures
-        }
-
-        if let analysisState = input.analysisAvailability,
-           analysisState == "unavailable" {
+        guard let captureCount = input.captureCount else { return .captureUnavailable }
+        if captureCount == 0 { return .noCaptures }
+        if input.analysisAvailability == "unavailable" {
             return .analysisUnavailable(input.analysisUnavailableReason ?? "Workflow analysis is unavailable in this build.")
         }
-
-        if !input.hasProvider || !input.providerConnected {
-            return .providerSetupNeeded
-        }
-
-        if input.observationCount > 0 {
-            return .evidenceWithoutCandidates(input.observationCount)
-        }
+        if !input.hasProvider || !input.providerConnected { return .providerSetupNeeded }
+        if input.observationCount > 0 { return .evidenceWithoutCandidates(input.observationCount) }
         return .readyToAnalyze
     }
 }
@@ -139,47 +95,58 @@ enum CandidateCapabilityPresentation {
     static let detailedCaptureUnavailable = "Detailed capture is not connected in this build, so no capture setting has changed."
 }
 
-/// Adapts the existing privacy-safe app model into the new single-canvas review
-/// surface. Provider calls still start only through `ReviewAppModel` and its
-/// explicit consent sheet.
 struct WorkflowSuggestionsView: View {
     @Bindable var model: ReviewAppModel
     let openSettings: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectedCandidateID: String?
+    @State private var toast: String?
+    @State private var dismissedContextNudge = false
+    @State private var dismissedQuietResult = false
+    @State private var dismissedDoneWatching = false
 
     var body: some View {
-        ReviewWorkspaceContent(
-            state: workspaceState,
-            captureStatus: captureStatus,
-            lastCaptureAtMillis: model.captureProgress.lastCaptureAtMillis,
-            workflows: model.snapshot.workflows,
-            selectedCandidateID: $selectedCandidateID,
-            openSettings: openSettings,
-            analyze: model.startAnalysis,
-            retry: retry,
-            cancel: model.cancelAnalysis,
-            refresh: model.refresh
-        )
+        ZStack(alignment: .bottom) {
+            ReviewDesign.canvas.ignoresSafeArea()
+            if model.reviewHasLoaded {
+                HomeReviewView(
+                    model: model,
+                    state: workspaceState,
+                    openSettings: openSettings,
+                    cancel: cancelAnalysis,
+                    showToast: { toast = $0 },
+                    contextNudgeDismissed: dismissedContextNudge,
+                    dismissContextNudge: { dismissedContextNudge = true },
+                    quietResultDismissed: dismissedQuietResult,
+                    dismissQuietResult: { dismissedQuietResult = true },
+                    doneWatchingDismissed: dismissedDoneWatching,
+                    dismissDoneWatching: { dismissedDoneWatching = true }
+                )
+            } else {
+                ReviewLoadingView()
+            }
+            if let toast {
+                ReviewToastView(text: toast) { self.toast = nil }
+                    .padding(.bottom, 24)
+            }
+        }
         .sheet(isPresented: consentPresented) {
             if let summary = model.analysisSessionState.consentSummary {
-                WorkflowConsentSheet(model: model, summary: summary)
-                    .interactiveDismissDisabled()
+                ConsentReviewView(
+                    model: model,
+                    summary: summary,
+                    declined: { toast = "Nothing was sent." }
+                )
+                .interactiveDismissDisabled()
             }
         }
         .onAppear { model.refresh() }
-        .onChange(of: workspaceState.probeName, initial: true) { _, _ in
-            recordReviewContentStateIfRequested(workspaceState.probeName)
+        .onChange(of: workspaceState.probeName, initial: true) { _, value in
+            recordReviewContentStateIfRequested(value)
         }
         .task {
             while !Task.isCancelled {
-                do {
-                    try await Task.sleep(nanoseconds: 5_000_000_000)
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled else { return }
+                do { try await Task.sleep(nanoseconds: 5_000_000_000) } catch { return }
                 model.refresh()
             }
         }
@@ -203,712 +170,374 @@ struct WorkflowSuggestionsView: View {
         )
     }
 
-    private var captureStatus: CaptureStatusPresentation {
-        CaptureStatusPresentation.present(
-            intent: model.captureControlIntent,
-            helperIsRunning: model.captureHelperIsRunning
-        )
-    }
-
     private var consentPresented: Binding<Bool> {
-        Binding(
-            get: { model.analysisSessionState.phase == .readyForConsent },
-            set: { _ in }
-        )
+        Binding(get: { model.analysisSessionState.phase == .readyForConsent }, set: { _ in })
     }
 
-    private func retry() {
-        if model.analysisSessionState.allowedOperations.contains("retry") {
-            model.retryAnalysis()
-        } else {
-            model.startAnalysis()
-        }
+    private func cancelAnalysis() {
+        model.cancelAnalysis()
+        toast = "Analysis cancelled. Nothing was sent."
     }
 }
 
-private struct ReviewWorkspaceContent: View {
+private struct HomeReviewView: View {
+    @Bindable var model: ReviewAppModel
     let state: ReviewWorkspaceState
-    let captureStatus: CaptureStatusPresentation
-    let lastCaptureAtMillis: Int64?
-    let workflows: [WorkflowSummary]
-    @Binding var selectedCandidateID: String?
     let openSettings: () -> Void
-    let analyze: () -> Void
-    let retry: () -> Void
     let cancel: () -> Void
-    let refresh: () -> Void
+    let showToast: (String) -> Void
+    let contextNudgeDismissed: Bool
+    let dismissContextNudge: () -> Void
+    let quietResultDismissed: Bool
+    let dismissQuietResult: () -> Void
+    let doneWatchingDismissed: Bool
+    let dismissDoneWatching: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var path: [String] = []
+    @State private var savedIDs: Set<String> = []
 
     var body: some View {
-        ZStack(alignment: .top) {
-            EvidenceLensColor.canvas.ignoresSafeArea()
-
-            if let selectedCandidate {
-                WorkflowUnderstandingView(
-                    candidate: selectedCandidate,
-                    workflow: workflows.first { $0.sessionID == selectedCandidate.analysisSessionID },
-                    back: clearSelection
-                )
-                .transition(contentTransition)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: EvidenceLensSpace.section) {
-                        statusBar
-                        workspaceBody
-                    }
-                    .padding(.horizontal, EvidenceLensSpace.page)
-                    .padding(.top, 30)
-                    .padding(.bottom, EvidenceLensSpace.page)
-                    .frame(maxWidth: 1120, alignment: .leading)
-                    .frame(maxWidth: .infinity)
+        NavigationStack(path: $path) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    homeHeader
+                    ReviewStatusStrip(
+                        progress: model.captureProgress,
+                        helperIsRunning: model.captureHelperIsRunning,
+                        captureIntent: model.captureControlIntent,
+                        session: model.analysisSessionState,
+                        detailedCapture: model.detailedCaptureState,
+                        analyze: model.startAnalysis,
+                        pause: model.pauseCapture,
+                        resume: model.resumeCapture,
+                        cancel: cancel,
+                        retry: retry,
+                        requestPermission: model.requestScreenRecording,
+                        restart: model.restartCaptureHelper,
+                        stopDetailed: model.stopDetailedCapture,
+                        openSettings: openSettings
+                    )
+                    banners
+                    feed
                 }
-                .transition(contentTransition)
+                .frame(maxWidth: 940, alignment: .leading)
+                .padding(.horizontal, 40)
+                .padding(.top, 30)
+                .padding(.bottom, 44)
+                .frame(maxWidth: .infinity)
+            }
+            .navigationDestination(for: String.self) { id in
+                if let finding = findings.first(where: { $0.id == id }) {
+                    FindingDetailView(
+                        finding: finding,
+                        saved: savedIDs.contains(id) || model.snapshot.workflows.contains { $0.sessionID == finding.candidate?.analysisSessionID },
+                        save: { save(finding) },
+                        captureMoreDetail: { captureMoreDetail(finding) },
+                        back: { path.removeLast() }
+                    )
+                }
             }
         }
     }
 
-    private var selectedCandidate: WorkflowCandidate? {
-        guard let selectedCandidateID else { return nil }
-        switch state {
-        case let .candidatesReady(candidates), let .working(_, candidates):
-            return candidates.first { $0.id == selectedCandidateID }
-        default:
-            return nil
-        }
-    }
-
-    private var contentTransition: AnyTransition {
-        reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .trailing))
-    }
-
-    private var statusBar: some View {
-        HStack(spacing: EvidenceLensSpace.medium) {
-            HStack(spacing: EvidenceLensSpace.compact) {
-                Circle()
-                    .fill(captureStatusColor)
-                    .frame(width: 7, height: 7)
-                Text(captureStatus.label)
-                    .font(.system(size: 12, weight: .medium))
+    private var homeHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Findings")
+                    .font(.system(size: 32, weight: .regular, design: .serif))
+                    .foregroundStyle(ReviewDesign.ink)
+                Text("A quiet record of what Qaptr noticed on this Mac.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(ReviewDesign.slate)
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .background(.thinMaterial, in: Capsule())
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(captureStatus.accessibilityLabel)
-
-            if let lastCaptureAtMillis {
-                Text("Last capture \(Date(timeIntervalSince1970: Double(lastCaptureAtMillis) / 1_000), style: .relative)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-
             Spacer()
-
             Button(action: openSettings) {
-                Label("Settings", systemImage: "gearshape")
-                    .labelStyle(.iconOnly)
-                    .frame(width: 24, height: 24)
+                Image(systemName: "gearshape")
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(ReviewDesign.muted)
             .accessibilityLabel("Open Settings")
-            .accessibilityValue("Open Settings")
-            .accessibilityRepresentation {
-                Button("Open Settings", action: openSettings)
-            }
-            .help("Settings")
         }
     }
 
     @ViewBuilder
-    private var workspaceBody: some View {
-        switch state {
-        case .loading:
-            StateMessageView(
-                symbol: "clock.arrow.circlepath",
-                title: "Reading your local history",
-                detail: "Qaptr is checking saved, privacy-safe results on this Mac."
-            ) {
-                ProgressView().controlSize(.small)
-            }
-        case let .loadFailure(message):
-            StateMessageView(
-                symbol: "exclamationmark.triangle",
-                title: "Qaptr could not load this review",
-                detail: message,
-                symbolColor: EvidenceLensColor.attention
-            ) {
-                Button("Try again", action: retry)
-                    .buttonStyle(.borderedProminent)
-            }
-        case .noCaptures:
-            StateMessageView(
-                symbol: "viewfinder",
-                title: "Workflow suggestions need a little history",
-                detail: "No screenshots have been captured yet. Qaptr will keep this screen quiet until the helper reports real capture history."
-            ) {
-                Button("Check again", action: refresh)
-                    .buttonStyle(.bordered)
-            }
-        case .captureUnavailable:
-            StateMessageView(
-                symbol: "rectangle.dashed.badge.record",
-                title: "Capture status is unavailable",
-                detail: "Qaptr cannot confirm that the helper is reporting. Review capture settings before relying on new evidence."
-            ) {
-                Button("Open Settings", action: openSettings)
-                    .buttonStyle(.borderedProminent)
-            }
-        case let .analysisUnavailable(reason):
-            StateMessageView(
-                symbol: "bolt.slash",
-                title: "Workflow analysis is unavailable",
-                detail: reason
-            ) {
-                Button("Check again", action: refresh)
-                    .buttonStyle(.bordered)
-            }
-        case .providerSetupNeeded:
-            StateMessageView(
-                symbol: "point.3.connected.trianglepath.dotted",
-                title: "Connect an analysis tool when you are ready",
-                detail: "Your captures remain local. Qaptr will prepare privacy-safe context first and ask again before anything is sent."
-            ) {
-                Button("Open Provider Settings", action: openSettings)
-                    .buttonStyle(.borderedProminent)
-            }
-        case .readyToAnalyze:
-            StateMessageView(
-                symbol: "scope",
-                title: "Find repeatable work in your recent captures",
-                detail: "Qaptr will prepare local evidence, then request one-time consent before contacting the connected provider."
-            ) {
-                Button("Review recent work", action: analyze)
-                    .buttonStyle(.borderedProminent)
-            }
-        case let .working(phase, previousCandidates):
-            WorkingStateView(phase: phase, candidates: previousCandidates, cancel: cancel, select: select)
-        case .consentNeeded:
-            StateMessageView(
-                symbol: "hand.raised",
-                title: "Your approval is needed",
-                detail: "Review the scalar consent summary before Qaptr contacts the selected provider."
-            ) {
-                ProgressView().controlSize(.small)
-            }
-        case let .candidatesReady(candidates):
-            CandidateListView(candidates: candidates, select: select)
-        case let .insufficientEvidence(reason):
-            StateMessageView(
-                symbol: "text.magnifyingglass",
-                title: "Qaptr does not have enough evidence yet",
-                detail: reason
-            ) {
-                Button("Review again", action: retry)
-                    .buttonStyle(.borderedProminent)
-            }
-        case let .evidenceWithoutCandidates(count):
-            StateMessageView(
-                symbol: "list.bullet.clipboard",
-                title: "Evidence is saved, but no workflow candidates are ready",
-                detail: "Qaptr has \(count) evidence record\(count == 1 ? "" : "s"). This build has not returned the typed candidate result this screen requires, so it will not invent suggestions from those records."
-            ) {
-                Button("Analyze recent work", action: analyze)
-                    .buttonStyle(.borderedProminent)
-            }
-        case .cancelled:
-            StateMessageView(
-                symbol: "xmark.circle",
-                title: "Analysis stopped before completion",
-                detail: "Existing saved results remain unchanged. You can start a new review when you are ready."
-            ) {
-                Button("Start again", action: retry)
-                    .buttonStyle(.borderedProminent)
-            }
-        }
-    }
-
-    private var captureStatusColor: Color {
-        switch captureStatus {
-        case .live: EvidenceLensColor.enough
-        case .paused: EvidenceLensColor.moreDetail
-        case .needsAttention: EvidenceLensColor.attention
-        }
-    }
-
-    private func select(_ candidate: WorkflowCandidate) {
-        if reduceMotion {
-            selectedCandidateID = candidate.id
-        } else {
-            withAnimation(.easeOut(duration: 0.24)) {
-                selectedCandidateID = candidate.id
-            }
-        }
-    }
-
-    private func clearSelection() {
-        if reduceMotion {
-            selectedCandidateID = nil
-        } else {
-            withAnimation(.easeOut(duration: 0.2)) {
-                selectedCandidateID = nil
-            }
-        }
-    }
-}
-
-private struct CandidateListView: View {
-    let candidates: [WorkflowCandidate]
-    let select: (WorkflowCandidate) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: EvidenceLensSpace.large) {
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                Text("Work worth understanding")
-                    .font(.system(size: 38, weight: .regular, design: .rounded))
-                    .foregroundStyle(.primary)
-                Text("These are evidence-backed possibilities, not finished claims. Start with the one that would be most useful to understand.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 660, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(spacing: 0) {
-                ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
-                    WorkflowCandidateRow(candidate: candidate, emphasized: index == 0) {
-                        select(candidate)
-                    }
-                    if index < candidates.count - 1 {
-                        Divider()
-                    }
-                }
-            }
-            .overlay(alignment: .top) { Divider() }
-            .overlay(alignment: .bottom) { Divider() }
-        }
-    }
-}
-
-private struct WorkingStateView: View {
-    let phase: ReviewSessionPhase
-    let candidates: [WorkflowCandidate]
-    let cancel: () -> Void
-    let select: (WorkflowCandidate) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: EvidenceLensSpace.section) {
-            HStack(alignment: .top, spacing: EvidenceLensSpace.large) {
-                ProgressView().controlSize(.small)
-                VStack(alignment: .leading, spacing: EvidenceLensSpace.compact) {
-                    Text(title)
-                        .font(.system(size: 22, weight: .semibold))
-                    Text(detail)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Cancel", action: cancel)
-                    .buttonStyle(.bordered)
-            }
-            .padding(.vertical, EvidenceLensSpace.medium)
-
-            if !candidates.isEmpty {
-                VStack(alignment: .leading, spacing: EvidenceLensSpace.medium) {
-                    Text("Previous candidates remain available while Qaptr reviews newer evidence.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                    VStack(spacing: 0) {
-                        ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
-                            WorkflowCandidateRow(candidate: candidate, emphasized: false) {
-                                select(candidate)
-                            }
-                            if index < candidates.count - 1 { Divider() }
+    private var banners: some View {
+        if !quietResultDismissed && (state.probeName == "insufficient-evidence" || state.probeName == "evidence-only") {
+            ReviewGlassCard(padding: 18) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(ReviewDesign.accent)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("No new patterns stood out this time.")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(ReviewDesign.ink)
+                        if model.analysisSessionState.observationsWritten > 0 {
+                            Text("Qaptr saved \(model.analysisSessionState.observationsWritten) observations below.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(ReviewDesign.slate)
+                        }
+                        if let notice = model.snapshot.notices.first {
+                            Text(notice.text)
+                                .font(.system(size: 13))
+                                .foregroundStyle(ReviewDesign.slate)
                         }
                     }
-                    .overlay(alignment: .top) { Divider() }
-                    .overlay(alignment: .bottom) { Divider() }
+                    Spacer()
+                    Button("Dismiss", action: dismissQuietResult)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(ReviewDesign.muted)
                 }
             }
         }
-    }
-
-    private var title: String {
-        switch phase {
-        case .ingesting: "Reading committed capture records"
-        case .preparing: "Preparing privacy-safe evidence"
-        case .analyzing: "Looking for repeatable work"
-        default: "Reviewing recent work"
-        }
-    }
-
-    private var detail: String {
-        switch phase {
-        case .ingesting: "Only committed local capture records are included."
-        case .preparing: "Exclusions and redaction happen on this Mac before consent."
-        case .analyzing: "Qaptr is waiting for a bounded, typed result from the approved provider."
-        default: "Qaptr is following the explicit review-session lifecycle."
-        }
-    }
-}
-
-private struct WorkflowCandidateRow: View {
-    let candidate: WorkflowCandidate
-    let emphasized: Bool
-    let select: () -> Void
-
-    @State private var hovering = false
-
-    var body: some View {
-        ZStack {
-            HStack(alignment: .top, spacing: EvidenceLensSpace.large) {
-                Text(String(format: "%02d", candidate.rank))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 24, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                    Text(candidate.title)
-                        .font(.system(size: emphasized ? 22 : 18, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(candidate.rationale)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    EvidenceStatusLine(candidate: candidate)
-                }
-
-                Spacer(minLength: EvidenceLensSpace.large)
-
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 3)
-            }
-            .contentShape(Rectangle())
-            .padding(.horizontal, EvidenceLensSpace.medium)
-            .padding(.vertical, emphasized ? 28 : 20)
-            .background(hovering ? EvidenceLensColor.selected : .clear)
-            .accessibilityHidden(true)
-
-            Button(accessibilityTitle, action: select)
-                .buttonStyle(.plain)
-                .foregroundStyle(.clear)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .accessibilityLabel(accessibilityTitle)
-                .accessibilityValue(accessibilityTitle)
-                .accessibilityHint("Open the workflow explanation and evidence")
-        }
-        .onHover { hovering = $0 }
-    }
-
-    private var accessibilityTitle: String {
-        "Candidate \(candidate.rank), \(candidate.title), \(candidate.evidenceStatus.accessibilityLabel), \(candidate.evidenceCaptureCount) captures"
-    }
-}
-
-private struct EvidenceStatusLine: View {
-    let candidate: WorkflowCandidate
-
-    var body: some View {
-        HStack(spacing: EvidenceLensSpace.small) {
-            Image(systemName: candidate.evidenceStatus.symbolName)
-                .foregroundStyle(candidate.evidenceStatus.color)
-            Text(candidate.evidenceStatus.title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-            Text("·")
-                .foregroundStyle(.tertiary)
-            Text("\(candidate.evidenceCaptureCount) capture\(candidate.evidenceCaptureCount == 1 ? "" : "s")")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct WorkflowUnderstandingView: View {
-    let candidate: WorkflowCandidate
-    let workflow: WorkflowSummary?
-    let back: () -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.section) {
-                Button(action: back) {
-                    Label("All candidates", systemImage: "chevron.left")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Return to workflow candidates")
-
-                VStack(alignment: .leading, spacing: EvidenceLensSpace.medium) {
-                    Text(candidate.title)
-                        .font(.system(size: 36, weight: .regular, design: .serif))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(candidate.rationale)
-                        .font(.system(size: 17))
-                        .foregroundStyle(.secondary)
-                        .lineSpacing(3)
-                        .frame(maxWidth: 720, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Divider()
-
-                HStack(alignment: .top, spacing: EvidenceLensSpace.page) {
-                    VStack(alignment: .leading, spacing: EvidenceLensSpace.section) {
-                        explanationSection
-                        correctionSection
-                        automationSection
+        if !doneWatchingDismissed && model.detailedCaptureState.outcome == .stopped {
+            ReviewGlassCard(padding: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Done watching ✓")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(ReviewDesign.ink)
+                        Text("Qaptr finished collecting detailed captures.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(ReviewDesign.slate)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    evidenceRail
-                        .frame(width: 260, alignment: .leading)
+                    Spacer()
+                    Button("Analyze them", action: model.startAnalysis)
+                        .buttonStyle(.borderedProminent)
+                        .tint(ReviewDesign.accent)
+                    Button("Dismiss", action: dismissDoneWatching)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(ReviewDesign.muted)
                 }
             }
-            .padding(.horizontal, EvidenceLensSpace.page)
-            .padding(.top, 30)
-            .padding(.bottom, EvidenceLensSpace.page)
-            .frame(maxWidth: 1120, alignment: .leading)
-            .frame(maxWidth: .infinity)
         }
-        .background(EvidenceLensColor.canvas)
-    }
-
-    private var explanationSection: some View {
-        VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-            Text("Why Qaptr suggested this")
-                .font(.system(size: 16, weight: .semibold))
-            Text(candidate.evidenceBasis)
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
-                .lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var correctionSection: some View {
-        VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-            Text("What did Qaptr misunderstand?")
-                .font(.system(size: 16, weight: .semibold))
-            Text(CandidateCapabilityPresentation.correctionUnavailable)
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, EvidenceLensSpace.medium)
-        .overlay(alignment: .top) { Divider() }
-        .overlay(alignment: .bottom) { Divider() }
-    }
-
-    private var automationSection: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                if let workflow {
-                    Text(workflow.goal)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                    Text("Canonical workflow available")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    Text("Automation-ready output stays unavailable until Qaptr has produced a grounded canonical workflow.")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+        if !contextNudgeDismissed && !findings.isEmpty && model.settings.accessibilityContextStatus == .notDetermined {
+            ReviewGlassCard(padding: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Findings get sharper with app and window names.")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(ReviewDesign.ink)
+                        Text("Optional. Capture doesn’t depend on it.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(ReviewDesign.slate)
+                    }
+                    Spacer()
+                    Button("Allow", action: model.requestAccessibilityContext)
+                        .buttonStyle(.borderedProminent)
+                        .tint(ReviewDesign.accent)
+                    Button("Not now", action: dismissContextNudge)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(ReviewDesign.muted)
                 }
             }
-            .padding(.top, EvidenceLensSpace.small)
-        } label: {
-            Text("Automation-ready layer")
-                .font(.system(size: 14, weight: .medium))
         }
     }
 
-    private var evidenceRail: some View {
-        VStack(alignment: .leading, spacing: EvidenceLensSpace.large) {
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                Label(candidate.evidenceStatus.title, systemImage: candidate.evidenceStatus.symbolName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(candidate.evidenceStatus.color)
-                Text(candidate.evidenceStatus.detail)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                EvidenceFact(label: "CAPTURES", value: "\(candidate.evidenceCaptureCount)")
-                EvidenceFact(label: "CONFIDENCE", value: candidate.confidenceBand.label)
-                if let span = candidate.observedSpanLabel {
-                    EvidenceFact(label: "OBSERVED", value: span)
+    @ViewBuilder
+    private var feed: some View {
+        if case let .loadFailure(message) = state {
+            ReviewRecoveryView(title: "Qaptr could not load this review", detail: message, actionTitle: "Try again", action: model.refresh)
+        } else if case let .analysisUnavailable(message) = state {
+            ReviewRecoveryView(title: "Workflow analysis is unavailable", detail: message, actionTitle: "Check again", action: model.refresh)
+        } else if case .providerSetupNeeded = state {
+            ReviewRecoveryView(title: "Connect an analysis tool when you are ready", detail: "Your captures remain local. Provider setup happens before analysis.", actionTitle: "Open Provider Settings", action: openSettings)
+        } else if findings.isEmpty {
+            EmptyFindingsView(captureCount: model.captureProgress.captureCount, analyze: model.startAnalysis)
+        } else {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("From your last analysis")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(ReviewDesign.muted)
+                ReviewGlassCard(padding: 10) {
+                    VStack(spacing: 2) {
+                        ForEach(findings.filter { $0.kind == .workflow }) { finding in
+                            ReviewFindingRow(finding: finding) { path.append(finding.id) }
+                        }
+                    }
                 }
-            }
-
-            if let recommendation = candidate.recommendation {
-                VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                    Text("More evidence")
+                if findings.contains(where: { $0.kind == .observation }) {
+                    Text("Earlier")
                         .font(.system(size: 13, weight: .semibold))
-                    Text("Recommended: every \(recommendation.intervalSeconds) seconds for \(recommendation.durationLabel).")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(CandidateCapabilityPresentation.detailedCaptureUnavailable)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(ReviewDesign.muted)
+                        .padding(.top, 8)
+                    ReviewGlassCard(padding: 10) {
+                        VStack(spacing: 2) {
+                            ForEach(findings.filter { $0.kind == .observation }) { finding in
+                                ReviewFindingRow(finding: finding) { path.append(finding.id) }
+                            }
+                        }
+                    }
                 }
-                .padding(.top, EvidenceLensSpace.medium)
-                .overlay(alignment: .top) { Divider() }
             }
         }
-        .padding(.leading, EvidenceLensSpace.large)
-        .overlay(alignment: .leading) { Divider() }
+    }
+
+    private var findings: [ReviewFinding] {
+        model.workflowCandidates.map { candidate in
+            ReviewFinding(id: candidate.id, kind: .workflow, title: candidate.title, summary: candidate.rationale, evidenceText: "\(candidate.evidenceCaptureCount) captures", incomplete: candidate.recommendation != nil, candidate: candidate, observation: nil)
+        } + model.snapshot.recentObservations.map { observation in
+            ReviewFinding(id: observation.id, kind: .observation, title: observation.title, summary: observation.summary, evidenceText: "Observed · \(observation.confidenceBand.label)", incomplete: false, candidate: nil, observation: observation)
+        }
+    }
+
+    private func retry() {
+        model.analysisSessionState.allowedOperations.contains("retry") ? model.retryAnalysis() : model.startAnalysis()
+    }
+
+    private func save(_ finding: ReviewFinding) {
+        guard let candidate = finding.candidate,
+              let observation = model.snapshot.observations.first(where: { $0.sessionID == candidate.analysisSessionID })
+        else {
+            showToast("This workflow cannot be saved until its source observation is available.")
+            return
+        }
+        switch model.generateWorkflow(fromObservationID: observation.id) {
+        case .success:
+            savedIDs.insert(finding.id)
+            showToast("Workflow saved.")
+        case let .failure(error):
+            showToast(error.localizedDescription)
+        }
+    }
+
+    private func captureMoreDetail(_ finding: ReviewFinding) {
+        model.startDetailedCapture()
+        if model.detailedCaptureState.lifecycle == .capturing {
+            path.removeLast()
+        } else {
+            showToast(CandidateCapabilityPresentation.detailedCaptureUnavailable)
+        }
     }
 }
 
-private struct EvidenceFact: View {
-    let label: String
-    let value: String
+private struct EmptyFindingsView: View {
+    let captureCount: Int?
+    let analyze: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .tracking(0.7)
-                .foregroundStyle(.tertiary)
-            Text(value)
-                .font(.system(size: 13))
-                .foregroundStyle(.primary)
+        ReviewGlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Nothing to review yet.")
+                    .font(.system(size: 24, weight: .regular))
+                    .foregroundStyle(ReviewDesign.ink)
+                if let captureCount, captureCount > 0 {
+                    Text("Qaptr has been capturing quietly. Review the latest \(captureCount) captures when you’re ready.")
+                        .font(.system(size: 15))
+                        .foregroundStyle(ReviewDesign.slate)
+                    Button("Analyze \(captureCount) captures", action: analyze)
+                        .buttonStyle(.borderedProminent)
+                        .tint(ReviewDesign.accent)
+                        .padding(.top, 8)
+                } else {
+                    Text("Qaptr is capturing quietly. Work for a stretch, then analyze to see what it noticed.")
+                        .font(.system(size: 15))
+                        .foregroundStyle(ReviewDesign.slate)
+                }
+            }
         }
     }
 }
 
-private struct WorkflowConsentSheet: View {
+private struct ReviewLoadingView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Reading your local history")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(ReviewDesign.ink)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct ReviewRecoveryView: View {
+    let title: String
+    let detail: String
+    let actionTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        ReviewGlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title)
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(ReviewDesign.ink)
+                Text(detail)
+                    .font(.system(size: 14))
+                    .foregroundStyle(ReviewDesign.slate)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(actionTitle, action: action)
+                    .buttonStyle(.borderedProminent)
+                    .tint(ReviewDesign.accent)
+            }
+        }
+    }
+}
+
+private struct ConsentReviewView: View {
     @Bindable var model: ReviewAppModel
     let summary: ReviewConsentSummary
+    let declined: () -> Void
+    @State private var approving = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: EvidenceLensSpace.large) {
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                Text("Approve this analysis request")
-                    .font(.system(size: 24, weight: .semibold))
-                Text("Review the boundary before Qaptr contacts \(summary.provider). Nothing is sent unless you approve.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 22) {
+            Text("Approve before anything leaves this Mac")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(ReviewDesign.ink)
+            Text("Qaptr asks every time. Review exactly what will be sent, to whom, before approving.")
+                .font(.system(size: 14))
+                .foregroundStyle(ReviewDesign.slate)
+            VStack(spacing: 0) {
+                consentRow("Sending to", "\(summary.provider) · \(summary.modelLabel)")
+                consentRow("What", "Redacted text from \(summary.preparedCount) of \(summary.captureCount) captures")
+                consentRow("Not included", "\(summary.exclusionCount) captures excluded by your privacy rules · no images")
             }
-
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                consentRow("Provider", summary.provider)
-                consentRow("Model", summary.modelLabel)
-                consentRow("Prepared captures", "\(summary.captureCount)")
-                consentRow("Excluded locally", "\(summary.exclusionCount)")
-                consentRow("Screenshot files", summary.imageCount == 0 ? "None" : "\(summary.imageCount)")
-                consentRow("Payload", payloadLabel)
-            }
-            .padding(.vertical, EvidenceLensSpace.medium)
+            .padding(.vertical, 10)
             .overlay(alignment: .top) { Divider() }
             .overlay(alignment: .bottom) { Divider() }
-
-            Text(privacyExplanation)
+            Text("Personal details like emails and phone numbers were removed on this Mac. Qaptr asks every time.")
                 .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReviewDesign.muted)
                 .fixedSize(horizontal: false, vertical: true)
-
-            if let error = model.analysisError {
-                Text(error)
-                    .font(.system(size: 13))
-                    .foregroundStyle(EvidenceLensColor.attention)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
             HStack {
-                Button("Keep local") {
+                Button("Cancel") {
                     model.decideAnalysisConsent(granted: false)
+                    declined()
                 }
-                .buttonStyle(.bordered)
-
+                .buttonStyle(.plain)
+                .foregroundStyle(ReviewDesign.muted)
                 Spacer()
-
-                Button("Approve request") {
+                Button(approving ? "Starting…" : "Approve & analyze") {
+                    approving = true
                     model.decideAnalysisConsent(granted: true)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(ReviewDesign.accent)
+                .disabled(approving)
             }
         }
         .padding(30)
-        .frame(width: 520, alignment: .leading)
-        .background(EvidenceLensColor.canvas)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Analysis consent for \(summary.provider)")
-    }
-
-    private var payloadLabel: String {
-        if summary.payloadKind == "text", summary.imageCount == 0 {
-            return "Privacy-filtered text"
-        }
-        return summary.payloadKind
-    }
-
-    private var privacyExplanation: String {
-        if summary.imageCount == 0 {
-            return "Screenshot files stay on this Mac. The provider receives prepared text from the approved captures."
-        }
-        return "This request includes \(summary.imageCount) image\(summary.imageCount == 1 ? "" : "s") plus prepared context."
+        .frame(width: 560)
     }
 
     private func consentRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 14) {
             Text(label)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(ReviewDesign.muted)
             Spacer()
             Text(value)
                 .font(.system(size: 13))
-                .foregroundStyle(.primary)
+                .foregroundStyle(ReviewDesign.ink)
+                .multilineTextAlignment(.trailing)
         }
+        .padding(.vertical, 10)
     }
 }
 
-private struct StateMessageView<Actions: View>: View {
-    let symbol: String
-    let title: String
-    let detail: String
-    var symbolColor: Color = .accentColor
-    @ViewBuilder let actions: () -> Actions
-
-    var body: some View {
-        HStack(alignment: .top, spacing: EvidenceLensSpace.large) {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(symbolColor)
-                .frame(width: 30)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: EvidenceLensSpace.medium) {
-                VStack(alignment: .leading, spacing: EvidenceLensSpace.small) {
-                    Text(title)
-                        .font(.system(size: 30, weight: .regular, design: .rounded))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(detail)
-                        .font(.system(size: 15))
-                        .foregroundStyle(.secondary)
-                        .lineSpacing(3)
-                        .frame(maxWidth: 650, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                actions()
-            }
-        }
-        .padding(.vertical, EvidenceLensSpace.page)
-    }
+private extension ReviewConsentSummary {
+    var preparedCount: Int { max(0, captureCount - exclusionCount) }
 }
 
 private extension WorkflowEvidenceStatus {
@@ -920,16 +549,6 @@ private extension WorkflowEvidenceStatus {
         }
     }
 
-    var detail: String {
-        switch self {
-        case .enoughInformation: "The current evidence supports a human-readable workflow explanation."
-        case .needsMoreDetail: "The broad pattern is visible, but an important decision or handoff is missing."
-        case .needsMoreFrequentObservation: "The task is visible, but the interval missed important intermediate steps."
-        }
-    }
-
-    var accessibilityLabel: String { title }
-
     var symbolName: String {
         switch self {
         case .enoughInformation: "checkmark.circle.fill"
@@ -940,97 +559,21 @@ private extension WorkflowEvidenceStatus {
 
     var color: Color {
         switch self {
-        case .enoughInformation: EvidenceLensColor.enough
-        case .needsMoreDetail: EvidenceLensColor.moreDetail
-        case .needsMoreFrequentObservation: EvidenceLensColor.moreFrequent
+        case .enoughInformation: ReviewDesign.green
+        case .needsMoreDetail: ReviewDesign.orange
+        case .needsMoreFrequentObservation: ReviewDesign.accent
         }
-    }
-}
-
-private extension WorkflowCandidate {
-    var observedSpanLabel: String? {
-        guard let start = observedStartAtMillis,
-              let end = observedEndAtMillis,
-              end >= start
-        else { return nil }
-        let seconds = (end - start) / 1_000
-        if seconds < 60 { return "Less than a minute" }
-        if seconds < 3_600 { return "\(seconds / 60) min" }
-        let hours = Double(seconds) / 3_600
-        return hours < 10 ? String(format: "%.1f hr", hours) : "\(Int(hours)) hr"
     }
 }
 
 private extension WorkflowCaptureRecommendation {
     var durationLabel: String {
         if durationSeconds < 60 { return "\(durationSeconds) seconds" }
-        if durationSeconds < 3_600 { return "\(durationSeconds / 60) minutes" }
-        let hours = durationSeconds / 3_600
-        return "\(hours) hour\(hours == 1 ? "" : "s")"
+        return "\(durationSeconds / 60) minutes"
     }
 }
 
 private func recordReviewContentStateIfRequested(_ probeName: String) {
-    guard let path = ProcessInfo.processInfo.environment["QAPTR_REVIEW_CONTENT_FILE"] else {
-        return
-    }
-    try? "\(probeName)\n".write(
-        to: URL(fileURLWithPath: path),
-        atomically: true,
-        encoding: .utf8
-    )
+    guard let path = ProcessInfo.processInfo.environment["QAPTR_REVIEW_CONTENT_FILE"] else { return }
+    try? "\(probeName)\n".write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
 }
-
-#if DEBUG
-private enum WorkflowSuggestionsPreviewData {
-    static let candidates = DevMockData.snapshot.rankedWorkflowCandidates
-}
-
-#Preview("Candidates") {
-    ReviewWorkspaceContent(
-        state: .candidatesReady(WorkflowSuggestionsPreviewData.candidates),
-        captureStatus: .live,
-        lastCaptureAtMillis: 1_755_295_200_000,
-        workflows: DevMockData.snapshot.workflows,
-        selectedCandidateID: .constant(nil),
-        openSettings: {}, analyze: {}, retry: {}, cancel: {}, refresh: {}
-    )
-    .frame(width: 1040, height: 720)
-}
-
-#Preview("Loading") {
-    ReviewWorkspaceContent(
-        state: .loading,
-        captureStatus: .live,
-        lastCaptureAtMillis: nil,
-        workflows: [],
-        selectedCandidateID: .constant(nil),
-        openSettings: {}, analyze: {}, retry: {}, cancel: {}, refresh: {}
-    )
-    .frame(width: 900, height: 620)
-}
-
-#Preview("No captures") {
-    ReviewWorkspaceContent(
-        state: .noCaptures,
-        captureStatus: .needsAttention,
-        lastCaptureAtMillis: nil,
-        workflows: [],
-        selectedCandidateID: .constant(nil),
-        openSettings: {}, analyze: {}, retry: {}, cancel: {}, refresh: {}
-    )
-    .frame(width: 900, height: 620)
-}
-
-#Preview("Error") {
-    ReviewWorkspaceContent(
-        state: .loadFailure("The durable history store could not be opened."),
-        captureStatus: .paused,
-        lastCaptureAtMillis: nil,
-        workflows: [],
-        selectedCandidateID: .constant(nil),
-        openSettings: {}, analyze: {}, retry: {}, cancel: {}, refresh: {}
-    )
-    .frame(width: 900, height: 620)
-}
-#endif

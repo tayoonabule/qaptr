@@ -65,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         let content = NSHostingView(rootView: RootView(model: model, navigation: navigation))
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1040, height: 720),
+            contentRect: NSRect(x: 0, y: 0, width: 845, height: 737),
             // Let the SwiftUI surface render beneath the transparent titlebar.
             // This keeps the rail's fill and divider continuous through the
             // traffic-light area instead of stopping at the content-layout
@@ -83,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // separator some AppKit versions still draw under
         // `NSVisualEffectView`-less content even with a transparent bar.
         window.titlebarAppearsTransparent = true
-        window.titleVisibility = .visible
+        window.titleVisibility = .hidden
         if #available(macOS 13.0, *) {
             window.titlebarSeparatorStyle = .none
         }
@@ -301,6 +301,13 @@ struct QaptrReviewApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
+        MenuBarExtra {
+            QaptrMenuBarView(model: appDelegate.model, appDelegate: appDelegate)
+        } label: {
+            Image(systemName: "circle.dotted")
+        }
+        .menuBarExtraStyle(.menu)
+
         Settings {
             NativeSettingsEntryView(
                 model: appDelegate.model,
@@ -316,6 +323,68 @@ struct QaptrReviewApp: App {
                 Button("Show Capture Observations", action: appDelegate.showObservations)
                     .keyboardShortcut("1", modifiers: [.command])
             }
+        }
+    }
+}
+
+/// The background app's primary control surface. Every label is derived from
+/// the same model used by the main window, so the menu bar cannot drift from
+/// the strip and, importantly, cannot approve or invoke a provider itself.
+private struct QaptrMenuBarView: View {
+    @Bindable var model: ReviewAppModel
+    let appDelegate: AppDelegate
+
+    var body: some View {
+        Text(statusLine)
+            .font(.system(size: 13, weight: .medium))
+
+        Divider()
+
+        if model.analysisSessionState.phase == .readyForConsent {
+            Button("Ready for your approval") {
+                appDelegate.showMainWindow()
+            }
+        } else {
+            Button("Analyze now", action: model.startAnalysis)
+                .disabled(!model.analysisCanStart)
+        }
+
+        if model.detailedCaptureState.lifecycle == .capturing {
+            Button("Stop & review", action: model.stopDetailedCapture)
+        } else if model.captureControlIntent == .paused {
+            Button("Resume capture", action: model.resumeCapture)
+        } else {
+            Button("Pause capture", action: model.pauseCapture)
+        }
+
+        Button("Open Qaptr", action: appDelegate.showMainWindow)
+        Button("Settings…", action: appDelegate.openSettings)
+
+        Divider()
+        Button("Quit Qaptr") { NSApp.terminate(nil) }
+    }
+
+    private var statusLine: String {
+        if model.detailedCaptureState.lifecycle == .capturing {
+            return "Watching closely · detailed capture"
+        }
+        switch model.analysisSessionState.phase {
+        case .ingesting, .preparing, .analyzing:
+            return "Analyzing on this Mac…"
+        case .readyForConsent:
+            return "Ready for your approval"
+        default:
+            break
+        }
+        if model.captureControlIntent == .paused { return "Capture paused" }
+        switch model.captureProgress.state {
+        case .permissionRequired: return "Screen Recording was turned off"
+        case .noDisplays: return "No display connected"
+        case .error, .stopped, .unknown:
+            return "Capture stopped in the background"
+        case .starting, .waiting, .capturing, .paused:
+            let count = model.captureProgress.captureCount ?? 0
+            return "Capturing quietly · \(count) today"
         }
     }
 }
