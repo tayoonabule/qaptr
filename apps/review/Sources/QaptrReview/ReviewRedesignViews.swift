@@ -302,10 +302,7 @@ struct ReviewStatusStrip: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(ReviewDesign.muted)
         case .approval:
-            Button("Review", action: openSettings)
-                .buttonStyle(.plain)
-                .foregroundStyle(ReviewDesign.accent)
-                .hidden()
+            EmptyView()
         case .watching:
             Button("Stop & review", action: stopDetailed)
                 .buttonStyle(.borderedProminent)
