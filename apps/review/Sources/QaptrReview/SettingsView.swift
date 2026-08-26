@@ -166,7 +166,9 @@ struct SettingsView: View {
   private var analysisSection: some View {
     settingsCard("Analysis", systemImage: "sparkles") {
       Button {
-        model.connectProvider(model.settings.provider ?? .claudeCLI)
+        if let provider = model.settings.provider {
+          model.connectProvider(provider)
+        }
         showsProviderSetup = true
       } label: {
         HStack(spacing: QaptrSpace.md) {
