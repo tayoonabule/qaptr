@@ -178,48 +178,24 @@ struct WelcomeView: View {
 
   var body: some View {
     QaptrGlassBackdrop {
-      HStack(spacing: 24) {
-        Image(systemName: model.settings.screenRecordingStatus == .denied
-          ? "exclamationmark.shield.fill" : "rectangle.dashed.and.paperclip")
-          .font(.system(size: 28, weight: .medium))
-          .foregroundStyle(model.settings.screenRecordingStatus == .denied
-            ? ReviewDesign.orange : ReviewDesign.accent)
-          .frame(width: 48)
-
-        VStack(alignment: .leading, spacing: 5) {
-          Text(model.settings.screenRecordingStatus == .denied
-            ? "Screen Recording is off" : "Allow Screen Recording")
-            .font(.system(size: 20, weight: .semibold))
+      VStack(spacing: 0) {
+        VStack(spacing: 32) {
+          QaptrBrandLogo(iconSize: 26, textSize: 21)
+          Text("Qaptr notices how you work.")
+            .font(.system(size: 28, weight: .regular, design: .serif))
             .foregroundStyle(ReviewDesign.ink)
-          Text(model.settings.screenRecordingStatus == .denied
-            ? "Enable QaptrHelper in Screen Recording, then return to Qaptr."
-            : "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here.")
-            .font(.system(size: 13))
-            .foregroundStyle(ReviewDesign.slate)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-          if let message {
-            Text(message)
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(ReviewDesign.orange)
-              .lineLimit(1)
-          }
+            .multilineTextAlignment(.center)
+            .frame(width: 416)
         }
-        Spacer(minLength: 8)
-        Button(primaryLabel, action: primaryAction)
-          .buttonStyle(.borderedProminent)
-          .tint(ReviewDesign.accent)
-          .controlSize(.large)
-          .keyboardShortcut(.defaultAction)
+        .frame(maxWidth: .infinity)
+
+        permissionCard
+          .padding(.top, 70)
+        privacyFooter
+          .padding(.top, 16)
       }
-      .padding(.horizontal, 28)
-      .frame(width: 580, height: 160)
-      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-      .overlay {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-          .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
-      }
-      .shadow(color: .black.opacity(0.12), radius: 26, y: 12)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+      .padding(.top, 112)
     }
     .frame(width: 845, height: 706)
     .onAppear {
@@ -246,6 +222,61 @@ struct WelcomeView: View {
     switch model.settings.screenRecordingStatus {
     case .denied: "Open System Settings"
     default: "Allow Screen Recording"
+    }
+  }
+
+  private var permissionCard: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text("Allow Screen Recording")
+          .font(.system(size: 15, weight: .medium))
+          .foregroundStyle(ReviewDesign.ink)
+        if model.settings.screenRecordingStatus == .denied {
+          Text("Denied")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(ReviewDesign.orange)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(ReviewDesign.orange.opacity(0.10), in: Capsule())
+        }
+      }
+      Text(
+        model.settings.screenRecordingStatus == .denied
+          ? "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here."
+          : "Screen Recording is the one required permission."
+      )
+      .font(.system(size: 13))
+      .foregroundStyle(ReviewDesign.slate)
+      .fixedSize(horizontal: false, vertical: true)
+      .padding(.top, 7)
+      Button(primaryLabel, action: primaryAction)
+        .buttonStyle(ReviewSuggestionPrimaryButtonStyle())
+        .frame(maxWidth: .infinity)
+        .padding(.top, 20)
+        .keyboardShortcut(.defaultAction)
+    }
+    .padding(28)
+    .frame(width: 580, height: model.settings.screenRecordingStatus == .denied ? 177 : 160)
+    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: 24, style: .continuous)
+        .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
+    }
+    .shadow(color: .black.opacity(0.07), radius: 20, y: 10)
+  }
+
+  private var privacyFooter: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "lock.shield.fill")
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(ReviewDesign.accent)
+      Text(
+        model.settings.screenRecordingStatus == .denied
+          ? "Enable QaptrHelper in Screen Recording, then return to Qaptr."
+          : "Captures stay 100% offline. You can pause or adjust permission settings anytime."
+      )
+      .font(.system(size: 12))
+      .foregroundStyle(ReviewDesign.muted)
     }
   }
 
