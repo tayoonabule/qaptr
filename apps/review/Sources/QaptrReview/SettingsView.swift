@@ -110,6 +110,7 @@ struct SettingsView: View {
     .frame(maxWidth: 620)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(.clear)
+    .scrollContentBackground(.hidden)
     .navigationTitle("Settings")
     .onAppear { model.refreshSettings() }
     .onChange(of: scenePhase) { _, phase in
@@ -290,6 +291,10 @@ struct SettingsView: View {
 
   private var exclusionsSection: some View {
     Section {
+      Text("Keep sensitive apps and windows out of Qaptr before anything is retained.")
+        .font(QaptrType.caption())
+        .foregroundStyle(Color.qaptrInkSoft)
+        .fixedSize(horizontal: false, vertical: true)
       TextField("Application name", text: $excludedApplication)
         .onSubmit(addExcludedApplication)
       if !model.settings.excludedApplications.isEmpty {
@@ -306,7 +311,7 @@ struct SettingsView: View {
         }
       }
     } header: {
-      Text("Never capture")
+      Label("Never capture", systemImage: "eye.slash")
     } footer: {
       Text("Excluded applications and window titles are filtered before capture is retained.")
     }

@@ -187,7 +187,9 @@ struct ObservationSheetView: View {
         Spacer(minLength: 0)
       }
       .padding(QaptrSpace.md)
-      .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+      .background(
+        .thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+      )
       .overlay {
         RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
           .strokeBorder(Color.white.opacity(0.58), lineWidth: 1)
@@ -463,7 +465,9 @@ private struct AnalysisProgressView: View {
     }
     .padding(.horizontal, QaptrSpace.md)
     .padding(.vertical, QaptrSpace.md)
-    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous))
+    .background(
+      .thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
+    )
     .overlay {
       RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
         .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
@@ -546,78 +550,84 @@ private struct AnalysisConsentView: View {
   @State private var showsProviderSetup = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: QaptrSpace.xl) {
-      VStack(alignment: .leading, spacing: QaptrSpace.xs) {
-        Text("Approve before anything leaves this Mac")
-          .font(QaptrType.headline(22))
-          .foregroundStyle(Color.qaptrInk)
-        Text("Review exactly what will be sent, to whom, before anything leaves the Mac.")
-          .font(QaptrType.body())
-        .foregroundStyle(Color.qaptrInkSoft)
-        .fixedSize(horizontal: false, vertical: true)
-      }
-
-      HStack(alignment: .top, spacing: QaptrSpace.md) {
-        Image(systemName: "lock.shield")
-          .font(.system(size: 18, weight: .medium))
-          .foregroundStyle(Color.qaptrSuccess)
-          .frame(width: 24)
-        VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
-          Text("Personal details were removed on this Mac")
-            .font(QaptrType.title(13))
+    QaptrSecondarySurface(padding: QaptrSpace.xxl) {
+      VStack(alignment: .leading, spacing: QaptrSpace.xl) {
+        VStack(alignment: .leading, spacing: QaptrSpace.xs) {
+          Text("Ready for your approval")
+            .font(QaptrType.meta(10.5))
+            .foregroundStyle(Color.qaptrInkMuted)
+          Text("Approve before anything leaves this Mac")
+            .font(QaptrType.headline(22))
             .foregroundStyle(Color.qaptrInk)
-          Text("Qaptr asks every time. Nothing is sent until you approve below.")
-            .font(QaptrType.caption())
+          Text("Review exactly what will be sent, to whom, before anything leaves the Mac.")
+            .font(QaptrType.body())
             .foregroundStyle(Color.qaptrInkSoft)
             .fixedSize(horizontal: false, vertical: true)
         }
-      }
-      .padding(QaptrSpace.md)
-      .background(.thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
-      .overlay {
-        RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-          .fill(Color.qaptrSoftMint.opacity(0.28))
-          .allowsHitTesting(false)
-      }
-      .overlay {
-        RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-          .strokeBorder(Color.white.opacity(0.58), lineWidth: 1)
-      }
 
-      VStack(alignment: .leading, spacing: QaptrSpace.sm) {
-        HStack {
-          VStack(alignment: .leading, spacing: 3) {
-            Text("Sending to")
-              .font(QaptrType.meta(10.5)).foregroundStyle(Color.qaptrInkMuted)
-            Text("\(summary.provider) · \(summary.modelLabel)")
-              .font(QaptrType.body(13)).foregroundStyle(Color.qaptrInk)
+        HStack(alignment: .top, spacing: QaptrSpace.md) {
+          Image(systemName: "lock.shield")
+            .font(.system(size: 18, weight: .medium))
+            .foregroundStyle(Color.qaptrSuccess)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
+            Text("Personal details were removed on this Mac")
+              .font(QaptrType.title(13))
+              .foregroundStyle(Color.qaptrInk)
+            Text("Qaptr asks every time. Nothing is sent until you approve below.")
+              .font(QaptrType.caption())
+              .foregroundStyle(Color.qaptrInkSoft)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          Spacer()
-          Button("Change") { showsProviderSetup = true }
-            .buttonStyle(.qaptrQuiet)
         }
-        consentRow("What", "Redacted text from \(summary.captureCount) captures")
-        consentRow("Not included", "\(summary.exclusionCount) excluded by your privacy rules · no images")
-      }
+        .padding(QaptrSpace.md)
+        .background(
+          .thinMaterial, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+            .fill(Color.qaptrSoftMint.opacity(0.28))
+            .allowsHitTesting(false)
+        }
+        .overlay {
+          RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+            .strokeBorder(Color.white.opacity(0.58), lineWidth: 1)
+        }
 
-      if let error = model.analysisError {
-        Text(error)
-          .font(QaptrType.caption())
-          .foregroundStyle(Color.qaptrError)
-          .fixedSize(horizontal: false, vertical: true)
-          .accessibilityLabel("Analysis consent failed: \(error)")
-      }
+        VStack(alignment: .leading, spacing: QaptrSpace.sm) {
+          HStack {
+            VStack(alignment: .leading, spacing: 3) {
+              Text("Sending to")
+                .font(QaptrType.meta(10.5)).foregroundStyle(Color.qaptrInkMuted)
+              Text("\(summary.provider) · \(summary.modelLabel)")
+                .font(QaptrType.body(13)).foregroundStyle(Color.qaptrInk)
+            }
+            Spacer()
+            Button("Change") { showsProviderSetup = true }
+              .buttonStyle(.qaptrQuiet)
+          }
+          consentRow("What", "Redacted text from \(summary.captureCount) captures")
+          consentRow(
+            "Not included", "\(summary.exclusionCount) excluded by your privacy rules · no images")
+        }
 
-      HStack(spacing: QaptrSpace.sm) {
-        Button("Cancel") { model.decideAnalysisConsent(granted: false) }
-          .buttonStyle(.qaptrOutline)
-        Button("Approve & analyze") { model.decideAnalysisConsent(granted: true) }
-          .buttonStyle(.qaptrPrimary)
+        if let error = model.analysisError {
+          Text(error)
+            .font(QaptrType.caption())
+            .foregroundStyle(Color.qaptrError)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel("Analysis consent failed: \(error)")
+        }
+
+        HStack(spacing: QaptrSpace.sm) {
+          Button("Cancel") { model.decideAnalysisConsent(granted: false) }
+            .buttonStyle(.qaptrOutline)
+          Button("Approve & analyze") { model.decideAnalysisConsent(granted: true) }
+            .buttonStyle(.qaptrPrimary)
+        }
       }
     }
-    .padding(QaptrSpace.xxl)
     .frame(width: 540, alignment: .leading)
-    .background(.clear)
     .sheet(isPresented: $showsProviderSetup) {
       ProviderSetupSheet(model: model)
     }
