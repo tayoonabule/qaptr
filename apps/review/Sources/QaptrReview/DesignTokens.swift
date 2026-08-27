@@ -120,6 +120,7 @@ enum QaptrRadius {
   static let feature: CGFloat = 16
   static let glass: CGFloat = 24
   static let input: CGFloat = 6
+  static let secondarySurface: CGFloat = 20
 }
 
 /// The compact 4pt spacing scale used by every native surface.
@@ -132,6 +133,11 @@ enum QaptrSpace {
   static let xl: CGFloat = 28
   static let xxl: CGFloat = 40
   static let xxxl: CGFloat = 56
+
+  // Semantic aliases retain the established scale while making intent clear.
+  static let section: CGFloat = xl
+  static let page: CGFloat = xxl
+  static let hero: CGFloat = xxxl
 }
 
 enum QaptrControlMetrics {
@@ -141,35 +147,69 @@ enum QaptrControlMetrics {
 /// A crisp system sans display voice with a system sans body voice. The native
 /// app should feel precise and editorial, not soft or toy-like.
 enum QaptrType {
+  enum Size {
+    static let display: CGFloat = 30
+    static let headline: CGFloat = 20
+    static let title: CGFloat = 14
+    static let body: CGFloat = 14
+    static let caption: CGFloat = 12
+    static let meta: CGFloat = 11
+  }
+
+  enum Weight {
+    static let regular: Font.Weight = .regular
+    static let medium: Font.Weight = .medium
+    static let semibold: Font.Weight = .semibold
+  }
+
   /// Distinct editorial display role. New York is a native macOS serif and
   /// safely falls back to the platform system serif when unavailable.
-  static func editorial(_ size: CGFloat = 30) -> Font {
+  static func editorial(_ size: CGFloat = Size.display) -> Font {
     QaptrFont.custom(size)
   }
 
-  static func display(_ size: CGFloat = 30) -> Font {
+  static func display(_ size: CGFloat = Size.display) -> Font {
     editorial(size)
   }
 
-  static func headline(_ size: CGFloat = 20) -> Font {
-    QaptrFont.custom(size, weight: .medium)
+  static func headline(_ size: CGFloat = Size.headline) -> Font {
+    QaptrFont.custom(size, weight: Weight.medium)
   }
 
-  static func title(_ size: CGFloat = 14) -> Font {
-    QaptrFont.custom(size, weight: .medium)
+  static func title(_ size: CGFloat = Size.title) -> Font {
+    QaptrFont.custom(size, weight: Weight.medium)
   }
 
-  static func body(_ size: CGFloat = 14) -> Font {
+  static func body(_ size: CGFloat = Size.body) -> Font {
     QaptrFont.custom(size)
   }
 
-  static func caption(_ size: CGFloat = 12) -> Font {
+  static func caption(_ size: CGFloat = Size.caption) -> Font {
     QaptrFont.custom(size)
   }
 
-  static func meta(_ size: CGFloat = 11) -> Font {
-    QaptrFont.custom(size, weight: .semibold)
+  static func meta(_ size: CGFloat = Size.meta) -> Font {
+    QaptrFont.custom(size, weight: Weight.semibold)
   }
+}
+
+/// Shared edge and shadow values for the Figma glass surfaces.
+enum QaptrEffect {
+  static let hairlineWidth: CGFloat = 1
+  static let glassHighlightOpacity: Double = 0.82
+  static let glassHairlineOpacity: Double = 0.55
+  static let secondaryHighlightOpacity: Double = 0.88
+  static let secondaryHairlineOpacity: Double = 0.62
+  static let cardHighlightOpacity: Double = 0.62
+  static let panelShadowOpacity: Double = 0.10
+  static let panelShadowRadius: CGFloat = 28
+  static let panelShadowY: CGFloat = 14
+  static let secondaryShadowOpacity: Double = 0.12
+  static let secondaryShadowRadius: CGFloat = 24
+  static let secondaryShadowY: CGFloat = 12
+  static let cardShadowOpacity: Double = 0.055
+  static let cardShadowRadius: CGFloat = 14
+  static let cardShadowY: CGFloat = 7
 }
 
 enum QaptrMotion {
@@ -247,14 +287,21 @@ struct QaptrGlassPanel<Content: View>: View {
         RoundedRectangle(cornerRadius: QaptrRadius.feature, style: .continuous)
           .strokeBorder(
             LinearGradient(
-              colors: [Color.white.opacity(0.82), Color.qaptrHairline.opacity(0.55)],
+              colors: [
+                Color.white.opacity(QaptrEffect.glassHighlightOpacity),
+                Color.qaptrHairline.opacity(QaptrEffect.glassHairlineOpacity),
+              ],
               startPoint: .topLeading,
               endPoint: .bottomTrailing
             ),
-            lineWidth: 1
+            lineWidth: QaptrEffect.hairlineWidth
           )
       }
-      .shadow(color: Color.black.opacity(0.10), radius: 28, y: 14)
+      .shadow(
+        color: Color.black.opacity(QaptrEffect.panelShadowOpacity),
+        radius: QaptrEffect.panelShadowRadius,
+        y: QaptrEffect.panelShadowY
+      )
   }
 }
 
@@ -273,19 +320,29 @@ struct QaptrSecondarySurface<Content: View>: View {
   var body: some View {
     content
       .padding(padding)
-      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+      .background(
+        .regularMaterial,
+        in: RoundedRectangle(cornerRadius: QaptrRadius.secondarySurface, style: .continuous)
+      )
       .overlay {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: QaptrRadius.secondarySurface, style: .continuous)
           .strokeBorder(
             LinearGradient(
-              colors: [Color.white.opacity(0.88), Color.qaptrHairline.opacity(0.62)],
+              colors: [
+                Color.white.opacity(QaptrEffect.secondaryHighlightOpacity),
+                Color.qaptrHairline.opacity(QaptrEffect.secondaryHairlineOpacity),
+              ],
               startPoint: .topLeading,
               endPoint: .bottomTrailing
             ),
-            lineWidth: 1
+            lineWidth: QaptrEffect.hairlineWidth
           )
       }
-      .shadow(color: Color.black.opacity(0.12), radius: 24, y: 12)
+      .shadow(
+        color: Color.black.opacity(QaptrEffect.secondaryShadowOpacity),
+        radius: QaptrEffect.secondaryShadowRadius,
+        y: QaptrEffect.secondaryShadowY
+      )
   }
 }
 
@@ -309,8 +366,15 @@ struct QaptrCard<Content: View>: View {
       )
       .overlay {
         RoundedRectangle(cornerRadius: QaptrRadius.card, style: .continuous)
-          .strokeBorder(Color.white.opacity(0.62), lineWidth: 1)
+          .strokeBorder(
+            Color.white.opacity(QaptrEffect.cardHighlightOpacity),
+            lineWidth: QaptrEffect.hairlineWidth
+          )
       }
-      .shadow(color: Color.black.opacity(0.055), radius: 14, y: 7)
+      .shadow(
+        color: Color.black.opacity(QaptrEffect.cardShadowOpacity),
+        radius: QaptrEffect.cardShadowRadius,
+        y: QaptrEffect.cardShadowY
+      )
   }
 }
