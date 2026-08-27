@@ -89,6 +89,28 @@ struct QaptrTitleBar: View {
   }
 }
 
+/// The onboarding title bar (Figma node `27:1035`, 845×31): no logo mark,
+/// a bold SF Pro title, and no background fill (unlike the post-onboarding
+/// `QaptrTitleBar`, which adds the `rgba(255,255,255,0.6)` wash and the
+/// 14×14 logo-mini). Kept separate rather than parameterizing one view
+/// because the two frames differ in font, height, and whether a logo mark
+/// is present at all, not just in copy.
+struct QaptrOnboardingTitleBar: View {
+  let title: String
+
+  var body: some View {
+    Text(title)
+      .font(.system(size: 13, weight: .bold))
+      .foregroundStyle(Color.qaptrLabelPrimary)
+      .padding(.leading, 84)
+      .frame(height: 31, alignment: .leading)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .overlay(alignment: .bottom) {
+        Rectangle().fill(Color.black.opacity(0.05)).frame(height: 1)
+      }
+  }
+}
+
 private enum QaptrReviewLogoResources {
   static let aperture: Data = load("QaptrAperture")
   static let wordmark: Data = load("qaptr_logo")

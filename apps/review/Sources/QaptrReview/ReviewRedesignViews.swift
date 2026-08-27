@@ -209,35 +209,38 @@ struct WelcomeView: View {
   @State private var message: String?
 
   var body: some View {
-    ZStack {
-      // Figma's Welcome frame (nodes 27:1034 / 27:1069) fills the canvas with
-      // a radial gradient: `#C7D1E6` at the bottom-center fading to white at
-      // the edges (`gradientTransform` centered at x=422.5,y=737 of an
-      // 845×737 frame). This is the same shape as `ReviewDesign.canvas`, so
-      // reuse it instead of an unrelated linear gradient.
-      ReviewDesign.canvas
-        .ignoresSafeArea()
+    VStack(spacing: 0) {
+      QaptrOnboardingTitleBar(title: onboardingTitle)
+      ZStack {
+        // Figma's Welcome frame (nodes 27:1034 / 27:1069) fills the canvas with
+        // a radial gradient: `#C7D1E6` at the bottom-center fading to white at
+        // the edges (`gradientTransform` centered at x=422.5,y=737 of an
+        // 845×737 frame). This is the same shape as `ReviewDesign.canvas`, so
+        // reuse it instead of an unrelated linear gradient.
+        ReviewDesign.canvas
+          .ignoresSafeArea()
 
-      VStack(spacing: 0) {
-        VStack(spacing: 32) {
-          QaptrBrandLogo(iconSize: 42, textSize: 28, wordmark: true)
-          Text(heroTitle)
-            .font(.system(size: 26, weight: .regular))
-            .foregroundStyle(Color.qaptrLabelPrimary)
-            .multilineTextAlignment(.center)
-            .frame(width: 416, height: heroTitleHeight)
+        VStack(spacing: 0) {
+          VStack(spacing: 32) {
+            QaptrBrandLogo(iconSize: 42, textSize: 28, wordmark: true)
+            Text(heroTitle)
+              .font(.system(size: 26, weight: .regular))
+              .foregroundStyle(Color.qaptrLabelPrimary)
+              .multilineTextAlignment(.center)
+              .frame(width: 416, height: heroTitleHeight)
+          }
+          .frame(width: 725, height: heroStackHeight)
+
+          permissionCard
+            .padding(.top, 72)
+          privacyFooter
+            .padding(.top, 16)
         }
-        .frame(width: 725, height: heroStackHeight)
-
-        permissionCard
-          .padding(.top, 72)
-        privacyFooter
-          .padding(.top, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 158)
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-      .padding(.top, 158)
+      .frame(width: 845, height: 706)
     }
-    .frame(width: 845, height: 706)
     .onAppear {
       refresh()
       advanceIfReady()
@@ -257,6 +260,8 @@ struct WelcomeView: View {
       }
     }
   }
+
+  private var onboardingTitle: String { "Qaptr Setup" }
 
   private var primaryLabel: String {
     switch model.settings.screenRecordingStatus {
