@@ -29,6 +29,11 @@ enum QaptrHex {
   static let lavender = NSColor(qaptrHex: 0x6D_66_B2)
   static let error = NSColor(qaptrHex: 0xB4_23_18)
   static let teal = NSColor(qaptrHex: 0x00_9E_9A)
+  // Figma Main App variables.
+  static let figmaPrimary = NSColor(qaptrHex: 0x00_88_FF)
+  static let figmaOrange = NSColor(qaptrHex: 0xFF_8D_28)
+  static let figmaRed = NSColor(qaptrHex: 0xFF_38_3C)
+  static let figmaSecondaryFill = NSColor(qaptrHex: 0xE6_E6_E6)
 }
 
 extension NSColor {
@@ -65,13 +70,16 @@ extension Color {
   static let qaptrSurfaceRaised = Color(nsColor: QaptrHex.paperMist)
   static let qaptrPaperMist = Color(nsColor: QaptrHex.paperMist)
   static let qaptrInk = Color(nsColor: QaptrHex.charcoal)
+  static let qaptrLabelPrimary = Color.black.opacity(0.85)
+  static let qaptrLabelSecondary = Color.black.opacity(0.62)
+  static let qaptrFillSecondary = Color(nsColor: QaptrHex.figmaSecondaryFill)
   static let qaptrInkSoft = Color(nsColor: QaptrHex.steel)
   static let qaptrInkMuted = Color(nsColor: QaptrHex.fog)
   static let qaptrSlate = Color(nsColor: QaptrHex.slate)
   static let qaptrHairline = Color(nsColor: QaptrHex.ash)
   static let qaptrBorderStrong = Color(nsColor: QaptrHex.smoke)
   static let qaptrInputBorder = Color(nsColor: QaptrHex.midnightInk)
-  static let qaptrAccent = Color(nsColor: QaptrHex.electricBlue)
+  static let qaptrAccent = Color(nsColor: QaptrHex.figmaPrimary)
   static let qaptrAccentStrong = Color(nsColor: QaptrHex.deepSapphire)
   static let qaptrSignalGradient = LinearGradient(
     colors: [
@@ -85,9 +93,9 @@ extension Color {
   static let qaptrPrimaryAction = Color(nsColor: QaptrHex.midnightInk)
   static let qaptrSuccess = Color(nsColor: QaptrHex.vividGreen)
   static let qaptrSoftMint = Color(nsColor: QaptrHex.softMint)
-  static let qaptrWarning = Color(nsColor: QaptrHex.tangerine)
+  static let qaptrWarning = Color(nsColor: QaptrHex.figmaOrange)
   static let qaptrLavender = Color(nsColor: QaptrHex.lavender)
-  static let qaptrError = Color(nsColor: QaptrHex.error)
+  static let qaptrError = Color(nsColor: QaptrHex.figmaRed)
 
   // Compatibility names used by the existing state and accessibility copy.
   static let qaptrAccentTint = Color(nsColor: QaptrHex.electricBlue).opacity(0.10)
@@ -126,7 +134,7 @@ enum QaptrType {
   /// Distinct editorial display role. New York is a native macOS serif and
   /// safely falls back to the platform system serif when unavailable.
   static func editorial(_ size: CGFloat = 30) -> Font {
-    .system(size: size, weight: .regular, design: .serif)
+    QaptrFont.custom(size)
   }
 
   static func display(_ size: CGFloat = 30) -> Font {
@@ -134,23 +142,23 @@ enum QaptrType {
   }
 
   static func headline(_ size: CGFloat = 20) -> Font {
-    .system(size: size, weight: .medium, design: .default)
+    QaptrFont.custom(size, weight: .medium)
   }
 
   static func title(_ size: CGFloat = 14) -> Font {
-    .system(size: size, weight: .medium)
+    QaptrFont.custom(size, weight: .medium)
   }
 
   static func body(_ size: CGFloat = 14) -> Font {
-    .system(size: size)
+    QaptrFont.custom(size)
   }
 
   static func caption(_ size: CGFloat = 12) -> Font {
-    .system(size: size)
+    QaptrFont.custom(size)
   }
 
   static func meta(_ size: CGFloat = 11) -> Font {
-    .system(size: size, weight: .semibold, design: .monospaced)
+    QaptrFont.custom(size, weight: .semibold)
   }
 }
 
@@ -181,32 +189,13 @@ struct QaptrGlassBackdrop<Content: View>: View {
 
   var body: some View {
     ZStack {
+      // The Figma app uses a quiet neutral canvas. Keep this static so the
+      // title bar, toolbar, and content share one stable surface.
       Color.qaptrGlassCanvas.ignoresSafeArea()
-
-      Circle()
-        .fill(Color.qaptrAccent.opacity(0.16))
-        .frame(width: 420, height: 420)
-        .blur(radius: 90)
-        .offset(x: isSettled ? 260 : 170, y: isSettled ? -240 : -180)
-
-      Circle()
-        .fill(Color.qaptrTeal.opacity(0.12))
-        .frame(width: 360, height: 360)
-        .blur(radius: 100)
-        .offset(x: isSettled ? -280 : -210, y: isSettled ? 250 : 190)
-
-      Rectangle()
-        .fill(.ultraThinMaterial)
-        .ignoresSafeArea()
 
       content
     }
-    .task {
-      guard !reduceMotion else { return }
-      withAnimation(QaptrMotion.spring.repeatForever(autoreverses: true)) {
-        isSettled = true
-      }
-    }
+    .task { _ = reduceMotion }
   }
 }
 

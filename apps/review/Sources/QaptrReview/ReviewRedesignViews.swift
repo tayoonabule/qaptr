@@ -6,18 +6,17 @@ import SwiftUI
 /// deliberately local so Settings and ProviderSetupSheet keep their existing
 /// compatibility palette.
 enum ReviewDesign {
-  static let ink = Color(red: 0x11 / 255.0, green: 0x18 / 255.0, blue: 0x26 / 255.0)
-  static let slate = Color(red: 0x4B / 255.0, green: 0x55 / 255.0, blue: 0x63 / 255.0)
-  static let muted = Color(red: 0x64 / 255.0, green: 0x74 / 255.0, blue: 0x8B / 255.0)
-  static let accent = Color(red: 0x25 / 255.0, green: 0x63 / 255.0, blue: 0xEB / 255.0)
-  static let green = Color(red: 0x35 / 255.0, green: 0xC7 / 255.0, blue: 0x5A / 255.0)
-  static let orange = Color.orange
-  static let red = Color.red
-  static let canvas = RadialGradient(
-    colors: [Color.white, Color(red: 0.91, green: 0.94, blue: 0.97)],
-    center: UnitPoint(x: 0.78, y: 0.82),
-    startRadius: 80,
-    endRadius: 720
+  static let ink = Color.qaptrInk
+  static let slate = Color.qaptrSlate
+  static let muted = Color.qaptrInkMuted
+  static let accent = Color.qaptrAccent
+  static let green = Color.qaptrSuccess
+  static let orange = Color.qaptrWarning
+  static let red = Color.qaptrError
+  static let canvas = LinearGradient(
+    colors: [Color.qaptrGlassCanvas, Color.qaptrSurfaceRaised],
+    startPoint: .top,
+    endPoint: .bottom
   )
 }
 
@@ -177,25 +176,38 @@ struct WelcomeView: View {
   @State private var message: String?
 
   var body: some View {
-    QaptrGlassBackdrop {
+    ZStack {
+      // Figma's Welcome frame is a quiet white-to-blue-gray canvas. It is not
+      // the animated marketing backdrop used by the post-onboarding surface.
+      LinearGradient(
+        colors: [
+          Color.qaptrGlassCanvas,
+          Color.qaptrGlassCanvas,
+          Color.qaptrSurfaceRaised,
+        ],
+        startPoint: .top,
+        endPoint: .bottomTrailing
+      )
+      .ignoresSafeArea()
+
       VStack(spacing: 0) {
         VStack(spacing: 32) {
-          QaptrBrandLogo(iconSize: 26, textSize: 21)
-          Text("Qaptr notices how you work.")
-            .font(.system(size: 28, weight: .regular, design: .serif))
-            .foregroundStyle(ReviewDesign.ink)
+          QaptrBrandLogo(iconSize: 42, textSize: 28, wordmark: true)
+          Text(heroTitle)
+            .font(.system(size: 26, weight: .regular))
+            .foregroundStyle(Color.qaptrLabelPrimary)
             .multilineTextAlignment(.center)
-            .frame(width: 416)
+            .frame(width: 416, height: heroTitleHeight)
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: 725, height: heroStackHeight)
 
         permissionCard
-          .padding(.top, 70)
+          .padding(.top, 72)
         privacyFooter
           .padding(.top, 16)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-      .padding(.top, 112)
+      .padding(.top, 158)
     }
     .frame(width: 845, height: 706)
     .onAppear {
@@ -225,19 +237,46 @@ struct WelcomeView: View {
     }
   }
 
+  private var heroTitle: String {
+    switch model.settings.screenRecordingStatus {
+    case .denied:
+      "Uh oh. Our local tools can’t Qaptr much without seeing your screen."
+    case .granted:
+      "Finally, a way to Qaptr that one task you’ve always wanted to delegate."
+    default:
+      "You’re so close!!!"
+    }
+  }
+
+  private var heroTitleHeight: CGFloat {
+    model.settings.screenRecordingStatus == .notDetermined ? 32 : 64
+  }
+
+  private var heroStackHeight: CGFloat {
+    model.settings.screenRecordingStatus == .notDetermined ? 115 : 147
+  }
+
+  private var permissionBadge: (label: String, color: Color)? {
+    switch model.settings.screenRecordingStatus {
+    case .denied: ("Denied", ReviewDesign.red)
+    case .granted: nil
+    default: ("Waiting...", ReviewDesign.orange)
+    }
+  }
+
   private var permissionCard: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack(alignment: .center, spacing: 8) {
         Text("Allow Screen Recording")
-          .font(.system(size: 15, weight: .medium))
-          .foregroundStyle(ReviewDesign.ink)
-        if model.settings.screenRecordingStatus == .denied {
-          Text("Denied")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(ReviewDesign.orange)
+          .font(.system(size: 15, weight: .regular))
+          .foregroundStyle(Color.qaptrLabelPrimary)
+        if let permissionBadge {
+          Text(permissionBadge.label)
+            .font(QaptrType.caption(12))
+            .foregroundStyle(permissionBadge.color)
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(ReviewDesign.orange.opacity(0.10), in: Capsule())
+            .frame(height: 21)
+            .background(permissionBadge.color.opacity(0.12), in: Capsule())
         }
       }
       Text(
@@ -245,38 +284,49 @@ struct WelcomeView: View {
           ? "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here."
           : "Screen Recording is the one required permission."
       )
-      .font(.system(size: 13))
-      .foregroundStyle(ReviewDesign.slate)
+      .font(.system(size: 13, weight: .regular))
+      .foregroundStyle(Color.qaptrLabelSecondary)
       .fixedSize(horizontal: false, vertical: true)
-      .padding(.top, 7)
-      Button(primaryLabel, action: primaryAction)
-        .buttonStyle(ReviewSuggestionPrimaryButtonStyle())
+      Button(action: primaryAction) {
+        HStack(spacing: 8) {
+          Text(primaryLabel)
+            .font(QaptrType.body(13))
+          Image(systemName: "arrow.right")
+            .font(.system(size: 14.4, weight: .regular))
+        }
+        .foregroundStyle(Color.white.opacity(0.96))
         .frame(maxWidth: .infinity)
-        .padding(.top, 20)
-        .keyboardShortcut(.defaultAction)
+        .frame(height: 44)
+        .background(
+          Color.qaptrAccent,
+          in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+      }
+      .buttonStyle(.plain)
+      .frame(maxWidth: .infinity)
+      .keyboardShortcut(.defaultAction)
     }
-    .padding(28)
-    .frame(width: 580, height: model.settings.screenRecordingStatus == .denied ? 177 : 160)
-    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    .overlay {
-      RoundedRectangle(cornerRadius: 24, style: .continuous)
-        .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
-    }
-    .shadow(color: .black.opacity(0.07), radius: 20, y: 10)
+    .padding(24)
+    .frame(
+      width: 580,
+      height: model.settings.screenRecordingStatus == .granted ? 148 : 165,
+      alignment: .topLeading
+    )
+    .background(Color.white.opacity(0.1))
+    .background(Color.qaptrFillSecondary.opacity(0.08))
+    .background(Color.white.opacity(0.25))
+    .cornerRadius(24)
+    .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 12)
+    .shadow(color: Color.qaptrFillSecondary.opacity(0.85), radius: 0, x: 0, y: 0)
   }
 
   private var privacyFooter: some View {
     HStack(spacing: 8) {
-      Image(systemName: "lock.shield.fill")
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(ReviewDesign.accent)
-      Text(
-        model.settings.screenRecordingStatus == .denied
-          ? "Enable QaptrHelper in Screen Recording, then return to Qaptr."
-          : "Captures stay 100% offline. You can pause or adjust permission settings anytime."
-      )
-      .font(.system(size: 12))
-      .foregroundStyle(ReviewDesign.muted)
+      Image(systemName: "lock.shield")
+        .font(.system(size: 12, weight: .regular))
+        .foregroundStyle(Color.qaptrLabelSecondary)
+      Text("You can change privacy and capture choices later in Settings.")
+        .font(.system(size: 12, weight: .regular))
+        .foregroundStyle(Color.qaptrLabelSecondary)
     }
   }
 
@@ -491,47 +541,37 @@ struct ReviewFindingRow: View {
 
   var body: some View {
     Button(action: open) {
-      HStack(alignment: .top, spacing: 16) {
-        Image(systemName: finding.kind == .workflow ? "sparkles" : "text.quote")
-          .font(.system(size: 15, weight: .semibold))
-          .foregroundStyle(finding.kind == .workflow ? ReviewDesign.accent : ReviewDesign.muted)
-          .frame(width: 24, height: 24)
-          .background(
-            (finding.kind == .workflow ? ReviewDesign.accent : ReviewDesign.muted).opacity(0.10),
-            in: Circle()
-          )
-
-        VStack(alignment: .leading, spacing: 7) {
+      VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
           Text(finding.title)
-            .font(.system(size: 18, weight: .regular))
+            .font(QaptrType.title(16))
             .foregroundStyle(ReviewDesign.ink)
             .fixedSize(horizontal: false, vertical: true)
           Text(finding.summary)
-            .font(.system(size: 13))
+            .font(QaptrType.body(13))
             .foregroundStyle(ReviewDesign.slate)
             .lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
-          HStack(spacing: 8) {
-            ReviewEvidenceChip(text: finding.evidenceText)
-            if finding.incomplete {
-              Text("Qaptr can finish this picture →")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(ReviewDesign.accent)
-            }
+        }
+        HStack(spacing: 12) {
+          ReviewEvidenceChip(text: "📷  \(finding.evidenceText)")
+          if finding.incomplete {
+            Text("Continue capturing to complete →")
+              .font(QaptrType.caption(12))
+              .foregroundStyle(ReviewDesign.accent)
           }
         }
-
-        Spacer(minLength: 8)
-        Image(systemName: "chevron.right")
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(ReviewDesign.muted)
-          .padding(.top, 5)
       }
-      .padding(.vertical, 18)
-      .padding(.horizontal, 18)
+      .padding(24)
+      .frame(maxWidth: .infinity, alignment: .leading)
       .background(
-        hovering ? ReviewDesign.accent.opacity(0.06) : .clear,
-        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        hovering ? ReviewDesign.accent.opacity(0.06) : Color.white.opacity(0.38),
+        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+          .strokeBorder(Color.white.opacity(0.74), lineWidth: 1)
+      }
+      .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
     }
     .buttonStyle(.plain)
     .onHover { hovering = $0 }
@@ -756,134 +796,5 @@ extension WorkflowEvidenceStatus {
 extension WorkflowCaptureRecommendation {
   fileprivate var reviewDurationLabel: String {
     durationSeconds < 60 ? "\(durationSeconds) seconds" : "\(durationSeconds / 60) minutes"
-  }
-}
-
-/// Home's single adaptive canvas. The view deliberately derives every visible
-/// state from the shared model so the status strip and menu-bar surfaces cannot
-/// drift apart.
-struct RedesignedHomeView: View {
-  @Bindable var model: ReviewAppModel
-  let openSettings: () -> Void
-
-  @State private var selectedFinding: ReviewFinding?
-
-  var body: some View {
-    ZStack {
-      ReviewDesign.canvas.ignoresSafeArea()
-
-      if let selectedFinding {
-        FindingDetailView(
-          finding: selectedFinding,
-          saved: false,
-          save: {},
-          captureMoreDetail: model.startDetailedCapture,
-          back: { self.selectedFinding = nil }
-        )
-      } else {
-        ScrollView {
-          VStack(alignment: .leading, spacing: 28) {
-            HStack {
-              QaptrBrandLogo(iconSize: 22, textSize: 18)
-              Spacer()
-              Button(action: openSettings) {
-                Image(systemName: "gearshape")
-              }
-              .buttonStyle(.plain)
-              .foregroundStyle(ReviewDesign.muted)
-              .accessibilityLabel("Open Settings")
-            }
-
-            ReviewStatusStrip(
-              progress: model.captureProgress,
-              helperIsRunning: model.captureHelperIsRunning,
-              captureIntent: model.captureControlIntent,
-              session: model.analysisSessionState,
-              detailedCapture: model.detailedCaptureState,
-              analyze: model.startAnalysis,
-              pause: model.pauseCapture,
-              resume: model.resumeCapture,
-              cancel: model.cancelAnalysis,
-              retry: model.retryAnalysis,
-              requestPermission: model.requestScreenRecording,
-              restart: model.restartCaptureHelper,
-              stopDetailed: model.stopDetailedCapture,
-              openSettings: openSettings
-            )
-
-            feed
-          }
-          .frame(maxWidth: 760, alignment: .leading)
-          .padding(.horizontal, 42)
-          .padding(.top, 28)
-          .padding(.bottom, 48)
-          .frame(maxWidth: .infinity)
-        }
-      }
-    }
-    .onAppear { model.refresh() }
-  }
-
-  @ViewBuilder
-  private var feed: some View {
-    let findings =
-      model.workflowCandidates.map { candidate in
-        ReviewFinding(
-          id: candidate.id,
-          kind: .workflow,
-          title: candidate.title,
-          summary: candidate.rationale,
-          evidenceText: "\(candidate.evidenceCaptureCount) captures",
-          incomplete: candidate.recommendation != nil,
-          candidate: candidate,
-          observation: nil
-        )
-      }
-      + model.snapshot.observations.map { observation in
-        ReviewFinding(
-          id: observation.id,
-          kind: .observation,
-          title: observation.title,
-          summary: observation.summary,
-          evidenceText: "Observation",
-          incomplete: false,
-          candidate: nil,
-          observation: observation
-        )
-      }
-
-    VStack(alignment: .leading, spacing: 18) {
-      Text("Findings")
-        .font(.system(size: 26, weight: .regular, design: .serif))
-        .foregroundStyle(ReviewDesign.ink)
-
-      if findings.isEmpty {
-        ReviewGlassCard {
-          VStack(alignment: .leading, spacing: 10) {
-            Text("Nothing to review yet.")
-              .font(.system(size: 22, weight: .regular))
-              .foregroundStyle(ReviewDesign.ink)
-            Text(
-              (model.captureProgress.captureCount ?? 0) > 0
-                ? "Qaptr has captures ready. Analyze them when you want to see what it noticed."
-                : "Qaptr is capturing quietly. Work for a stretch, then analyze to see what it noticed."
-            )
-            .font(.system(size: 15))
-            .foregroundStyle(ReviewDesign.slate)
-            .fixedSize(horizontal: false, vertical: true)
-          }
-        }
-      } else {
-        VStack(spacing: 2) {
-          ForEach(findings) { finding in
-            ReviewFindingRow(finding: finding) {
-              selectedFinding = finding
-            }
-          }
-        }
-        .padding(6)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-      }
-    }
   }
 }

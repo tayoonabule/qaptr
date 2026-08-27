@@ -70,15 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let content = NSHostingView(rootView: RootView(model: model, navigation: navigation))
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 845, height: 737),
-      // Let the SwiftUI surface render beneath the transparent titlebar.
-      // This keeps the rail's fill and divider continuous through the
-      // traffic-light area instead of stopping at the content-layout
-      // boundary below it.
-      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
       defer: false
     )
-    window.title = "Qaptr"
+    window.title = model.onboardingCompleted ? "Qaptr" : "Qaptr Setup"
     // A transparent titlebar with "unified" style removes the hairline
     // seam AppKit otherwise draws between the traffic-light title bar
     // and the content view, so the two read as one continuous surface
@@ -86,8 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // it. `titlebarSeparatorStyle = .none` additionally suppresses the
     // separator some AppKit versions still draw under
     // `NSVisualEffectView`-less content even with a transparent bar.
-    window.titlebarAppearsTransparent = true
-    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = false
+    window.titleVisibility = .visible
     if #available(macOS 13.0, *) {
       window.titlebarSeparatorStyle = .none
     }

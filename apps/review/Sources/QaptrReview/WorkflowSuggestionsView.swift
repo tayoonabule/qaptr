@@ -391,11 +391,9 @@ private struct HomeReviewView: View {
         Text("From your last analysis")
           .font(.system(size: 13, weight: .semibold))
           .foregroundStyle(ReviewDesign.muted)
-        ReviewGlassCard(padding: 8) {
-          VStack(spacing: 2) {
-            ForEach(findings.filter { $0.kind == .workflow }) { finding in
-              ReviewFindingRow(finding: finding) { path.append(finding.id) }
-            }
+        VStack(spacing: 16) {
+          ForEach(findings.filter { $0.kind == .workflow }) { finding in
+            ReviewFindingRow(finding: finding) { path.append(finding.id) }
           }
         }
         if findings.contains(where: { $0.kind == .observation }) {
@@ -403,11 +401,9 @@ private struct HomeReviewView: View {
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(ReviewDesign.muted)
             .padding(.top, 8)
-          ReviewGlassCard(padding: 8) {
-            VStack(spacing: 2) {
-              ForEach(findings.filter { $0.kind == .observation }) { finding in
-                ReviewFindingRow(finding: finding) { path.append(finding.id) }
-              }
+          VStack(spacing: 16) {
+            ForEach(findings.filter { $0.kind == .observation }) { finding in
+              ReviewFindingRow(finding: finding) { path.append(finding.id) }
             }
           }
         }

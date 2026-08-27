@@ -52,6 +52,8 @@ cp "$swift_binary" "$app_dir/Contents/MacOS/QaptrReview"
 # checks Bundle.main first and only uses SwiftPM's generated bundle in local
 # `swift run` builds.
 cp "$swift_resource_bundle/QaptrAperture.svg" "$app_dir/Contents/Resources/QaptrAperture.svg"
+cp "$swift_resource_bundle/qaptr_logo.svg" "$app_dir/Contents/Resources/qaptr_logo.svg"
+cp "$swift_resource_bundle/Satoshi-Variable.ttf" "$app_dir/Contents/Resources/Satoshi-Variable.ttf"
 ffi_name=$(basename "$ffi_library")
 cp "$ffi_library" "$app_dir/Contents/Frameworks/$ffi_name"
 # Cargo embeds the build-machine path as the dylib install name. Rewrite it
