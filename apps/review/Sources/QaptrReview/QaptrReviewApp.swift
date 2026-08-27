@@ -66,6 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     _ = notification
+    guard claimSingleInstance() else {
+      NSApp.terminate(nil)
+      return
+    }
     NSApp.setActivationPolicy(.regular)
     let content = NSHostingView(rootView: RootView(model: model, navigation: navigation))
     let window = NSWindow(
@@ -126,6 +130,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // elsewhere when onboarding is incomplete.
     recordResolvedSurfaceIfRequested(navigation.surface)
     recordFirstPaintIfRequested()
+  }
+
+  /// SwiftPM's executable target can be launched directly without a stable
+  /// application bundle identifier. Match both the bundle identifier and the
+  /// executable name so repeated `swift run`, mock launches, and packaged
+  /// launches all converge on one menu-bar extra and one main window.
+  private func claimSingleInstance() -> Bool {
+    let currentPID = NSRunningApplication.current.processIdentifier
+    let currentExecutable = Bundle.main.executableURL?.lastPathComponent ?? "QaptrReview"
+    let bundleID = Bundle.main.bundleIdentifier
+    let candidates: [NSRunningApplication]
+    if let bundleID {
+      candidates = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+    } else {
+      candidates = NSWorkspace.shared.runningApplications
+    }
+
+    guard let existing = candidates.first(where: { application in
+      guard application.processIdentifier != currentPID else { return false }
+      guard let executable = application.executableURL else { return false }
+      return executable.lastPathComponent == currentExecutable
+        || executable.lastPathComponent == "QaptrReview"
+    }) else {
+      return true
+    }
+
+    existing.activate(options: [.activateAllWindows])
+    return false
   }
 
   /// TCC can cache Screen Recording and Accessibility decisions for the
