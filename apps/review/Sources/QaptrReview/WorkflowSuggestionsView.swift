@@ -541,37 +541,37 @@ private struct ConsentReviewView: View {
       Text("Qaptr asks every time. Review exactly what will be sent, to whom, before approving.")
         .font(.system(size: 14))
         .foregroundStyle(ReviewDesign.slate)
+      Text(AnalysisConsentPresentation.privacyTitle(summary))
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(summary.imageCount == 0 ? ReviewDesign.green : ReviewDesign.orange)
       VStack(spacing: 0) {
         consentRow("Sending to", "\(summary.provider) · \(summary.modelLabel)")
-        consentRow(
-          "What", "Redacted text from \(summary.preparedCount) of \(summary.captureCount) captures")
+        consentRow("What", AnalysisConsentPresentation.payloadLabel(summary))
         consentRow(
           "Not included",
-          "\(summary.exclusionCount) captures excluded by your privacy rules · no images")
+          summary.imageCount == 0
+            ? "\(summary.exclusionCount) captures excluded by your privacy rules · no images"
+            : "\(summary.exclusionCount) captures excluded by your privacy rules")
       }
       .padding(.vertical, 10)
       .overlay(alignment: .top) { Divider() }
       .overlay(alignment: .bottom) { Divider() }
-      Text(
-        "Personal details like emails and phone numbers were removed on this Mac. Qaptr asks every time."
-      )
-      .font(.system(size: 13))
-      .foregroundStyle(ReviewDesign.muted)
-      .fixedSize(horizontal: false, vertical: true)
+      Text(AnalysisConsentPresentation.privacyExplanation(summary))
+        .font(.system(size: 13))
+        .foregroundStyle(ReviewDesign.muted)
+        .fixedSize(horizontal: false, vertical: true)
       HStack {
         Button("Cancel") {
           model.decideAnalysisConsent(granted: false)
           declined()
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(ReviewDesign.muted)
+        .buttonStyle(.qaptrQuiet)
         Spacer()
         Button(approving ? "Starting…" : "Approve & analyze") {
           approving = true
           model.decideAnalysisConsent(granted: true)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(ReviewDesign.accent)
+        .buttonStyle(.qaptrPrimary)
         .disabled(approving)
       }
     }
@@ -592,10 +592,6 @@ private struct ConsentReviewView: View {
     }
     .padding(.vertical, 10)
   }
-}
-
-extension ReviewConsentSummary {
-  fileprivate var preparedCount: Int { max(0, captureCount - exclusionCount) }
 }
 
 extension WorkflowEvidenceStatus {
