@@ -143,6 +143,28 @@ struct ReviewSuggestionPrimaryButtonStyle: ButtonStyle {
   }
 }
 
+struct FigmaActionButtonStyle: ButtonStyle {
+  var prominent = true
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(QaptrType.body(13))
+      .foregroundStyle(prominent ? Color.white : Color.qaptrFigmaAction)
+      .padding(.horizontal, 16)
+      .frame(height: 32)
+      .background {
+        RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+          .fill(prominent ? Color.qaptrFigmaAction : Color.qaptrFigmaAction.opacity(0.12))
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+          .strokeBorder(Color.white.opacity(prominent ? 0.22 : 0.55), lineWidth: 0.5)
+      }
+      .opacity(configuration.isPressed ? 0.82 : 1)
+      .scaleEffect(configuration.isPressed ? 0.98 : 1)
+  }
+}
+
 struct ReviewEvidenceChip: View {
   let text: String
 
@@ -538,8 +560,7 @@ struct ReviewStatusStrip: View {
     case .capturing:
       HStack(spacing: 10) {
         Button("Analyze", action: analyze)
-          .buttonStyle(.borderedProminent)
-          .tint(ReviewDesign.accent)
+          .buttonStyle(FigmaActionButtonStyle())
           .disabled((progress.captureCount ?? 0) == 0)
         Button("Pause", action: pause)
           .buttonStyle(.plain)
@@ -548,22 +569,18 @@ struct ReviewStatusStrip: View {
       }
     case .paused:
       Button("Resume", action: resume)
-        .buttonStyle(.borderedProminent)
-        .tint(ReviewDesign.accent)
+        .buttonStyle(FigmaActionButtonStyle())
     case .permission:
       Button("Open System Settings", action: requestPermission)
-        .buttonStyle(.borderedProminent)
-        .tint(ReviewDesign.accent)
+        .buttonStyle(FigmaActionButtonStyle())
     case .helper:
       Button("Restart capture", action: restart)
-        .buttonStyle(.borderedProminent)
-        .tint(ReviewDesign.accent)
+        .buttonStyle(FigmaActionButtonStyle())
     case .noDisplays:
       EmptyView()
     case .providerFailed:
       Button("Try again", action: retry)
-        .buttonStyle(.borderedProminent)
-        .tint(ReviewDesign.accent)
+        .buttonStyle(FigmaActionButtonStyle())
     case .working:
       Button("Cancel", action: cancel)
         .buttonStyle(.plain)
@@ -572,8 +589,7 @@ struct ReviewStatusStrip: View {
       EmptyView()
     case .watching:
       Button("Stop & review", action: stopDetailed)
-        .buttonStyle(.borderedProminent)
-        .tint(ReviewDesign.accent)
+        .buttonStyle(FigmaActionButtonStyle())
     }
   }
 
@@ -839,132 +855,6 @@ struct FindingDetailView: View {
             .foregroundStyle(Color.qaptrFigmaMuted)
         }
       }
-    }
-  }
-
-  @ViewBuilder
-  private func candidateDetail(_ candidate: WorkflowCandidate) -> some View {
-    VStack(alignment: .leading, spacing: 24) {
-      ReviewGlassCard {
-        VStack(alignment: .leading, spacing: 10) {
-          Label(
-            candidate.evidenceStatus.reviewTitle,
-            systemImage: candidate.evidenceStatus.reviewSymbolName
-          )
-          .font(.system(size: 14, weight: .semibold))
-          .foregroundStyle(candidate.evidenceStatus.reviewColor)
-          Text(candidate.evidenceBasis)
-            .font(.system(size: 15))
-            .foregroundStyle(ReviewDesign.slate)
-            .lineSpacing(3)
-          HStack(spacing: 16) {
-            detailMetadata("Evidence", value: "\(candidate.evidenceCaptureCount) captures")
-            if let observedSpan = candidate.observedSpanLabel {
-              detailMetadata("Observed", value: observedSpan)
-            }
-          }
-        }
-      }
-
-      VStack(alignment: .leading, spacing: 10) {
-        Text("Why Qaptr suggested this")
-          .font(.system(size: 17, weight: .semibold))
-          .foregroundStyle(ReviewDesign.ink)
-        Text(candidate.rationale)
-          .font(.system(size: 15))
-          .foregroundStyle(ReviewDesign.slate)
-          .lineSpacing(3)
-      }
-
-      if let recommendation = candidate.recommendation {
-        ReviewSuggestionCard {
-          VStack(alignment: .leading, spacing: 12) {
-            Text("Capture more detail")
-              .font(.system(size: 15, weight: .medium))
-              .foregroundStyle(Color.qaptrFigmaBody)
-            Text("The broad pattern is visible, but Qaptr missed an important decision or handoff.")
-              .font(.system(size: 15))
-              .foregroundStyle(Color.qaptrFigmaBody)
-              .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 20) {
-              Button("Capture more detail", action: captureMoreDetail)
-                .buttonStyle(ReviewSuggestionPrimaryButtonStyle())
-              Button("Keep it as is", action: back)
-                .buttonStyle(.plain)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.qaptrFigmaBody)
-            }
-            .padding(.top, 4)
-            Text(
-              "Watch every \(recommendation.intervalSeconds) seconds for \(recommendation.reviewDurationLabel)."
-            )
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(ReviewDesign.accent)
-          }
-        }
-      }
-
-      VStack(alignment: .leading, spacing: 10) {
-        Text("What did Qaptr misunderstand?")
-          .font(.system(size: 17, weight: .semibold))
-          .foregroundStyle(ReviewDesign.ink)
-        TextField("Tell Qaptr what to correct…", text: $correction)
-          .textFieldStyle(.roundedBorder)
-        HStack {
-          Button("Submit correction") {
-            correctionMessage =
-              correction.isEmpty
-              ? "Add a correction before saving."
-              : "Corrections are not connected to this review yet."
-          }
-          .buttonStyle(.bordered)
-          .disabled(correction.isEmpty)
-          if let correctionMessage {
-            Text(correctionMessage)
-              .font(.system(size: 12))
-              .foregroundStyle(ReviewDesign.muted)
-          }
-        }
-      }
-    }
-  }
-
-  @ViewBuilder
-  private func observationDetail(_ observation: QaptrObservation) -> some View {
-    VStack(alignment: .leading, spacing: 18) {
-      ReviewGlassCard {
-        VStack(alignment: .leading, spacing: 12) {
-          Text("What Qaptr noticed")
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(ReviewDesign.ink)
-          Text(observation.summary)
-            .font(.system(size: 15))
-            .foregroundStyle(ReviewDesign.slate)
-            .lineSpacing(3)
-          HStack(spacing: 16) {
-            detailMetadata("Confidence", value: observation.confidenceBand.label)
-            detailMetadata("Created", value: observation.createdAtLabel)
-          }
-          if let captureID = observation.captureID {
-            detailMetadata("Capture", value: captureID)
-          }
-          detailMetadata("Session", value: observation.sessionID)
-        }
-      }
-      Text("This explanation contains no source screenshots or provider payload.")
-        .font(.system(size: 13))
-        .foregroundStyle(ReviewDesign.muted)
-    }
-  }
-
-  private func detailMetadata(_ label: String, value: String) -> some View {
-    VStack(alignment: .leading, spacing: 3) {
-      Text(label.uppercased())
-        .font(.system(size: 10, weight: .semibold))
-        .foregroundStyle(ReviewDesign.muted)
-      Text(value)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(ReviewDesign.slate)
     }
   }
 

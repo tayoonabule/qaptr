@@ -54,23 +54,26 @@ extension ButtonStyle where Self == QaptrQuietButtonStyle {
     static var qaptrQuiet: QaptrQuietButtonStyle { QaptrQuietButtonStyle() }
 }
 
-/// The single filled black button used for the one primary action on a screen
-/// (Continue, Finish, Connect).
+/// Compatibility name retained for behavioral call sites. Rendering is now the
+/// Figma blue action control used throughout the rebuilt presentation.
 struct QaptrPrimaryButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(QaptrType.title(13))
+            .font(QaptrType.body(13))
             .foregroundStyle(Color.white)
-            .padding(.horizontal, QaptrSpace.lg)
-            .padding(.vertical, QaptrSpace.md)
+            .padding(.horizontal, 16)
+            .frame(height: 32)
             .background(
-                Color.qaptrPrimaryAction.opacity(isEnabled ? 1 : 0.35),
-                in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
+                Color.qaptrFigmaAction.opacity(isEnabled ? 1 : 0.35),
+                in: RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
             )
-            .shadow(color: Color.black.opacity(isEnabled ? 0.05 : 0), radius: 1, y: 1)
+            .overlay {
+                RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5)
+            }
             .scaleEffect(reduceMotion || !configuration.isPressed ? 1.0 : 0.98)
             .animation(QaptrMotion.press, value: configuration.isPressed)
     }
@@ -80,22 +83,21 @@ extension ButtonStyle where Self == QaptrPrimaryButtonStyle {
     static var qaptrPrimary: QaptrPrimaryButtonStyle { QaptrPrimaryButtonStyle() }
 }
 
-/// A bordered button for a secondary but still deliberate action (Allow, Try
-/// again, Add).
+/// Compatibility name retained for secondary actions in sheets and settings.
 struct QaptrOutlineButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(QaptrType.title(12.5))
-            .foregroundStyle(isEnabled ? Color.qaptrInk : Color.qaptrInkMuted)
-            .padding(.horizontal, QaptrSpace.lg)
-            .padding(.vertical, QaptrSpace.md)
-            .background(Color.qaptrSurface, in: RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous))
+            .font(QaptrType.body(13))
+            .foregroundStyle(isEnabled ? Color.qaptrFigmaAction : Color.qaptrInkMuted)
+            .padding(.horizontal, 16)
+            .frame(height: 32)
+            .background(Color.qaptrFigmaAction.opacity(0.10), in: RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: QaptrRadius.control, style: .continuous)
-                    .strokeBorder(Color.qaptrHairline, lineWidth: 1)
+                RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+                    .strokeBorder(Color.qaptrFigmaAction.opacity(0.45), lineWidth: 0.5)
             }
             .opacity(isEnabled ? 1 : 0.65)
             .scaleEffect(reduceMotion || !configuration.isPressed ? 1.0 : 0.98)

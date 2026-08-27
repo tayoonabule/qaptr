@@ -115,7 +115,6 @@ struct WorkflowSuggestionsView: View {
 
   var body: some View {
     ZStack(alignment: .bottom) {
-      ReviewDesign.canvas.ignoresSafeArea()
       if model.reviewHasLoaded {
         HomeReviewView(
           model: model,

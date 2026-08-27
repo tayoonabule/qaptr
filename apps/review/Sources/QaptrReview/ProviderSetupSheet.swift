@@ -12,7 +12,7 @@ struct ProviderSetupSheet: View {
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
-    QaptrSecondarySurface(padding: QaptrSpace.xxl) {
+    VStack(alignment: .leading, spacing: QaptrSpace.lg) {
       VStack(alignment: .leading, spacing: QaptrSpace.lg) {
         HStack(alignment: .top) {
           VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
@@ -95,6 +95,8 @@ struct ProviderSetupSheet: View {
         }
       }
     }
+    .padding(28)
+    .background { FigmaGlassSurface(radius: QaptrRadius.feature) }
     .frame(width: 460)
   }
 }

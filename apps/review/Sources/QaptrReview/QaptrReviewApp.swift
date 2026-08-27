@@ -386,7 +386,7 @@ private struct QaptrMenuBarView: View {
   let appDelegate: AppDelegate
 
   var body: some View {
-    QaptrSecondarySurface(padding: QaptrSpace.xs) {
+    VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
       VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
         HStack(spacing: QaptrSpace.sm) {
           Circle()
@@ -425,6 +425,8 @@ private struct QaptrMenuBarView: View {
         Button("Quit Qaptr") { NSApp.terminate(nil) }
       }
     }
+    .padding(QaptrSpace.xs)
+    .background { FigmaGlassSurface(radius: QaptrRadius.feature) }
     .frame(width: 300)
   }
 

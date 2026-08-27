@@ -34,27 +34,23 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
-            QaptrTitleBar(title: navigation.surface == .settings ? "Qaptr Settings" : "Qaptr Home")
-            QaptrGlassBackdrop {
-                ZStack {
-                    if navigation.surface == .settings {
-                        settingsSurface
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                    } else {
-                        WorkflowSuggestionsView(
-                            model: model,
-                            openSettings: { setSurface(.settings) }
-                        )
-                        // Review leaves toward the leading edge when Settings is
-                        // opened. Settings uses the opposite edge, so the two
-                        // surfaces do not appear to chase each other rightward.
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
+        ZStack(alignment: .top) {
+            ReviewDesign.canvas.ignoresSafeArea()
+            VStack(spacing: 0) {
+                QaptrTitleBar(title: navigation.surface == .settings ? "Settings" : "Home")
+                if navigation.surface == .settings {
+                    settingsSurface
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else {
+                    WorkflowSuggestionsView(
+                        model: model,
+                        openSettings: { setSurface(.settings) }
+                    )
+                    .transition(.move(edge: .leading).combined(with: .opacity))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(width: 845, height: 737)
         .task {
             while !Task.isCancelled {
                 model.refreshCaptureProgress()
@@ -69,34 +65,17 @@ struct ContentView: View {
 
 
     private var settingsSurface: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button {
-                    setSurface(.review)
-                } label: {
-                    Label("Review", systemImage: "chevron.left")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Return to Review")
-
-                Spacer()
-
-                Text("Settings")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
+        ZStack(alignment: .topLeading) {
+            SettingsView(model: model)
+            Button { setSurface(.review) } label: {
+                Label("Home", systemImage: "chevron.left")
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
-            .background(.ultraThinMaterial)
-
-            Divider()
-
-            QaptrGlassPanel(padding: 0) {
-                SettingsView(model: model)
-            }
-            .padding(.horizontal, QaptrSpace.xxl)
-            .padding(.vertical, QaptrSpace.lg)
+            .font(QaptrType.body(13))
+            .foregroundStyle(Color.qaptrFigmaMuted)
+            .buttonStyle(.plain)
+            .padding(.leading, 40)
+            .padding(.top, 18)
+            .accessibilityLabel("Return to Home")
         }
     }
 
