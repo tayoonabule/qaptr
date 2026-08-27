@@ -19,7 +19,7 @@ Measured 2026-08-14 UTC on the same reference machine as U9:
 - MacBook Air, Apple M5, 24 GB RAM
 - macOS 27.0, build 26A5388g
 - Built-in Retina display, 2880 x 1864
-- Rust 1.97.1, Swift 6.3.3 / Xcode 26.6
+- Rust 1.97.1 on macOS
 
 ## Reproducible procedure
 

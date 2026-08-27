@@ -89,7 +89,7 @@ impl GenerationPrivateKey {
         Self::from_str(value.expose())
     }
 
-    /// Returns a credential value for the review app's secure credentials port.
+    /// Returns a credential value for the secure credentials port.
     pub fn to_credential_value(&self) -> CredentialValue {
         CredentialValue::new(self.0.expose_secret().to_owned())
     }

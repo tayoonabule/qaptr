@@ -2,24 +2,17 @@
 
 All notable changes to Qaptr are recorded here.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Qaptr records changes to the local Rust runtime and the public website here.
 
-`Version` is the user-facing `CFBundleShortVersionString`
-(`QAPTR_VERSION`). `Build` is the monotonic `CFBundleVersion`
-(`QAPTR_BUILD_VERSION`), which increments on every installable build even when
-the version is unchanged. Both are recorded because a bug report carries the
-build number, not the commit.
-
-Entries state what changed for a user of the app. Where a change was verified
-against an installed signed build rather than only by tests, the evidence is
-named, because "tests pass" and "the app works" are different claims.
 
 ## [Unreleased]
 
 ### Changed
 
-- Future changes will be recorded here.
+- Removed the native Swift applications, SwiftUI review surface, Figma UI
+  assets, and macOS app packaging pipeline for the Rust clean start.
+- Retained the Rust capture/vault boundary, local privacy gate, workflow,
+  provider, and website surfaces.
 
 ### Added
 

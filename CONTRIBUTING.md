@@ -1,32 +1,22 @@
 # Contributing to Qaptr
 
-Thanks for helping improve Qaptr. The project is a Rust workspace with native Swift macOS apps and a small web surface.
+Qaptr is a Rust workspace with a small Astro web surface. Native Swift
+applications and macOS review UI are intentionally out of scope for this
+clean-start branch.
 
 ## Before opening a pull request
 
-- Read `AGENTS.md` and use the knowledge graph before broad code searches.
-- Keep changes focused and avoid committing generated build output, screenshots, databases, crash dumps, credentials, or machine-specific paths.
-- Preserve the privacy boundary. Do not add telemetry, credential reads, hidden provider dispatch, or permission claims without a corresponding design and test.
-- Add or update tests for changed behavior.
-
-## Required checks
+Run the Rust gates and the website build:
 
 ```sh
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
-swift test --package-path apps/helper
-swift test --package-path apps/review
+npm --prefix web ci
+npm --prefix web run build
 ```
 
-For packaging changes, also run:
-
-```sh
-bash packaging/release.sh --dry-run --skip-reproducibility
-bash bench/scripts/packaged_fixture_smoke.sh
-```
-
-## Pull requests
-
-Explain the user-visible change, the privacy impact, the tests run, and any environment-dependent checks that remain blocked. Changes to shipped behavior need release evidence before merging to `main`.
+Keep privacy behavior fail-closed. Changes to capture, recognition, vault, or
+provider boundaries should include focused tests for both success and refusal
+paths.

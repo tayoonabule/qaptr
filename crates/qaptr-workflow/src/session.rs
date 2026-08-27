@@ -140,7 +140,7 @@ pub enum ReviewSessionError {
     NothingToRetry,
 }
 
-/// A production-shaped coordinator that is the review app's lifecycle owner.
+/// A production-shaped coordinator that is the local runtime's lifecycle owner.
 ///
 /// Construction is side-effect free. The supplied runner remains the only
 /// owner of vault opening, local preparation, provider dispatch, and scalar

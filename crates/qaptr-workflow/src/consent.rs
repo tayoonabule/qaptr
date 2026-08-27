@@ -114,7 +114,7 @@ pub enum ConsentDecision {
     Declined,
 }
 
-/// The review app's consent prompt boundary.
+/// The local runtime's consent boundary.
 pub trait ConsentPort {
     /// Requests consent immediately before the first provider invocation.
     fn request(&self, request: &ConsentRequest) -> ConsentDecision;

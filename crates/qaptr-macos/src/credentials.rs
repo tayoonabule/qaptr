@@ -1,4 +1,4 @@
-//! Keychain-backed credentials for the review app.
+//! Keychain-backed credentials for local provider integration.
 
 #![allow(unsafe_code)]
 

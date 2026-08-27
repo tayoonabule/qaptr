@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/qaptr-domain", "crates/qaptr-policy", "crates/qaptr-provider", "crates/qaptr-provider-openrouter", "crates/qaptr-provider-cli", "crates/qaptr-vault", "crates/qaptr-store", "crates/qaptr-macos", "crates/qaptr-workflow", "crates/qaptr-privacy", "crates/qaptr-ffi", "crates/qaptr-review-ffi"]
+members = ["crates/qaptr-domain", "crates/qaptr-policy", "crates/qaptr-provider", "crates/qaptr-provider-openrouter", "crates/qaptr-provider-cli", "crates/qaptr-vault", "crates/qaptr-store", "crates/qaptr-macos", "crates/qaptr-workflow", "crates/qaptr-privacy", "crates/qaptr-ffi"]
 resolver = "3"
 
 [workspace.package]

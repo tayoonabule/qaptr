@@ -1,4 +1,4 @@
-//! Durable scalar SQLite history for the Qaptr review app.
+//! Durable scalar SQLite history for Qaptr.
 //!
 //! # Invariants
 //!

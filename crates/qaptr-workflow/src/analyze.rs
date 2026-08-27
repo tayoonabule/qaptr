@@ -2,7 +2,7 @@
 //!
 //! # Invariants
 //!
-//! - The review app is the only owner of this task. No worker executable,
+//! - The local runtime is the only owner of this task. No worker executable,
 //!   shell, automation, or tool is launched here.
 //! - A provider request is constructed only from a [`qaptr_privacy::PreparedPayload`] returned
 //!   by U12's [`PrivacyGate`]. A privacy exclusion is never converted into a
@@ -205,7 +205,7 @@ pub enum AnalysisError {
     Workflow(#[source] WorkflowError),
 }
 
-/// The in-process analysis orchestrator owned by the review app.
+/// The in-process analysis orchestrator owned by the local runtime.
 pub struct AnalysisRunner<'a, C, O, V, A, D, P, K>
 where
     C: CredentialPort,

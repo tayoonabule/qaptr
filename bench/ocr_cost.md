@@ -5,7 +5,7 @@
 This file records the U9 recognition share only. It does **not** measure the 900 ms
 full-preparation budget. Masking and context sanitization belong to U10 and U12.
 The adapters run Apple's on-device Vision framework through the compiled local
-Swift helper. No network API, URL session, or provider code is involved.
+Rust macOS recognition adapter. No network API, URL session, or provider code is involved.
 
 ## Reference machine
 
@@ -14,7 +14,7 @@ Measured 2026-08-14 UTC on:
 - MacBook Air, Apple M5, 24 GB RAM
 - macOS 27.0, build 26A5388g
 - Built-in Retina display, 2880 x 1864
-- Rust 1.97.1, Swift 6.3.3 / Xcode 26.6
+- Rust 1.97.1 on macOS
 
 ## Reproducible procedure
 
