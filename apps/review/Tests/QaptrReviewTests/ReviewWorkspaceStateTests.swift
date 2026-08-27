@@ -36,6 +36,60 @@ final class ReviewWorkspaceStateTests: XCTestCase {
         )
     }
 
+    func testEachAnalysisPhaseRoutesToTheExpectedWorkspaceState() {
+        let candidates = [candidate(rank: 1)]
+
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(input(session: session(phase: .ingesting))),
+            .working(.ingesting, previousCandidates: [])
+        )
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(
+                input(candidates: candidates, session: session(phase: .analyzing))
+            ),
+            .working(.analyzing, previousCandidates: candidates)
+        )
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(input(session: session(phase: .completed))),
+            .insufficientEvidence(
+                "Analysis completed without a supported workflow candidate result."
+            )
+        )
+    }
+
+    func testConsentWithoutSummaryRoutesToAnExplicitLoadFailure() {
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(
+                input(session: session(phase: .readyForConsent))
+            ),
+            .loadFailure(
+                "Analysis is waiting for approval, but its consent summary is unavailable."
+            )
+        )
+    }
+
+    func testAnalysisFailureUsesAnalysisErrorThenSessionErrorThenFallback() {
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(
+                input(
+                    analysisError: "provider timed out",
+                    session: session(phase: .failed, error: "session failed")
+                )
+            ),
+            .loadFailure("provider timed out")
+        )
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(
+                input(session: session(phase: .failed, error: "session failed"))
+            ),
+            .loadFailure("session failed")
+        )
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(input(session: session(phase: .failed))),
+            .loadFailure("Analysis could not finish.")
+        )
+    }
+
     func testTypedCandidatesWinOverLegacyObservationCounts() {
         let candidates = [candidate(rank: 2), candidate(rank: 1)]
 
@@ -56,6 +110,10 @@ final class ReviewWorkspaceStateTests: XCTestCase {
         )
         XCTAssertEqual(
             ReviewWorkspaceState.resolve(input(hasProvider: false)),
+            .providerSetupNeeded
+        )
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(input(providerConnected: false)),
             .providerSetupNeeded
         )
         XCTAssertEqual(
@@ -90,6 +148,44 @@ final class ReviewWorkspaceStateTests: XCTestCase {
             ReviewWorkspaceState.resolve(input(session: session(phase: .cancelled))),
             .cancelled
         )
+    }
+
+    func testReadyAndEvidenceOnlyRoutesAreDistinct() {
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(input()),
+            .readyToAnalyze
+        )
+        XCTAssertEqual(
+            ReviewWorkspaceState.resolve(input(observationCount: 2)),
+            .evidenceWithoutCandidates(2)
+        )
+    }
+
+    func testProbeNamesCoverEveryRenderedWorkspaceRoute() {
+        let states: [ReviewWorkspaceState] = [
+            .loading,
+            .loadFailure("failed"),
+            .noCaptures,
+            .captureUnavailable,
+            .analysisUnavailable("unavailable"),
+            .providerSetupNeeded,
+            .readyToAnalyze,
+            .working(.analyzing, previousCandidates: []),
+            .consentNeeded(consentSummary()),
+            .candidatesReady([candidate(rank: 1)]),
+            .insufficientEvidence("insufficient"),
+            .evidenceWithoutCandidates(1),
+            .cancelled,
+        ]
+        let expected = [
+            "loading", "error", "no-captures", "capture-unavailable",
+            "analysis-unavailable", "provider-setup", "ready", "analyzing",
+            "consent", "candidates", "insufficient-evidence", "evidence-only",
+            "cancelled",
+        ]
+
+        XCTAssertEqual(states.map(\.probeName), expected)
+        XCTAssertEqual(Set(states.map(\.probeName)).count, states.count)
     }
 
     func testUnavailableCapabilitiesNeverClaimMutationSucceeded() {
@@ -145,11 +241,24 @@ final class ReviewWorkspaceStateTests: XCTestCase {
         )
     }
 
+    private func consentSummary() -> ReviewConsentSummary {
+        ReviewConsentSummary(
+            provider: "Jcode",
+            resolvedModel: nil,
+            modelLabel: "Default",
+            payloadKind: "text",
+            captureCount: 4,
+            imageCount: 0,
+            exclusionCount: 1
+        )
+    }
+
     private func session(
         phase: ReviewSessionPhase,
         consent: ReviewConsentSummary? = nil,
         observationsWritten: Int = 0,
-        outcome: String? = nil
+        outcome: String? = nil,
+        error: String? = nil
     ) -> ReviewSessionState {
         ReviewSessionState(
             sessionID: "session",
@@ -162,7 +271,7 @@ final class ReviewWorkspaceStateTests: XCTestCase {
             consentSummary: consent,
             result: nil,
             outcome: outcome,
-            error: nil,
+            error: error,
             resultProvider: nil,
             resultModelLabel: nil,
             allowedOperations: ["state", "start", "retry", "cancel"]
