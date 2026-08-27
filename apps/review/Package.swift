@@ -18,7 +18,9 @@ let package = Package(
             name: "QaptrReview",
             dependencies: ["QaptrReviewCore"],
             resources: [
-                .process("Resources")
+                .process("Resources/QaptrAperture.svg"),
+                .process("Resources/qaptr_logo.svg"),
+                .copy("Resources/Satoshi-Variable.ttf")
             ],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug))

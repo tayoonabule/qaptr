@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   override init() {
     super.init()
+    QaptrFont.register()
     DistributedNotificationCenter.default().addObserver(
       self,
       selector: #selector(handleOpenSettingsNotification(_:)),
