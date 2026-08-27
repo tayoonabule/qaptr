@@ -38,6 +38,24 @@ struct QaptrBrandLogo: View {
   }
 }
 
+/// The compact "logo-mini" mark used in Figma's custom title bar (nodes
+/// `16:5600` / `29:...`), 14×14 by default. Distinct from `QaptrBrandLogo`,
+/// which always pairs the icon with the literal word "Qaptr" and cannot
+/// carry a per-surface title like "Qaptr Home" or "Qaptr Settings".
+struct QaptrTitleMark: View {
+  var size: CGFloat = 14
+
+  var body: some View {
+    if let image = NSImage(data: QaptrReviewLogoResources.aperture) {
+      Image(nsImage: image)
+        .resizable()
+        .interpolation(.high)
+        .scaledToFit()
+        .frame(width: size, height: size)
+    }
+  }
+}
+
 private enum QaptrReviewLogoResources {
   static let aperture: Data = load("QaptrAperture")
   static let wordmark: Data = load("qaptr_logo")
