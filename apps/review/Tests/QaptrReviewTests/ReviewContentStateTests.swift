@@ -11,22 +11,6 @@ private enum ReviewContentState: Equatable {
         return observationCount == 0 ? .empty : .observations
     }
 
-    var headerTitle: String {
-        switch self {
-        case .error: "Review setup"
-        case .empty: "Review"
-        case .observations: "What Qaptr found"
-        }
-    }
-
-    var probeName: String {
-        switch self {
-        case .error: "error"
-        case .empty: "empty"
-        case .observations: "observations"
-        }
-    }
-
 }
 
 @MainActor
@@ -59,5 +43,4 @@ final class ReviewContentStateTests: XCTestCase {
             .observations
         )
     }
-
 }
