@@ -13,11 +13,60 @@ enum ReviewDesign {
   static let green = Color.qaptrSuccess
   static let orange = Color.qaptrWarning
   static let red = Color.qaptrError
-  static let canvas = LinearGradient(
-    colors: [Color.qaptrGlassCanvas, Color.qaptrSurfaceRaised],
-    startPoint: .top,
-    endPoint: .bottom
-  )
+  static let canvasBlue = Color(red: 199 / 255, green: 209 / 255, blue: 230 / 255)
+  static let canvasWhite = Color.white
+  static var canvas: some View {
+    GeometryReader { proxy in
+      RadialGradient(
+        colors: [canvasBlue, canvasWhite],
+        center: UnitPoint(x: 0.5, y: 1.0),
+        startRadius: 0,
+        endRadius: max(proxy.size.width, proxy.size.height) * 0.72
+      )
+    }
+  }
+}
+
+/// Figma's Liquid Glass card is a stack of ordinary compositing layers. It is
+/// intentionally not a platform material because material blur produces a
+/// different result from the reference artwork.
+struct FigmaGlassSurface: View {
+  let radius: CGFloat
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: radius, style: .continuous)
+      .fill(Color.white.opacity(0.25))
+      .blendMode(.plusLighter)
+      .overlay {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .fill(Color(red: 191 / 255, green: 191 / 255, blue: 191 / 255).opacity(0.08))
+          .blendMode(.plusDarker)
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .fill(Color.white.opacity(0.10))
+          .blendMode(.multiply)
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .strokeBorder(Color(red: 219 / 255, green: 219 / 255, blue: 219 / 255), lineWidth: 0.5)
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .strokeBorder(Color.black.opacity(0.16), lineWidth: 1)
+          .blur(radius: 1)
+          .mask {
+            VStack(spacing: 0) {
+              LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                .frame(height: 40)
+              Spacer()
+              LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: 40)
+            }
+          }
+      }
+      .shadow(color: .black.opacity(0.06), radius: 16, y: 12)
+  }
 }
 
 struct ReviewGlassCard<Content: View>: View {
@@ -32,12 +81,7 @@ struct ReviewGlassCard<Content: View>: View {
   var body: some View {
     content
       .padding(padding)
-      .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-      .overlay {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-          .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
-      }
-      .shadow(color: .black.opacity(0.07), radius: 28, y: 12)
+      .background { FigmaGlassSurface(radius: 24) }
   }
 }
 
@@ -53,36 +97,9 @@ struct ReviewSuggestionCard<Content: View>: View {
   var body: some View {
     content
       .padding(24)
-      .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-      .overlay {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-          .fill(Color.white.opacity(0.25))
-          .blendMode(.plusLighter)
-          .allowsHitTesting(false)
-      }
-      .overlay {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-          .strokeBorder(Color(red: 0.859, green: 0.859, blue: 0.859), lineWidth: 0.5)
-      }
-      .overlay {
-        VStack(spacing: 0) {
-          LinearGradient(
-            colors: [.clear, .black.opacity(0.10)], startPoint: .top, endPoint: .bottom
-          )
-          .frame(height: 12)
-          Spacer()
-          LinearGradient(
-            colors: [.black.opacity(0.10), .clear], startPoint: .top, endPoint: .bottom
-          )
-          .frame(height: 12)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .opacity(0.35)
-        .allowsHitTesting(false)
-      }
+      .background { FigmaGlassSurface(radius: 24) }
       .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-      .shadow(color: .black.opacity(0.06), radius: 16, y: 12)
-  }
+}
 }
 
 struct ReviewSuggestionPrimaryButtonStyle: ButtonStyle {
@@ -145,7 +162,7 @@ struct ReviewToastView: View {
       .padding(.horizontal, 14)
       .padding(.vertical, 10)
       .frame(minWidth: 220, alignment: .leading)
-      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+      .background { FigmaGlassSurface(radius: 14) }
       .overlay {
         RoundedRectangle(cornerRadius: 14, style: .continuous)
           .strokeBorder(Color.white.opacity(0.82), lineWidth: 1)
@@ -291,15 +308,15 @@ struct WelcomeView: View {
         HStack(spacing: 8) {
           Text(primaryLabel)
             .font(QaptrType.body(13))
-          Image(systemName: "arrow.right")
-            .font(.system(size: 14.4, weight: .regular))
+          QaptrSVGImage(resourceName: "b453e64d37d7cd6258c15c3274a67f60ee559133")
+            .frame(width: 14.4, height: 14.4)
         }
         .foregroundStyle(Color.white.opacity(0.96))
         .frame(maxWidth: .infinity)
         .frame(height: 44)
         .background(
           Color.qaptrAccent,
-          in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+          in: RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous))
       }
       .buttonStyle(.plain)
       .frame(maxWidth: .infinity)
@@ -311,12 +328,36 @@ struct WelcomeView: View {
       height: model.settings.screenRecordingStatus == .granted ? 148 : 165,
       alignment: .topLeading
     )
-    .background(Color.white.opacity(0.1))
-    .background(Color.qaptrFillSecondary.opacity(0.08))
-    .background(Color.white.opacity(0.25))
-    .cornerRadius(24)
-    .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 12)
-    .shadow(color: Color.qaptrFillSecondary.opacity(0.85), radius: 0, x: 0, y: 0)
+    .background(
+      .regularMaterial,
+      in: RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous)
+    )
+    .overlay {
+      RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous)
+        .fill(
+          LinearGradient(
+            colors: [Color.white.opacity(0.34), Color.qaptrAccent.opacity(0.06)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+        )
+        .blendMode(.plusLighter)
+        .allowsHitTesting(false)
+    }
+    .overlay {
+      RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous)
+        .strokeBorder(
+          LinearGradient(
+            colors: [Color.white.opacity(0.92), Color.qaptrHairline.opacity(0.55)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          ),
+          lineWidth: 1
+        )
+        .allowsHitTesting(false)
+    }
+    .clipShape(RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous))
+    .shadow(color: .black.opacity(0.12), radius: 24, y: 14)
   }
 
   private var privacyFooter: some View {
@@ -565,8 +606,9 @@ struct ReviewFindingRow: View {
       .padding(24)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(
-        hovering ? ReviewDesign.accent.opacity(0.06) : Color.white.opacity(0.38),
-        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        hovering ? ReviewDesign.accent.opacity(0.08) : Color.white.opacity(0.16),
+        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+      )
       .overlay {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
           .strokeBorder(Color.white.opacity(0.74), lineWidth: 1)

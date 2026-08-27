@@ -108,7 +108,9 @@ extension Color {
 enum QaptrRadius {
   static let control: CGFloat = 8
   static let card: CGFloat = 12
+  static let cta: CGFloat = 12
   static let feature: CGFloat = 16
+  static let glass: CGFloat = 24
   static let input: CGFloat = 6
 }
 
@@ -175,13 +177,11 @@ enum QaptrMotion {
   static let navigation = Animation.timingCurve(0.22, 0.61, 0.36, 1, duration: 0.38)
 }
 
-/// A quiet animated macOS glass backdrop. The color movement is intentionally
-/// slow and low contrast so it gives the window depth without becoming a
-/// decorative distraction.
+/// The shared Figma glass canvas. The background remains visible beneath native
+/// materials so translucent cards retain the blue-gray depth of the reference.
 struct QaptrGlassBackdrop<Content: View>: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @ViewBuilder let content: Content
-  @State private var isSettled = false
 
   init(@ViewBuilder content: () -> Content) {
     self.content = content()
@@ -189,13 +189,30 @@ struct QaptrGlassBackdrop<Content: View>: View {
 
   var body: some View {
     ZStack {
-      // The Figma app uses a quiet neutral canvas. Keep this static so the
-      // title bar, toolbar, and content share one stable surface.
-      Color.qaptrGlassCanvas.ignoresSafeArea()
+      LinearGradient(
+        colors: [
+          Color.qaptrGlassCanvas,
+          Color.qaptrGlassCanvas.opacity(0.92),
+          Color.qaptrSurfaceRaised.opacity(0.88),
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+      )
+      .overlay {
+        RadialGradient(
+          colors: [Color.qaptrAccent.opacity(0.07), .clear],
+          center: .topTrailing,
+          startRadius: 30,
+          endRadius: 520
+        )
+      }
+      .ignoresSafeArea()
 
       content
     }
-    .task { _ = reduceMotion }
+    .transaction { transaction in
+      if reduceMotion { transaction.animation = nil }
+    }
   }
 }
 

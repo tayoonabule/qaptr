@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // it. `titlebarSeparatorStyle = .none` additionally suppresses the
     // separator some AppKit versions still draw under
     // `NSVisualEffectView`-less content even with a transparent bar.
-    window.titlebarAppearsTransparent = false
+    window.titlebarAppearsTransparent = true
     window.titleVisibility = .visible
     if #available(macOS 13.0, *) {
       window.titlebarSeparatorStyle = .none
@@ -92,8 +92,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // transparent titlebar shows the same color as the content beneath
     // it, rather than AppKit's default window background peeking
     // through as a mismatched sliver behind the traffic-light controls.
-    window.backgroundColor = NSColor(name: nil, dynamicProvider: qaptrSurfaceNSColor)
+    // Materials need a transparent AppKit host so they can sample the gradient
+    // behind each SwiftUI surface. An opaque window turns every material into a
+    // nearly flat white fill, which is visibly different from the Figma glass.
+    window.isOpaque = false
+    window.backgroundColor = .clear
     window.contentView = content
+    window.contentView?.wantsLayer = true
+    window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
     window.center()
     // A window controller owns the AppKit close/reopen lifecycle. Keeping
     // it on the delegate preserves this same window and SwiftUI model after
