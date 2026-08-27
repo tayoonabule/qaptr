@@ -7,6 +7,23 @@ import QaptrReviewCore
 enum DevMockData {
     static let enabled = ProcessInfo.processInfo.environment["QAPTR_DEV_MOCK_DATA"] == "1"
 
+    enum State: String, CaseIterable {
+        case loading
+        case empty
+        case ready
+        case candidates
+        case consent
+        case error
+        case paused
+    }
+
+    /// Selects a stable visual-QA fixture. Unknown values intentionally fall
+    /// back to the existing populated fixture so QAPTR_DEV_MOCK_DATA=1 keeps
+    /// its historical behavior.
+    static let selectedState = State(
+        rawValue: ProcessInfo.processInfo.environment["QAPTR_DEV_MOCK_STATE"] ?? ""
+    ) ?? .candidates
+
     static let snapshot = ReviewSnapshot(
         observations: [
             QaptrObservation(
@@ -130,5 +147,68 @@ enum DevMockData {
         ),
         analysis: ReviewAnalysisStatus(state: "ready", provider: "OpenAI", reason: nil)
     )
+
+    static var selectedSnapshot: ReviewSnapshot {
+        switch selectedState {
+        case .empty, .ready, .error:
+            .empty
+        case .loading, .candidates, .consent, .paused:
+            snapshot
+        }
+    }
+
+    static var selectedReviewStatus: ReviewStatus? {
+        selectedState == .error ? nil : reviewStatus
+    }
+
+    static var selectedLoadError: String? {
+        selectedState == .error ? "The local review history could not be read." : nil
+    }
+
+    static var selectedAnalysisSessionState: ReviewSessionState {
+        guard selectedState == .consent else { return .idle }
+        return ReviewSessionState(
+            sessionID: "mock-consent-session",
+            phase: .readyForConsent,
+            capturesSeen: 8,
+            preparedCaptures: 6,
+            imageCount: 0,
+            exclusionCount: 2,
+            observationsWritten: 0,
+            consentSummary: ReviewConsentSummary(
+                provider: "Jcode",
+                resolvedModel: nil,
+                modelLabel: "Default model",
+                payloadKind: "redacted text",
+                captureCount: 8,
+                imageCount: 0,
+                exclusionCount: 2
+            ),
+            result: nil,
+            outcome: nil,
+            error: nil,
+            resultProvider: nil,
+            resultModelLabel: nil,
+            allowedOperations: ["state", "consent", "cancel"]
+        )
+    }
+
+    static var selectedCaptureProgress: CaptureProgressSnapshot {
+        switch selectedState {
+        case .empty:
+            CaptureProgressSnapshot(state: .waiting, captureCount: 0, activeIntervalSeconds: 30)
+        case .paused:
+            CaptureProgressSnapshot(
+                state: .paused,
+                captureCount: 18,
+                updatedAtMillis: 1_755_295_200_000,
+                processID: Int64(ProcessInfo.processInfo.processIdentifier),
+                selectedDisplayIDs: ["mock-display-main"],
+                activeIntervalSeconds: 30
+            )
+        default:
+            captureProgress
+        }
+    }
 }
 #endif

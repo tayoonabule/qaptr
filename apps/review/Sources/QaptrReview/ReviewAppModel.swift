@@ -169,17 +169,25 @@ final class ReviewAppModel {
 
     /// Reloads the durable-history snapshot from `qaptr-store`.
     func refresh() {
-        defer { reviewHasLoaded = true }
         if usesMockData {
             #if DEBUG
-            snapshot = DevMockData.snapshot
-            reviewStatus = DevMockData.reviewStatus
+            if DevMockData.selectedState == .loading {
+                reviewHasLoaded = false
+                return
+            }
+            reviewHasLoaded = true
+            snapshot = DevMockData.selectedSnapshot
+            reviewStatus = DevMockData.selectedReviewStatus
             reviewStatusError = nil
-            loadError = nil
+            loadError = DevMockData.selectedLoadError
+            analysisSessionState = DevMockData.selectedAnalysisSessionState
+            settings.provider = .jcodeCLI
+            providerConnection = .connected
             refreshCaptureProgress()
             #endif
             return
         }
+        defer { reviewHasLoaded = true }
         refreshCaptureProgress()
         guard let bridge else { return }
         do {
