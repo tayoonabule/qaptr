@@ -23,16 +23,6 @@ struct HomeView: View {
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(QaptrColor.ink.opacity(0.85))
       Spacer()
-      Button {
-        model.screen = .settings
-      } label: {
-        Image(systemName: "gearshape")
-          .font(.system(size: 12, weight: .medium))
-          .frame(width: 24, height: 24)
-      }
-      .buttonStyle(.plain)
-      .foregroundStyle(QaptrColor.muted)
-      .accessibilityLabel("Settings")
     }
     .padding(.leading, 92)
     .padding(.trailing, 10)
@@ -59,7 +49,7 @@ struct HomeView: View {
     }
     .padding(.horizontal, 40)
     .frame(height: state == .homeAnalyzing ? 72 : 60)
-    .qaptrGlassSurface(radius: 0)
+    .background(Color.black.opacity(0.03))
   }
 
   @ViewBuilder
@@ -114,10 +104,15 @@ struct HomeView: View {
         model.screen = .consentReview
       }
     }
-    .buttonStyle(.borderedProminent)
-    .buttonBorderShape(.roundedRectangle(radius: 6))
-    .controlSize(.small)
-    .tint(state == .homeAttention ? QaptrColor.danger : QaptrColor.accent)
+    .buttonStyle(.plain)
+    .font(.system(size: 13, weight: .medium))
+    .foregroundStyle(state == .homeAttention ? QaptrColor.danger : QaptrColor.accent)
+    .padding(.horizontal, 16)
+    .frame(height: 24)
+    .background(
+      (state == .homeAttention ? QaptrColor.danger : QaptrColor.accent).opacity(0.12),
+      in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+    )
   }
 
   @ViewBuilder

@@ -9,11 +9,16 @@ struct QaptrApp: App {
     Window("Qaptr", id: "main") {
       RootView(model: model)
         .frame(width: AppModel.windowSize.width, height: AppModel.windowSize.height)
+        .offset(y: -32)
+        .frame(
+          width: AppModel.windowSize.width,
+          height: AppModel.windowSize.height - 32,
+          alignment: .top
+        )
         .background(WindowConfigurator())
         .containerBackground(.clear, for: .window)
     }
-    .defaultSize(width: AppModel.windowSize.width, height: AppModel.windowSize.height)
-    .windowResizability(.contentSize)
+    .defaultSize(width: AppModel.windowSize.width, height: AppModel.windowSize.height - 32)
     .windowStyle(.hiddenTitleBar)
     .windowToolbarStyle(.unified(showsTitle: false))
     .defaultLaunchBehavior(.suppressed)
@@ -57,8 +62,13 @@ private struct WindowConfigurator: NSViewRepresentable {
     window.styleMask.insert(.fullSizeContentView)
     window.isOpaque = true
     window.backgroundColor = .white
-    window.setContentSize(size)
-    window.contentMinSize = size
-    window.contentMaxSize = size
+    window.minSize = size
+    window.maxSize = size
+    if window.frame.size != size {
+      window.setFrame(
+        NSRect(origin: window.frame.origin, size: size),
+        display: true
+      )
+    }
   }
 }
