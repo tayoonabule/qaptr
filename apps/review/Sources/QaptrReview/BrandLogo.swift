@@ -29,7 +29,7 @@ struct QaptrBrandLogo: View {
           Text("Qaptr")
             .font(QaptrFont.custom(textSize, weight: .medium))
             .tracking(-textSize * 0.02)
-            .foregroundStyle(Color.qaptrInk)
+            .foregroundStyle(Color.qaptrFigmaText)
         }
       }
     }
@@ -82,9 +82,9 @@ struct QaptrTitleBar: View {
     .padding(.vertical, 8)
     .frame(height: 32, alignment: .leading)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.white.opacity(0.6))
+    .background(Color.qaptrFigmaTitlebar)
     .overlay(alignment: .bottom) {
-      Rectangle().fill(Color.black.opacity(0.05)).frame(height: 1)
+      Rectangle().fill(Color.qaptrFigmaHairline).frame(height: 1)
     }
   }
 }
@@ -106,7 +106,7 @@ struct QaptrOnboardingTitleBar: View {
       .frame(height: 31, alignment: .leading)
       .frame(maxWidth: .infinity, alignment: .leading)
       .overlay(alignment: .bottom) {
-        Rectangle().fill(Color.black.opacity(0.05)).frame(height: 1)
+        Rectangle().fill(Color.qaptrFigmaHairline).frame(height: 1)
       }
   }
 }

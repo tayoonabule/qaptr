@@ -355,7 +355,7 @@ struct QaptrReviewApp: App {
     MenuBarExtra {
       QaptrMenuBarView(model: appDelegate.model, appDelegate: appDelegate)
     } label: {
-      Image(systemName: "circle.dotted")
+      QaptrTitleMark(size: 14)
     }
     .menuBarExtraStyle(.window)
 
@@ -386,19 +386,16 @@ private struct QaptrMenuBarView: View {
   let appDelegate: AppDelegate
 
   var body: some View {
-    QaptrSecondarySurface(padding: QaptrSpace.lg) {
-      VStack(alignment: .leading, spacing: QaptrSpace.md) {
+    QaptrSecondarySurface(padding: QaptrSpace.xs) {
+      VStack(alignment: .leading, spacing: QaptrSpace.xxs) {
         HStack(spacing: QaptrSpace.sm) {
           Circle()
             .fill(statusColor)
             .frame(width: 8, height: 8)
           VStack(alignment: .leading, spacing: 2) {
-            Text("QAPTR")
-              .font(QaptrType.meta(10))
-              .foregroundStyle(Color.qaptrInkMuted)
             Text(statusLine)
-              .font(QaptrType.title(13))
-              .foregroundStyle(Color.qaptrInk)
+              .font(QaptrType.body(13))
+              .foregroundStyle(Color.qaptrFigmaText)
           }
         }
 
@@ -428,8 +425,7 @@ private struct QaptrMenuBarView: View {
         Button("Quit Qaptr") { NSApp.terminate(nil) }
       }
     }
-    .frame(width: 280)
-    .padding(QaptrSpace.sm)
+    .frame(width: 300)
   }
 
   private var statusLine: String {
