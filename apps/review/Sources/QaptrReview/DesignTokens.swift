@@ -34,6 +34,10 @@ enum QaptrHex {
   static let figmaOrange = NSColor(qaptrHex: 0xFF_8D_28)
   static let figmaRed = NSColor(qaptrHex: 0xFF_38_3C)
   static let figmaSecondaryFill = NSColor(qaptrHex: 0xE6_E6_E6)
+  // Literal fill on the onboarding "Primary CTA Button" layer (Figma nodes
+  // 27:1207 / 27:1214). It is a distinct action blue from `figmaPrimary` and
+  // is not backed by a Figma variable, only a hardcoded layer fill.
+  static let figmaActionBlue = NSColor(qaptrHex: 0x25_63_EB)
 }
 
 extension NSColor {
@@ -81,6 +85,10 @@ extension Color {
   static let qaptrInputBorder = Color(nsColor: QaptrHex.midnightInk)
   static let qaptrAccent = Color(nsColor: QaptrHex.figmaPrimary)
   static let qaptrAccentStrong = Color(nsColor: QaptrHex.deepSapphire)
+  // The onboarding "Primary CTA Button" fill (Figma nodes 27:1207 / 27:1214).
+  // Kept distinct from `qaptrAccent` because Figma's Liquid Glass buttons use
+  // this specific action blue, not the app's `Accents/Blue` variable.
+  static let qaptrCTAAction = Color(nsColor: QaptrHex.figmaActionBlue)
   static let qaptrSignalGradient = LinearGradient(
     colors: [
       Color(nsColor: QaptrHex.electricBlue), Color(red: 0.302, green: 0.608, blue: 1.0),

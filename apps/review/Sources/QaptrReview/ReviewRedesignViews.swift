@@ -27,9 +27,20 @@ enum ReviewDesign {
   }
 }
 
-/// Figma's Liquid Glass card is a stack of ordinary compositing layers. It is
-/// intentionally not a platform material because material blur produces a
-/// different result from the reference artwork.
+/// Figma's "Liquid Glass - Card" (nodes `27:1056` / `27:1091` / `10:49`) is a
+/// stack of ordinary compositing layers, not a platform material. Each
+/// overlay below is one Figma fill layer, in the same order, with Figma's own
+/// blend-mode enum (`PLUS_LIGHTER` / `PLUS_DARKER`, not the CSS
+/// `lighten`/`darken` the dev-mode codegen substitutes for browser
+/// compatibility):
+///   1. `rgba(255,255,255,0.25)` — `.plusLighter`.
+///   2. `rgba(191,191,191,0.08)` — `.plusDarker`.
+///   3. `rgba(255,255,255,0.1)` — `.multiply`.
+///   4. `0px 0px 0px 0.5px #dbdbdb` — a hairline outer border, not a shadow.
+///   5. `inset 0 40px 10px -40px #282828` / `inset 0 -40px 10px -40px
+///      #282828` on the top and bottom edges — the vignette that gives the
+///      glass its rounded-tube falloff.
+///   6. `0px 12px 32px 0px rgba(0,0,0,0.06)` — the card's cast drop shadow.
 struct FigmaGlassSurface: View {
   let radius: CGFloat
 
@@ -52,18 +63,23 @@ struct FigmaGlassSurface: View {
           .strokeBorder(Color(red: 219 / 255, green: 219 / 255, blue: 219 / 255), lineWidth: 0.5)
       }
       .overlay {
-        RoundedRectangle(cornerRadius: radius, style: .continuous)
-          .strokeBorder(Color.black.opacity(0.16), lineWidth: 1)
-          .blur(radius: 1)
-          .mask {
-            VStack(spacing: 0) {
-              LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                .frame(height: 40)
-              Spacer()
-              LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                .frame(height: 40)
-            }
-          }
+        VStack(spacing: 0) {
+          LinearGradient(
+            colors: [Color(red: 40 / 255, green: 40 / 255, blue: 40 / 255).opacity(0.14), .clear],
+            startPoint: .top,
+            endPoint: .bottom
+          )
+          .frame(height: 40)
+          Spacer(minLength: 0)
+          LinearGradient(
+            colors: [.clear, Color(red: 40 / 255, green: 40 / 255, blue: 40 / 255).opacity(0.14)],
+            startPoint: .top,
+            endPoint: .bottom
+          )
+          .frame(height: 40)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        .allowsHitTesting(false)
       }
       .shadow(color: .black.opacity(0.06), radius: 16, y: 12)
   }
@@ -194,18 +210,13 @@ struct WelcomeView: View {
 
   var body: some View {
     ZStack {
-      // Figma's Welcome frame is a quiet white-to-blue-gray canvas. It is not
-      // the animated marketing backdrop used by the post-onboarding surface.
-      LinearGradient(
-        colors: [
-          Color.qaptrGlassCanvas,
-          Color.qaptrGlassCanvas,
-          Color.qaptrSurfaceRaised,
-        ],
-        startPoint: .top,
-        endPoint: .bottomTrailing
-      )
-      .ignoresSafeArea()
+      // Figma's Welcome frame (nodes 27:1034 / 27:1069) fills the canvas with
+      // a radial gradient: `#C7D1E6` at the bottom-center fading to white at
+      // the edges (`gradientTransform` centered at x=422.5,y=737 of an
+      // 845×737 frame). This is the same shape as `ReviewDesign.canvas`, so
+      // reuse it instead of an unrelated linear gradient.
+      ReviewDesign.canvas
+        .ignoresSafeArea()
 
       VStack(spacing: 0) {
         VStack(spacing: 32) {
@@ -285,24 +296,23 @@ struct WelcomeView: View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(alignment: .center, spacing: 8) {
         Text("Allow Screen Recording")
-          .font(.system(size: 15, weight: .regular))
-          .foregroundStyle(Color.qaptrLabelPrimary)
+          .font(.system(size: 15, weight: .semibold))
+          .tracking(-0.3)
+          .foregroundStyle(Color(red: 17 / 255, green: 17 / 255, blue: 17 / 255))
         if let permissionBadge {
           Text(permissionBadge.label)
-            .font(QaptrType.caption(12))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(permissionBadge.color)
             .padding(.horizontal, 8)
-            .frame(height: 21)
-            .background(permissionBadge.color.opacity(0.12), in: Capsule())
+            .padding(.vertical, 4)
+            .background(permissionBadge.color.opacity(0.1), in: Capsule())
         }
       }
       Text(
-        model.settings.screenRecordingStatus == .denied
-          ? "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here."
-          : "Screen Recording is the one required permission."
+        "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here."
       )
       .font(.system(size: 13, weight: .regular))
-      .foregroundStyle(Color.qaptrLabelSecondary)
+      .foregroundStyle(Color(red: 68 / 255, green: 68 / 255, blue: 68 / 255))
       .fixedSize(horizontal: false, vertical: true)
       Button(action: primaryAction) {
         HStack(spacing: 8) {
@@ -311,12 +321,45 @@ struct WelcomeView: View {
           QaptrSVGImage(resourceName: "b453e64d37d7cd6258c15c3274a67f60ee559133")
             .frame(width: 14.4, height: 14.4)
         }
-        .foregroundStyle(Color.white.opacity(0.96))
+        .foregroundStyle(Color.white)
         .frame(maxWidth: .infinity)
         .frame(height: 44)
-        .background(
-          Color.qaptrAccent,
-          in: RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous))
+        .background {
+          // Figma's Primary CTA Button (nodes 27:1207 / 27:1214): a flat
+          // #2563EB fill, a colored glow drop shadow, and three inset bevel
+          // shadows built as clipped edge-highlight overlays because
+          // SwiftUI has no native inset-shadow modifier.
+          RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+            .fill(Color.qaptrCTAAction)
+            .overlay {
+              RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+                .fill(
+                  LinearGradient(
+                    colors: [Color.white.opacity(0.25), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                  )
+                )
+                .frame(height: 12)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .clipShape(RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous))
+                .allowsHitTesting(false)
+            }
+            .overlay {
+              RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+                .fill(
+                  RadialGradient(
+                    colors: [Color.black.opacity(0.3), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 0,
+                    endRadius: 18
+                  )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous))
+                .allowsHitTesting(false)
+            }
+            .shadow(color: Color.qaptrCTAAction.opacity(0.2), radius: 6, y: 4)
+        }
       }
       .buttonStyle(.plain)
       .frame(maxWidth: .infinity)
@@ -328,46 +371,25 @@ struct WelcomeView: View {
       height: model.settings.screenRecordingStatus == .granted ? 148 : 165,
       alignment: .topLeading
     )
-    .background(
-      .regularMaterial,
-      in: RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous)
-    )
-    .overlay {
-      RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous)
-        .fill(
-          LinearGradient(
-            colors: [Color.white.opacity(0.34), Color.qaptrAccent.opacity(0.06)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-          )
-        )
-        .blendMode(.plusLighter)
-        .allowsHitTesting(false)
-    }
-    .overlay {
-      RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous)
-        .strokeBorder(
-          LinearGradient(
-            colors: [Color.white.opacity(0.92), Color.qaptrHairline.opacity(0.55)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-          ),
-          lineWidth: 1
-        )
-        .allowsHitTesting(false)
-    }
-    .clipShape(RoundedRectangle(cornerRadius: QaptrRadius.glass, style: .continuous))
-    .shadow(color: .black.opacity(0.12), radius: 24, y: 14)
+    .background { FigmaGlassSurface(radius: QaptrRadius.glass) }
   }
 
   private var privacyFooter: some View {
     HStack(spacing: 8) {
-      Image(systemName: "lock.shield")
-        .font(.system(size: 12, weight: .regular))
-        .foregroundStyle(Color.qaptrLabelSecondary)
-      Text("You can change privacy and capture choices later in Settings.")
-        .font(.system(size: 12, weight: .regular))
-        .foregroundStyle(Color.qaptrLabelSecondary)
+      // Figma's "Privacy Shield Footer" (nodes 27:1064-1068 / 27:1099-1103)
+      // wraps the shield vector in a 22×22 circular frame with a 0.1-opacity
+      // black hairline, not a bare SF Symbol.
+      QaptrSVGImage(resourceName: "60d3b965b4421c73b8944122e46cb4999a5e2c57")
+        .frame(width: 12, height: 12)
+        .padding(5)
+        .background(Circle().strokeBorder(Color.black.opacity(0.1), lineWidth: 1))
+      Text(
+        model.settings.screenRecordingStatus == .denied
+          ? "Enable QaptrHelper in Screen Recording, then return to Qaptr."
+          : "You can change privacy and capture choices later in Settings."
+      )
+      .font(.system(size: 12, weight: .regular))
+      .foregroundStyle(Color(red: 102 / 255, green: 102 / 255, blue: 102 / 255))
     }
   }
 
