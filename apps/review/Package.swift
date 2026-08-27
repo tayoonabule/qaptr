@@ -23,6 +23,7 @@ let package = Package(
         .process("Resources/60d3b965b4421c73b8944122e46cb4999a5e2c57.svg"),
         .process("Resources/b453e64d37d7cd6258c15c3274a67f60ee559133.svg"),
         .process("Resources/09a7c03f39a2c67f85de3cfcb3d31f65ade6f607.svg"),
+        .process("Resources/FigmaAssets"),
         .copy("Resources/Satoshi-Variable.ttf"),
       ],
       swiftSettings: [

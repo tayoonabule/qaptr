@@ -208,31 +208,16 @@ private struct HomeReviewView: View {
     NavigationStack(path: $path) {
       VStack(spacing: 0) {
         homeToolbar
-        ReviewStatusStrip(
-          progress: model.captureProgress,
-          helperIsRunning: model.captureHelperIsRunning,
-          captureIntent: model.captureControlIntent,
-          session: model.analysisSessionState,
-          detailedCapture: model.detailedCaptureState,
-          analyze: model.startAnalysis,
-          pause: model.pauseCapture,
-          resume: model.resumeCapture,
-          cancel: cancel,
-          retry: retry,
-          requestPermission: model.requestScreenRecording,
-          restart: model.restartCaptureHelper,
-          stopDetailed: model.stopDetailedCapture,
-          openSettings: openSettings
-        )
         ScrollView {
           VStack(alignment: .leading, spacing: 20) {
             banners
             feed
           }
           .frame(width: 765, alignment: .leading)
-          .padding(.top, 22)
+          .padding(.top, 18)
           .padding(.bottom, 36)
         }
+        .frame(maxWidth: .infinity, alignment: .center)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       .navigationDestination(for: String.self) { id in
@@ -254,39 +239,45 @@ private struct HomeReviewView: View {
 
   private var homeToolbar: some View {
     HStack(spacing: 0) {
-      QaptrBrandLogo(iconSize: 22, textSize: 18)
-      Rectangle()
-        .fill(Color.black.opacity(0.10))
-        .frame(width: 1, height: 20)
-        .padding(.horizontal, 18)
-      Text("Home")
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(ReviewDesign.ink)
-      Spacer()
-      Text("LOCAL REVIEW")
-        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-        .tracking(0.8)
-        .foregroundStyle(ReviewDesign.muted)
-      Button(action: openSettings) {
-        Image(systemName: "gearshape")
-          .font(.system(size: 14, weight: .medium))
-          .frame(width: 30, height: 30)
+      HStack(spacing: 8) {
+        Circle()
+          .fill(model.captureHelperIsRunning ? ReviewDesign.green : ReviewDesign.red)
+          .frame(width: 6, height: 6)
+        Text(toolbarStatus)
+          .font(.system(size: 13, weight: .regular))
+          .foregroundStyle(ReviewDesign.ink)
       }
-      .buttonStyle(.plain)
-      .foregroundStyle(ReviewDesign.slate)
-      .contentShape(Rectangle())
-      .accessibilityLabel("Open Settings")
-      .padding(.leading, 12)
+      Spacer()
+      Button("Analyze", action: model.startAnalysis)
+        .font(.system(size: 13, weight: .regular))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .frame(height: 24)
+        .background(ReviewDesign.accent, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .disabled(!model.analysisCanStart)
+        .opacity(model.analysisCanStart ? 1 : 0.5)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Analyze captures")
     }
     .padding(.horizontal, 40)
     .frame(height: 60)
     .frame(maxWidth: .infinity)
-    .background(.ultraThinMaterial)
-    .overlay(alignment: .bottom) {
-      Rectangle()
-        .fill(Color.white.opacity(0.75))
-        .frame(height: 1)
+    .background {
+      FigmaGlassSurface(radius: 0)
+        .overlay(alignment: .bottom) {
+          Rectangle().fill(Color.black.opacity(0.06)).frame(height: 0.5)
+        }
     }
+  }
+
+  private var toolbarStatus: String {
+    if model.captureControlIntent == .paused { return "Capture paused" }
+    if !model.captureHelperIsRunning { return "Capture stopped in the background" }
+    if model.detailedCaptureState.lifecycle == .capturing {
+      let interval = model.detailedCaptureState.intervalSeconds ?? 0
+      return "Watching closely · every \(interval)s · \(model.captureProgress.captureCount ?? 0) captures"
+    }
+    return "Capturing quietly · \(model.captureProgress.captureCount ?? 0) today"
   }
 
   @ViewBuilder
