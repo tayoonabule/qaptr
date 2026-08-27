@@ -244,23 +244,27 @@ private struct HomeReviewView: View {
           .fill(model.captureHelperIsRunning ? ReviewDesign.green : ReviewDesign.red)
           .frame(width: 6, height: 6)
         Text(toolbarStatus)
-          .font(.system(size: 13, weight: .regular))
-          .foregroundStyle(ReviewDesign.ink)
+          .font(QaptrType.body(14))
+          .foregroundStyle(Color.qaptrFigmaText)
       }
       Spacer()
       HStack(spacing: 16) {
         Button("Settings", action: openSettings)
-          .font(.system(size: 13, weight: .regular))
+          .font(QaptrType.body(13))
           .foregroundStyle(ReviewDesign.muted)
           .buttonStyle(.plain)
           .accessibilityLabel("Open Settings")
 
         Button("Analyze", action: model.startAnalysis)
           .font(.system(size: 13, weight: .regular))
-          .foregroundStyle(.white)
+          .foregroundStyle(Color.qaptrAccent)
           .padding(.horizontal, 16)
           .frame(height: 24)
-          .background(ReviewDesign.accent, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+          .background(Color.qaptrFigmaToolbar, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+          .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+              .fill(Color.qaptrFigmaAction.opacity(0.20))
+          }
           .disabled(!model.analysisCanStart)
           .opacity(model.analysisCanStart ? 1 : 0.5)
           .buttonStyle(.plain)
@@ -271,9 +275,9 @@ private struct HomeReviewView: View {
     .frame(height: 60)
     .frame(maxWidth: .infinity)
     .background {
-      FigmaGlassSurface(radius: 0)
+      Color.qaptrFigmaToolbar
         .overlay(alignment: .bottom) {
-          Rectangle().fill(Color.black.opacity(0.06)).frame(height: 0.5)
+          Rectangle().fill(Color.qaptrFigmaHairline).frame(height: 1)
         }
     }
   }
@@ -384,7 +388,8 @@ private struct HomeReviewView: View {
         actionTitle: "Open Provider Settings", action: openSettings)
     } else if findings.isEmpty {
       EmptyFindingsView(
-        captureCount: model.captureProgress.captureCount, analyze: model.startAnalysis)
+        captureCount: model.captureProgress.captureCount, analyze: model.startAnalysis,
+        state: state)
     } else {
       VStack(alignment: .leading, spacing: 14) {
         Text("From your last analysis")
@@ -462,31 +467,65 @@ private struct HomeReviewView: View {
 private struct EmptyFindingsView: View {
   let captureCount: Int?
   let analyze: () -> Void
+  let state: ReviewWorkspaceState
 
   var body: some View {
-    ReviewGlassCard {
-      VStack(alignment: .leading, spacing: 10) {
-        Text("Nothing to review yet.")
-          .font(.system(size: 24, weight: .regular))
-          .foregroundStyle(ReviewDesign.ink)
-        if let captureCount, captureCount > 0 {
-          Text(
-            "Qaptr has been capturing quietly. Review the latest \(captureCount) captures when you’re ready."
-          )
-          .font(.system(size: 15))
-          .foregroundStyle(ReviewDesign.slate)
-          Button("Analyze \(captureCount) captures", action: analyze)
-            .buttonStyle(.borderedProminent)
-            .tint(ReviewDesign.accent)
-            .padding(.top, 8)
-        } else {
-          Text(
-            "Qaptr is capturing quietly. Work for a stretch, then analyze to see what it noticed."
-          )
-          .font(.system(size: 15))
-          .foregroundStyle(ReviewDesign.slate)
+    VStack(spacing: 24) {
+      ZStack {
+        Circle().fill(Color.white.opacity(0.55))
+        Circle().strokeBorder(Color.qaptrFigmaCardBorder, lineWidth: 1)
+        Image(systemName: "shield.lefthalf.filled")
+          .font(.system(size: 42, weight: .regular))
+          .foregroundStyle(Color.qaptrFigmaAction)
+      }
+      .frame(width: 80, height: 80)
+      .accessibilityHidden(true)
+
+      VStack(spacing: 16) {
+        Text(emptyTitle)
+          .font(QaptrType.display(26))
+          .foregroundStyle(Color.qaptrFigmaText)
+          .multilineTextAlignment(.center)
+        Text(emptyDetail)
+          .font(QaptrType.body(15))
+          .foregroundStyle(Color.qaptrFigmaBody)
+          .multilineTextAlignment(.center)
+          .frame(width: 400)
+        if let captureCount, captureCount > 0, state == .readyToAnalyze {
+          Button("Analyze captures", action: analyze)
+            .buttonStyle(.qaptrPrimary)
         }
       }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .padding(.top, 120)
+  }
+
+  private var emptyTitle: String {
+    switch state {
+    case .noCaptures: "Nothing to review yet"
+    case .captureUnavailable: "Capture status unavailable"
+    case .providerSetupNeeded: "Connect a provider to analyze captures"
+    case .readyToAnalyze: "Nothing to review yet"
+    case .analysisUnavailable: "Workflow analysis is unavailable"
+    case .cancelled: "Analysis cancelled"
+    default: "Nothing to review yet"
+    }
+  }
+
+  private var emptyDetail: String {
+    switch state {
+    case .noCaptures:
+      "Qaptr is capturing quietly. Work for a stretch, then analyze to see what it noticed."
+    case .captureUnavailable:
+      "Qaptr cannot confirm the helper's current state. Try again from Settings."
+    case .providerSetupNeeded:
+      "Your captures are local. Choose a supported provider in Settings when you are ready to create observations."
+    case .readyToAnalyze:
+      "Qaptr is capturing quietly. Analyze when you are ready to see what it noticed."
+    case .analysisUnavailable(let detail): detail
+    case .cancelled: "No provider result was saved."
+    default: "Qaptr is getting your local review ready."
     }
   }
 }
