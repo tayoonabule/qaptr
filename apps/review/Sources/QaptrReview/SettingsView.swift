@@ -141,7 +141,7 @@ struct SettingsView: View {
             case .openPrivacy: model.requestScreenRecording()
             }
           }
-          .buttonStyle(.bordered)
+          .buttonStyle(.qaptrOutline)
           .keyboardShortcut(.defaultAction)
         }
       } label: {
@@ -199,12 +199,12 @@ struct SettingsView: View {
         Button("Stop detailed capture") {
           model.stopDetailedCapture()
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.qaptrPrimary)
       } else {
         Button("Capture more detail now") {
           model.startDetailedCapture()
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.qaptrPrimary)
       }
 
       if case .helperUnavailable? = model.detailedCaptureState.outcome {
@@ -296,6 +296,7 @@ struct SettingsView: View {
         .foregroundStyle(Color.qaptrInkSoft)
         .fixedSize(horizontal: false, vertical: true)
       TextField("Application name", text: $excludedApplication)
+        .textFieldStyle(.qaptr)
         .onSubmit(addExcludedApplication)
       if !model.settings.excludedApplications.isEmpty {
         ForEach(model.settings.excludedApplications, id: \.self) { entry in
@@ -304,6 +305,7 @@ struct SettingsView: View {
       }
 
       TextField("Window title", text: $excludedWindowTitle)
+        .textFieldStyle(.qaptr)
         .onSubmit(addExcludedWindowTitle)
       if !model.settings.excludedWindowTitles.isEmpty {
         ForEach(model.settings.excludedWindowTitles, id: \.self) { entry in
@@ -408,7 +410,7 @@ struct SettingsView: View {
       LabeledContent {
         if status != .granted {
           Button(status == .denied ? "Open System Settings" : "Request", action: action)
-            .buttonStyle(.bordered)
+            .buttonStyle(.qaptrOutline)
         }
       } label: {
         VStack(alignment: .leading, spacing: 2) {
