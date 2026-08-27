@@ -104,6 +104,21 @@ extension Color {
   static let qaptrWarning = Color(nsColor: QaptrHex.figmaOrange)
   static let qaptrLavender = Color(nsColor: QaptrHex.lavender)
   static let qaptrError = Color(nsColor: QaptrHex.figmaRed)
+  // Main App Figma surface tokens. Keep repeated layer values centralized so
+  // the presentation can stay tokenized instead of scattering color literals.
+  static let qaptrFigmaCanvasBlue = Color(nsColor: NSColor(qaptrHex: 0xC7_D1_E6))
+  static let qaptrFigmaCanvasWhite = Color.white
+  static let qaptrFigmaCardLight = Color.white.opacity(0.25)
+  static let qaptrFigmaCardDark = Color(nsColor: NSColor(qaptrHex: 0xBF_BF_BF)).opacity(0.08)
+  static let qaptrFigmaCardMultiply = Color.white.opacity(0.10)
+  static let qaptrFigmaCardBorder = Color(nsColor: NSColor(qaptrHex: 0xDB_DB_DB))
+  static let qaptrFigmaText = Color(nsColor: NSColor(qaptrHex: 0x11_18_27))
+  static let qaptrFigmaBody = Color(nsColor: NSColor(qaptrHex: 0x4B_55_63))
+  static let qaptrFigmaMuted = Color(nsColor: NSColor(qaptrHex: 0x64_74_8B))
+  static let qaptrFigmaAction = Color(nsColor: NSColor(qaptrHex: 0x25_63_EB))
+  static let qaptrFigmaToolbar = Color.black.opacity(0.03)
+  static let qaptrFigmaTitlebar = Color.white.opacity(0.60)
+  static let qaptrFigmaHairline = Color.black.opacity(0.05)
 
   // Compatibility names used by the existing state and accessibility copy.
   static let qaptrAccentTint = Color(nsColor: QaptrHex.electricBlue).opacity(0.10)

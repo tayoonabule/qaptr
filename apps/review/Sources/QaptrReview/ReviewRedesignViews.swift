@@ -13,8 +13,8 @@ enum ReviewDesign {
   static let green = Color.qaptrSuccess
   static let orange = Color.qaptrWarning
   static let red = Color.qaptrError
-  static let canvasBlue = Color(red: 199 / 255, green: 209 / 255, blue: 230 / 255)
-  static let canvasWhite = Color.white
+  static let canvasBlue = Color.qaptrFigmaCanvasBlue
+  static let canvasWhite = Color.qaptrFigmaCanvasWhite
   static var canvas: some View {
     GeometryReader { proxy in
       RadialGradient(
@@ -46,33 +46,33 @@ struct FigmaGlassSurface: View {
 
   var body: some View {
     RoundedRectangle(cornerRadius: radius, style: .continuous)
-      .fill(Color.white.opacity(0.25))
+      .fill(Color.qaptrFigmaCardLight)
       .blendMode(.plusLighter)
       .overlay {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
-          .fill(Color(red: 191 / 255, green: 191 / 255, blue: 191 / 255).opacity(0.08))
+          .fill(Color.qaptrFigmaCardDark)
           .blendMode(.plusDarker)
       }
       .overlay {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
-          .fill(Color.white.opacity(0.10))
+          .fill(Color.qaptrFigmaCardMultiply)
           .blendMode(.multiply)
       }
       .overlay {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
-          .strokeBorder(Color(red: 219 / 255, green: 219 / 255, blue: 219 / 255), lineWidth: 0.5)
+          .strokeBorder(Color.qaptrFigmaCardBorder, lineWidth: 0.5)
       }
       .overlay {
         VStack(spacing: 0) {
           LinearGradient(
-            colors: [Color(red: 40 / 255, green: 40 / 255, blue: 40 / 255).opacity(0.14), .clear],
+            colors: [Color.qaptrFigmaText.opacity(0.14), .clear],
             startPoint: .top,
             endPoint: .bottom
           )
           .frame(height: 40)
           Spacer(minLength: 0)
           LinearGradient(
-            colors: [.clear, Color(red: 40 / 255, green: 40 / 255, blue: 40 / 255).opacity(0.14)],
+            colors: [.clear, Color.qaptrFigmaText.opacity(0.14)],
             startPoint: .top,
             endPoint: .bottom
           )
@@ -125,19 +125,19 @@ struct ReviewSuggestionPrimaryButtonStyle: ButtonStyle {
       .foregroundStyle(.white)
       .padding(.horizontal, 24)
       .frame(height: 32)
-      .background(
-        Color(red: 0.145, green: 0.388, blue: 0.922),
-        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-      )
+        .background(
+          Color.qaptrFigmaAction,
+          in: RoundedRectangle(cornerRadius: QaptrRadius.cta, style: .continuous)
+        )
       .overlay {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
+          .strokeBorder(Color.white.opacity(QaptrEffect.glassHighlightOpacity), lineWidth: 1)
       }
       .overlay {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
           .fill(Color.white.opacity(configuration.isPressed ? 0.05 : 0.0))
       }
-      .shadow(color: Color(red: 0.145, green: 0.388, blue: 0.922).opacity(0.20), radius: 6, y: 4)
+      .shadow(color: Color.qaptrFigmaAction.opacity(0.20), radius: 6, y: 4)
       .scaleEffect(configuration.isPressed ? 0.98 : 1)
       .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
   }
@@ -207,6 +207,7 @@ struct WelcomeView: View {
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var message: String?
+  @State private var onboardingStage: OnboardingStage = .screenRecording
 
   var body: some View {
     VStack(spacing: 0) {
@@ -221,20 +222,22 @@ struct WelcomeView: View {
           .ignoresSafeArea()
 
         VStack(spacing: 0) {
-          VStack(spacing: 32) {
-            QaptrBrandLogo(iconSize: 42, textSize: 28, wordmark: true)
+          QaptrBrandLogo(iconSize: 42, textSize: 28, wordmark: true)
+            .padding(.bottom, 32)
+          if onboardingStage == .screenRecording {
             Text(heroTitle)
-              .font(.system(size: 26, weight: .regular))
+              .font(QaptrType.display(26))
               .foregroundStyle(Color.qaptrLabelPrimary)
               .multilineTextAlignment(.center)
               .frame(width: 416, height: heroTitleHeight)
+              .padding(.bottom, 72)
+            permissionCard
+            privacyFooter
+              .padding(.top, 16)
+          } else {
+            optionalContextCard
+              .padding(.top, 32)
           }
-          .frame(width: 725, height: heroStackHeight)
-
-          permissionCard
-            .padding(.top, 72)
-          privacyFooter
-            .padding(.top, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.top, 158)
@@ -303,7 +306,7 @@ struct WelcomeView: View {
         Text("Allow Screen Recording")
           .font(.system(size: 15, weight: .semibold))
           .tracking(-0.3)
-          .foregroundStyle(Color(red: 17 / 255, green: 17 / 255, blue: 17 / 255))
+          .foregroundStyle(Color.qaptrFigmaText)
         if let permissionBadge {
           Text(permissionBadge.label)
             .font(.system(size: 11, weight: .medium))
@@ -317,7 +320,7 @@ struct WelcomeView: View {
         "Screen Recording is the one required permission. QaptrHelper owns capture and reports the live result here."
       )
       .font(.system(size: 13, weight: .regular))
-      .foregroundStyle(Color(red: 68 / 255, green: 68 / 255, blue: 68 / 255))
+      .foregroundStyle(Color.qaptrFigmaBody)
       .fixedSize(horizontal: false, vertical: true)
       Button(action: primaryAction) {
         HStack(spacing: 8) {
@@ -379,6 +382,50 @@ struct WelcomeView: View {
     .background { FigmaGlassSurface(radius: QaptrRadius.glass) }
   }
 
+  private var optionalContextCard: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Add optional context")
+            .font(QaptrType.title(15))
+            .foregroundStyle(Color.qaptrFigmaText)
+          Text("STEP 2 / 2")
+            .font(QaptrType.meta(11))
+            .foregroundStyle(Color.qaptrFigmaMuted)
+        }
+        Spacer()
+        Text(model.settings.accessibilityContextStatus.label)
+          .font(QaptrType.caption(11))
+          .foregroundStyle(Color.qaptrWarning)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 4)
+          .background(Color.qaptrWarning.opacity(0.10), in: Capsule())
+      }
+      Text(OnboardingCopy.accessibilityStep)
+        .font(QaptrType.body(13))
+        .foregroundStyle(Color.qaptrFigmaBody)
+        .fixedSize(horizontal: false, vertical: true)
+      Button("Allow optional context", action: model.requestAccessibilityContext)
+        .buttonStyle(.qaptrOutline)
+      if model.settings.availableDisplayIDs.isEmpty {
+        Text("Connect at least one display before capture can begin.")
+          .font(QaptrType.caption())
+          .foregroundStyle(Color.qaptrWarning)
+      }
+      HStack {
+        Button("Start without optional context") { finishOnboarding() }
+          .buttonStyle(.qaptrQuiet)
+        Spacer()
+        Button("Start capture") { finishOnboarding() }
+          .buttonStyle(.qaptrPrimary)
+          .disabled(!model.isOnboardingCompletionEligible)
+      }
+    }
+    .padding(24)
+    .frame(width: 580)
+    .background { FigmaGlassSurface(radius: QaptrRadius.glass) }
+  }
+
   private var privacyFooter: some View {
     HStack(spacing: 8) {
       // Figma's "Privacy Shield Footer" (nodes 27:1064-1068 / 27:1099-1103)
@@ -394,7 +441,7 @@ struct WelcomeView: View {
           : "You can change privacy and capture choices later in Settings."
       )
       .font(.system(size: 12, weight: .regular))
-      .foregroundStyle(Color(red: 102 / 255, green: 102 / 255, blue: 102 / 255))
+      .foregroundStyle(Color.qaptrFigmaMuted)
     }
   }
 
@@ -406,6 +453,12 @@ struct WelcomeView: View {
     }
   }
 
+  private func finishOnboarding() {
+    if !model.completeOnboarding() {
+      message = "Qaptr could not finish setup yet. Check the live permission and helper status, then try again."
+    }
+  }
+
   private func refresh() {
     model.refreshSettings()
     model.refreshPermissions()
@@ -414,12 +467,13 @@ struct WelcomeView: View {
   private func advanceIfReady() {
     guard model.settings.screenRecordingStatus == .granted else { return }
     guard !model.onboardingCompleted else { return }
-    if !model.completeOnboarding() {
-      if model.settings.availableDisplayIDs.isEmpty {
-        message = "Connect a display, then Qaptr will begin quietly."
-      } else if !reduceMotion {
-        message = "Qaptr is checking the helper before starting capture."
-      }
+    if onboardingStage == .screenRecording {
+      onboardingStage = .accessibilityContext
+    }
+    if model.settings.availableDisplayIDs.isEmpty {
+      message = "Connect a display, then Qaptr will begin quietly."
+    } else if !reduceMotion && model.isOnboardingCompletionEligible {
+      message = "Choose whether to add optional app and window context."
     }
   }
 }
@@ -612,7 +666,7 @@ struct ReviewFindingRow: View {
       VStack(alignment: .leading, spacing: 16) {
         VStack(alignment: .leading, spacing: 8) {
           Text(finding.title)
-            .font(QaptrType.title(16))
+            .font(QaptrType.display(22))
             .foregroundStyle(ReviewDesign.ink)
             .fixedSize(horizontal: false, vertical: true)
           Text(finding.summary)
@@ -625,22 +679,14 @@ struct ReviewFindingRow: View {
           ReviewEvidenceChip(text: "📷  \(finding.evidenceText)")
           if finding.incomplete {
             Text("Continue capturing to complete →")
-              .font(QaptrType.caption(12))
+              .font(QaptrType.caption(13))
               .foregroundStyle(ReviewDesign.accent)
           }
         }
       }
       .padding(24)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        hovering ? ReviewDesign.accent.opacity(0.08) : Color.white.opacity(0.16),
-        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .strokeBorder(Color.white.opacity(0.74), lineWidth: 1)
-      }
-      .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
+      .background { FigmaGlassSurface(radius: QaptrRadius.glass) }
     }
     .buttonStyle(.plain)
     .onHover { hovering = $0 }
@@ -678,60 +724,119 @@ struct FindingDetailView: View {
 
   @State private var correction = ""
   @State private var correctionMessage: String?
+  @State private var showsCorrection = false
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 28) {
-        Button(action: back) {
-          Label("All findings", systemImage: "chevron.left")
+    VStack(spacing: 0) {
+      HStack {
+        Button("← All findings", action: back)
+          .font(QaptrType.body(14))
+          .foregroundStyle(Color.qaptrFigmaBody)
+          .buttonStyle(.plain)
+          .accessibilityLabel("All findings")
+        Spacer()
+        if finding.candidate != nil {
+          Button(saved ? "Saved ✓" : "Save workflow", action: save)
+            .font(QaptrType.body(13))
+            .foregroundStyle(Color.qaptrAccent)
+            .padding(.horizontal, 16)
+            .frame(height: 24)
+            .background(Color.qaptrFigmaAction.opacity(0.20), in: RoundedRectangle(cornerRadius: 6))
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(ReviewDesign.muted)
+      }
+      .padding(.horizontal, 40)
+      .frame(height: 60)
+      .background(Color.qaptrFigmaToolbar)
+      .overlay(alignment: .bottom) { Rectangle().fill(Color.qaptrFigmaHairline).frame(height: 1) }
 
-        VStack(alignment: .leading, spacing: 12) {
-          if let candidate = finding.candidate {
-            Text(String(format: "%02d", candidate.rank))
-              .font(.system(size: 12, weight: .semibold, design: .monospaced))
-              .foregroundStyle(ReviewDesign.accent)
-              .padding(.horizontal, 10)
-              .padding(.vertical, 6)
-              .background(ReviewDesign.accent.opacity(0.10), in: Capsule())
-          }
+      ScrollView {
+        VStack(alignment: .leading, spacing: 20) {
+          Text(finding.kind == .workflow ? "Workflow" : "Observation")
+            .font(QaptrType.body(14))
+            .foregroundStyle(Color.qaptrFigmaMuted)
           Text(finding.title)
-            .font(.system(size: 32, weight: .regular, design: .serif))
-            .foregroundStyle(ReviewDesign.ink)
+            .font(QaptrType.display(26))
+            .foregroundStyle(Color.qaptrFigmaText)
             .fixedSize(horizontal: false, vertical: true)
-          Text(finding.summary)
-            .font(.system(size: 16))
-            .foregroundStyle(ReviewDesign.slate)
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
+          Text(detailSummary)
+            .font(QaptrType.body(15))
+            .foregroundStyle(Color.qaptrFigmaBody)
+            .lineSpacing(2)
+            .frame(width: 600, alignment: .leading)
           HStack(spacing: 8) {
             ReviewEvidenceChip(text: finding.evidenceText)
             if saved { savedPill }
           }
+          Spacer().frame(height: 8)
+          if let candidate = finding.candidate {
+            if let recommendation = candidate.recommendation {
+              suggestionCard(recommendation)
+            }
+            if showsCorrection { correctionBlock }
+          }
+          Button("Something off? Tell Qaptr →") { showsCorrection.toggle() }
+            .font(QaptrType.caption(12))
+            .foregroundStyle(Color.qaptrFigmaAction)
+            .buttonStyle(.plain)
+            .accessibilityHint("Show a correction field for this explanation")
         }
-
-        Divider()
-
-        if let candidate = finding.candidate {
-          candidateDetail(candidate)
-        } else if let observation = finding.observation {
-          observationDetail(observation)
-        }
+        .frame(width: 765, alignment: .leading)
+        .padding(.top, 18)
+        .padding(.bottom, 40)
       }
-      .frame(maxWidth: 900, alignment: .leading)
-      .padding(.horizontal, 54)
-      .padding(.top, 30)
-      .padding(.bottom, 54)
-      .frame(maxWidth: .infinity, alignment: .center)
     }
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        if finding.candidate != nil {
-          Button(saved ? "Saved ✓" : "Save workflow", action: save)
-            .buttonStyle(.borderedProminent)
-            .tint(saved ? ReviewDesign.green : ReviewDesign.accent)
+  }
+
+  private var detailSummary: String {
+    if let candidate = finding.candidate {
+      return candidate.rationale
+        + (candidate.evidenceStatus == .enoughInformation
+          ? " The sequence repeated with the same tools in the same order."
+          : " The captures show the pattern, but not every important handoff.")
+    }
+    return finding.summary
+  }
+
+  private func suggestionCard(_ recommendation: WorkflowCaptureRecommendation) -> some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("Qaptr can watch more closely for \(recommendation.reviewDurationLabel) to finish the picture. It returns to the normal rhythm on its own.")
+        .font(QaptrType.body(13))
+        .foregroundStyle(Color.qaptrFigmaBody)
+      HStack(spacing: 20) {
+        Button("Capture more detail", action: captureMoreDetail)
+          .buttonStyle(ReviewSuggestionPrimaryButtonStyle())
+        Button("Keep it as is", action: back)
+          .font(QaptrType.body(13))
+          .foregroundStyle(Color.qaptrFigmaBody)
+          .buttonStyle(.plain)
+      }
+    }
+    .padding(24)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background { FigmaGlassSurface(radius: QaptrRadius.glass) }
+  }
+
+  private var correctionBlock: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("What did Qaptr get wrong?")
+        .font(QaptrType.body(14))
+        .foregroundStyle(Color.qaptrFigmaText)
+      TextField("Tell Qaptr what to correct…", text: $correction, axis: .vertical)
+        .textFieldStyle(.roundedBorder)
+        .frame(height: 88)
+      HStack(spacing: 16) {
+        Button("Save correction") {
+          correctionMessage = correction.isEmpty
+            ? "Add a correction before saving."
+            : CandidateCapabilityPresentation.correctionUnavailable
+        }
+        .buttonStyle(.qaptrOutline)
+        .disabled(correction.isEmpty)
+        if let correctionMessage {
+          Text(correctionMessage)
+            .font(QaptrType.caption())
+            .foregroundStyle(Color.qaptrFigmaMuted)
         }
       }
     }
@@ -776,10 +881,10 @@ struct FindingDetailView: View {
           VStack(alignment: .leading, spacing: 12) {
             Text("Capture more detail")
               .font(.system(size: 15, weight: .medium))
-              .foregroundStyle(Color(red: 0.294, green: 0.333, blue: 0.388))
+              .foregroundStyle(Color.qaptrFigmaBody)
             Text("The broad pattern is visible, but Qaptr missed an important decision or handoff.")
               .font(.system(size: 15))
-              .foregroundStyle(Color(red: 0.294, green: 0.333, blue: 0.388))
+              .foregroundStyle(Color.qaptrFigmaBody)
               .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 20) {
               Button("Capture more detail", action: captureMoreDetail)
@@ -787,7 +892,7 @@ struct FindingDetailView: View {
               Button("Keep it as is", action: back)
                 .buttonStyle(.plain)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color(red: 0.294, green: 0.333, blue: 0.388))
+                .foregroundStyle(Color.qaptrFigmaBody)
             }
             .padding(.top, 4)
             Text(
