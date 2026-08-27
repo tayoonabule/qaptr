@@ -180,20 +180,13 @@ struct SettingsView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
-        HStack(spacing: 12) {
-          QaptrBrandLogo(iconSize: 22, textSize: 20, wordmark: true)
-            .frame(width: 84, height: 30)
-            .clipped()
-          Text("Settings")
-            .font(QaptrType.body(13))
-            .foregroundStyle(Color.qaptrFigmaBody)
-        }
         captureFigmaSection
         privacyFigmaSection
         analysisFigmaSection
       }
       .padding(.horizontal, 52)
-      .padding(.vertical, 32)
+      .padding(.top, 52)
+      .padding(.bottom, 32)
       .frame(width: 845, alignment: .leading)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
