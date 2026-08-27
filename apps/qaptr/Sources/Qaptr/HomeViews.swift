@@ -113,6 +113,7 @@ struct HomeView: View {
       (state == .homeAttention ? QaptrColor.danger : QaptrColor.accent).opacity(0.12),
       in: RoundedRectangle(cornerRadius: 6, style: .continuous)
     )
+    .accessibilityLabel(title)
   }
 
   @ViewBuilder

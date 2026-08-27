@@ -44,7 +44,17 @@ struct NativeMenuBarMenu: View {
   }
 
   private var menuState: MenuState {
-    switch model.selectedScreen {
+    if model.capturePaused || model.selectedScreen == .homePaused {
+      return MenuState(
+        title: "Capture paused",
+        subtitle: "No screenshots are being captured",
+        systemImage: "pause.circle.fill",
+        primaryActions: [MenuAction(title: "Resume capture", action: .resume)],
+        openScreen: .homePaused
+      )
+    }
+
+    return switch model.selectedScreen {
     case .menuBarAttention:
       MenuState(
         title: "Screen Recording was turned off",
@@ -91,6 +101,9 @@ struct NativeMenuBarMenu: View {
     case .pause:
       model.capturePaused = true
       model.show(.homePaused)
+    case .resume:
+      model.capturePaused = false
+      model.show(.homeFindings)
     case .openSystemSettings:
       guard
         let url = URL(
@@ -171,6 +184,7 @@ private struct MenuAction: Identifiable {
   enum Kind {
     case analyze
     case pause
+    case resume
     case openSystemSettings
     case stopAndReview
     case review
