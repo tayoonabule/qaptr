@@ -59,6 +59,46 @@ map. Each agent should:
 `graphify-out/` is gitignored precisely so parallel workers never conflict on a
 large generated file. Each one rebuilds it in seconds.
 
+## Figma design-to-code work
+
+For a full native-UI rebuild, the authoritative Figma root is **Main App**,
+node `2:12`. Start from that canvas, not from an individual state such as the
+menu bar. The Figma file contains the complete state inventory below that root.
+
+The local `figma-desktop` MCP server is already connected. Do **not** fall back
+to browser authentication or ask the user to configure a new integration.
+Before the first `get_design_context` request in a session, create and use this
+exact approved asset directory:
+
+```sh
+mkdir -p /Users/light/Documents/GitHub/qaptr/.jcode/figma-assets
+```
+
+Every `figma-desktop.get_design_context` call must include the exact argument:
+
+```json
+"dirForAssetWrites": "/Users/light/Documents/GitHub/qaptr/.jcode/figma-assets"
+```
+
+This is an approved Figma Dev Mode directory and was verified on 2026-08-27.
+Do not substitute the agent sandbox mirror (`/Users/jh/...`), a scratch
+directory, Downloads, `artifactDir`, or `artifactPath`: those are rejected by
+the desktop MCP. Invoke the raw MCP tool as `get_design_context`, not through a
+`toolName` argument. After each successful design-context request, retrieve the
+node screenshot as the MCP response requires.
+
+If motion data is needed, call `get_motion_context` on an inspected **frame**,
+not the root canvas `2:12`; the desktop MCP intentionally rejects motion
+queries for canvases. An empty frame-level motion result means that frame has
+no Figma-defined animation, not that MCP access failed.
+
+Follow the `figma-design-to-code` skill phase locks exactly: variables before
+metadata, a complete top-down queue before detailed context, vector export
+halts, then implementation and screenshot audit. Run the large metadata map on
+`2:12` before splitting independent screen branches with Swarm. The current
+UI is disposable presentation scaffolding only; preserve behavioral contracts,
+privacy guarantees, persistence, integrations, and accessibility semantics.
+
 ## Quality gates
 
 Run the same gates as CI before handing work back:
