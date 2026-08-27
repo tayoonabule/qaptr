@@ -689,6 +689,14 @@ struct FindingDetailView: View {
         .foregroundStyle(ReviewDesign.muted)
 
         VStack(alignment: .leading, spacing: 12) {
+          if let candidate = finding.candidate {
+            Text(String(format: "%02d", candidate.rank))
+              .font(.system(size: 12, weight: .semibold, design: .monospaced))
+              .foregroundStyle(ReviewDesign.accent)
+              .padding(.horizontal, 10)
+              .padding(.vertical, 6)
+              .background(ReviewDesign.accent.opacity(0.10), in: Capsule())
+          }
           Text(finding.title)
             .font(.system(size: 32, weight: .regular, design: .serif))
             .foregroundStyle(ReviewDesign.ink)
@@ -744,6 +752,12 @@ struct FindingDetailView: View {
             .font(.system(size: 15))
             .foregroundStyle(ReviewDesign.slate)
             .lineSpacing(3)
+          HStack(spacing: 16) {
+            detailMetadata("Evidence", value: "\(candidate.evidenceCaptureCount) captures")
+            if let observedSpan = candidate.observedSpanLabel {
+              detailMetadata("Observed", value: observedSpan)
+            }
+          }
         }
       }
 
@@ -789,10 +803,10 @@ struct FindingDetailView: View {
         Text("What did Qaptr misunderstand?")
           .font(.system(size: 17, weight: .semibold))
           .foregroundStyle(ReviewDesign.ink)
-        TextField("Optional correction", text: $correction)
+        TextField("Tell Qaptr what to correct…", text: $correction)
           .textFieldStyle(.roundedBorder)
         HStack {
-          Button("Save correction") {
+          Button("Submit correction") {
             correctionMessage =
               correction.isEmpty
               ? "Add a correction before saving."
@@ -813,16 +827,39 @@ struct FindingDetailView: View {
   @ViewBuilder
   private func observationDetail(_ observation: QaptrObservation) -> some View {
     VStack(alignment: .leading, spacing: 18) {
-      Text("What Qaptr noticed")
-        .font(.system(size: 17, weight: .semibold))
-        .foregroundStyle(ReviewDesign.ink)
-      Text(observation.summary)
-        .font(.system(size: 15))
-        .foregroundStyle(ReviewDesign.slate)
-        .lineSpacing(3)
-      Text("This observation is a record, not a workflow recommendation.")
+      ReviewGlassCard {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("What Qaptr noticed")
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(ReviewDesign.ink)
+          Text(observation.summary)
+            .font(.system(size: 15))
+            .foregroundStyle(ReviewDesign.slate)
+            .lineSpacing(3)
+          HStack(spacing: 16) {
+            detailMetadata("Confidence", value: observation.confidenceBand.label)
+            detailMetadata("Created", value: observation.createdAtLabel)
+          }
+          if let captureID = observation.captureID {
+            detailMetadata("Capture", value: captureID)
+          }
+          detailMetadata("Session", value: observation.sessionID)
+        }
+      }
+      Text("This explanation contains no source screenshots or provider payload.")
         .font(.system(size: 13))
         .foregroundStyle(ReviewDesign.muted)
+    }
+  }
+
+  private func detailMetadata(_ label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(label.uppercased())
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(ReviewDesign.muted)
+      Text(value)
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(ReviewDesign.slate)
     }
   }
 
@@ -865,5 +902,20 @@ extension WorkflowEvidenceStatus {
 extension WorkflowCaptureRecommendation {
   fileprivate var reviewDurationLabel: String {
     durationSeconds < 60 ? "\(durationSeconds) seconds" : "\(durationSeconds / 60) minutes"
+  }
+}
+
+private extension WorkflowCandidate {
+  var observedSpanLabel: String? {
+    guard let start = observedStartAtMillis, let end = observedEndAtMillis else { return nil }
+    let minutes = max(0, Int((end - start) / 60_000))
+    return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+  }
+}
+
+private extension QaptrObservation {
+  var createdAtLabel: String {
+    Date(timeIntervalSince1970: Double(createdAtMillis) / 1_000)
+      .formatted(date: .long, time: .shortened)
   }
 }
