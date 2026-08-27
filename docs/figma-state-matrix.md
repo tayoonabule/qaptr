@@ -34,4 +34,22 @@ Figma variables were resolved before metadata/context inspection. Native code bi
 | Release packaging and signatures | `apps/review/build_app.sh release` and `bench/scripts/packaged_fixture_smoke.sh` | Passed. Outer `Qaptr.app` and nested helper validate on disk and satisfy designated requirements. |
 | Visual fidelity at exact dimensions | Figma screenshot/context for `11:113`, native screenshot of onboarding frame | Partially passed. Exact 845x737 framing was observed for the primary composition; complete all-state screenshot/diff coverage remains blocked by runtime state injection. |
 
-The remaining gap is therefore explicitly visual and state-fixture related. Public behavior, privacy boundaries, persistence/integration paths, packaging, and test-backed state resolution were exercised through the repository's real interfaces.
+
+
+## Whole-result acceptance rerun (2026-08-27)
+
+The committed result was re-run through the real packaged path, not only unit tests:
+
+| Requirement / changed output | Acceptance path exercised | Observed result |
+|---|---|---|
+| Figma root geometry and Home surface | Built and launched the current executable; observed the Qaptr window at `845 × 737`; captured the live Home surface | Pass. The current binary rendered the rebuilt Home surface at the Figma frame size. |
+| Home state presentation | Ran the real executable with `QAPTR_DEV_MOCK_DATA=1`; observed capture status, optional-context banner, findings cards, Analyze, and Settings | Pass for the reachable fixture state. Every Figma variant cannot be driven live because the product has no public deterministic state injection. Resolver tests cover the remaining transitions. |
+| Settings presentation and navigation | Clicked Settings from the live Home window; observed Capture, Privacy, Never capture, and Analysis cards; returned/relaunched | Pass. The same Figma-sized window rendered the rebuilt Settings surface with no legacy Form surface. |
+| Onboarding, consent, provider, finding detail, correction, and save boundaries | Full review Swift suite, including permission, consent, provider selection, cancellation, unavailable provider, typed finding actions, and persistence cases | Pass. Explicit approval remains required, privacy-safe summaries remain scalar, and unavailable correction remains honest. |
+| Settings persistence and helper integration | Review/helper Swift suites plus packaged smoke | Pass. Settings and helper integration completed against real package interfaces. |
+| Menu bar public interface | Release package smoke launched outer `Qaptr.app`, checked login-item behavior, and validated the nested helper | Pass. `login_item_status_code=0`; outer app, helper, and dylibs were valid on disk and satisfied designated requirements. |
+| Privacy/local-only guarantee | Packaged fixture smoke before and after explicit consent | Pass. `provider_requests=0` before consent; smoke completed with `review_observations=1`, `review_workflows=1`, and `exports=4`. |
+| Packaging and release boundaries | `apps/review/build_app.sh release` and `bench/scripts/packaged_fixture_smoke.sh` | Pass. Release build, signing, dylib loading, nested helper validation, package launch, and login-item probe completed. |
+| Typography, spacing, colors, glass, vectors | Figma `11:113` reference capture and live Home/Settings screenshots after relaunch | Pass for the inspected reachable surfaces and visibly improved after deleting legacy wrappers. A machine pixel diff remains blocked because Figma returned inline-only image data and the desktop screenshot tool exposed no writable PNG path. |
+
+This rerun closes the real public acceptance loop for reachable workflows. The remaining constraint is exhaustive live rendering of every Figma state without a synthetic state injector or safely manufacturing TCC/provider failure states on the host.
