@@ -34,23 +34,26 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        QaptrGlassBackdrop {
-            ZStack {
-                if navigation.surface == .settings {
-                    settingsSurface
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                } else {
-                    WorkflowSuggestionsView(
-                        model: model,
-                        openSettings: { setSurface(.settings) }
-                    )
-                    // Review leaves toward the leading edge when Settings is
-                    // opened. Settings uses the opposite edge, so the two
-                    // surfaces do not appear to chase each other rightward.
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+        VStack(spacing: 0) {
+            QaptrTitleBar(title: navigation.surface == .settings ? "Qaptr Settings" : "Qaptr Home")
+            QaptrGlassBackdrop {
+                ZStack {
+                    if navigation.surface == .settings {
+                        settingsSurface
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    } else {
+                        WorkflowSuggestionsView(
+                            model: model,
+                            openSettings: { setSurface(.settings) }
+                        )
+                        // Review leaves toward the leading edge when Settings is
+                        // opened. Settings uses the opposite edge, so the two
+                        // surfaces do not appear to chase each other rightward.
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task {
             while !Task.isCancelled {
@@ -63,6 +66,7 @@ struct ContentView: View {
             }
         }
     }
+
 
     private var settingsSurface: some View {
         VStack(spacing: 0) {

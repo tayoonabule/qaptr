@@ -56,6 +56,39 @@ struct QaptrTitleMark: View {
   }
 }
 
+/// Figma's custom in-content title bar (node `16:5594`, 845×32): a
+/// `rgba(255,255,255,0.6)` bar with a `rgba(0,0,0,0.05)` bottom hairline,
+/// 8pt window-control inset, and a 14×14 `logo-mini` + 13pt Satoshi-Medium
+/// title 8pt to its right. AppKit still owns the real traffic lights (this
+/// view never draws its own), so only the title label and hairline are
+/// rendered here; the transparent titlebar host places this content over
+/// the native controls at the same 8pt inset Figma specifies.
+struct QaptrTitleBar: View {
+  let title: String
+
+  var body: some View {
+    HStack(spacing: 8) {
+      QaptrTitleMark(size: 14)
+      Text(title)
+        .font(QaptrFont.custom(13, weight: .medium))
+        .foregroundStyle(Color.qaptrLabelPrimary)
+    }
+    // 8pt top/bottom padding centers the 14pt content in the 32pt bar. The
+    // 84pt leading inset in Figma is `8 (controls inset) + 60 (traffic
+    // light cluster width) + 16 (gap)`; AppKit's real traffic lights
+    // already occupy that space, so only the remaining leading gap is
+    // added here.
+    .padding(.leading, 84)
+    .padding(.vertical, 8)
+    .frame(height: 32, alignment: .leading)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.white.opacity(0.6))
+    .overlay(alignment: .bottom) {
+      Rectangle().fill(Color.black.opacity(0.05)).frame(height: 1)
+    }
+  }
+}
+
 private enum QaptrReviewLogoResources {
   static let aperture: Data = load("QaptrAperture")
   static let wordmark: Data = load("qaptr_logo")

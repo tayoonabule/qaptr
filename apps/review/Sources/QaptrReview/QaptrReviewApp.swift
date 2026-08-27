@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let content = NSHostingView(rootView: RootView(model: model, navigation: navigation))
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 845, height: 737),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
@@ -87,7 +87,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // separator some AppKit versions still draw under
     // `NSVisualEffectView`-less content even with a transparent bar.
     window.titlebarAppearsTransparent = true
-    window.titleVisibility = .visible
+    // The Figma title bar (node 16:5594) draws its own "Qaptr Home" /
+    // "Qaptr Settings" label alongside a 14×14 logo-mini mark, positioned
+    // to sit beside the real traffic lights rather than duplicating
+    // AppKit's centered native title. `window.title` stays set (Mission
+    // Control, Cmd-`, and Dock menus still read it); only the drawn native
+    // title text is hidden so it doesn't double up with the in-content one.
+    window.titleVisibility = .hidden
     if #available(macOS 13.0, *) {
       window.titlebarSeparatorStyle = .none
     }
