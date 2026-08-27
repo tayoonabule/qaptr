@@ -18,9 +18,20 @@ Authoritative root: `Main App` canvas `2:12` in Qaptr Figma file. All primary re
 
 Figma variables were resolved before metadata/context inspection. Native code binds repeated values through the existing Qaptr design tokens and the Figma-derived constants: SF Pro global body sizing, 24-point control height, 16-point button horizontal padding, 6-point button radius, blue/orange/red accents, vibrant secondary fill, primary label, and liquid-glass opacity/dispersion/depth behavior. Existing font and logo resources remain authoritative vector boundaries.
 
-## Visual evidence
+## Requirement-to-check traceability
 
-- Figma metadata map captured from `2:12`.
-- Figma design context and screenshot captured for `11:113` (ready-to-analyze root) at 845 x 737.
-- Swift review package tests: 196 tests passed.
-- Remaining acceptance work is the installed-app screenshot pass across every state. The repository exposes `QAPTR_REVIEW_PAINT_FILE`, `QAPTR_REVIEW_SURFACE_FILE`, and `QAPTR_REVIEW_CONTENT_FILE` probes for repeatable runtime checks; these probes do not substitute for pixel comparison.
+| Requirement / changed output | Concrete check | Observed result |
+|---|---|---|
+| Figma variables precede node details | `get_variable_defs(2:12)` before `get_metadata(2:12)` and context calls | Passed. Variable map returned SF Pro, button, accent, fill, radius, and liquid-glass values first. |
+| Complete Main App state inventory | `get_metadata(2:12)` plus the root inventory above | Passed. Onboarding, home, consent, detail, settings, menu bar, and toast roots recorded. |
+| Onboarding permission states | `QaptrReview` release launch with `QAPTR_REVIEW_SURFACE_FILE`; direct packaged screenshot | Passed for the observed not-yet-requested onboarding state. Surface probe returned `review` after the app transitioned. |
+| Home empty/ready/finding/paused/attention/analyzing/detail states | `ReviewWorkspaceState` resolver tests plus 845x737 Figma context and native screenshot | Passed for resolver coverage and the observed onboarding/ready composition. Per-state pixel overlays are blocked by missing deterministic state injection. |
+| Consent and provider boundary | Review Swift tests `AnalysisConsentPresentationTests`, `AnalysisSessionModelTests`, `ProviderSelectionTests` | Passed. Explicit consent, decline, provider readiness, and no-provider behavior are covered. |
+| Settings and never-capture behavior | Review Swift tests `CaptureSettingsPresentationTests`, `SettingsEntryPolicyTests`, `SettingsViewOpenRouterReadinessTests`; packaged smoke fixture | Passed. Settings policy and provider readiness tests pass; packaged smoke confirms the shipped bundle loads. |
+| Menu bar public interface | Release package launch and `QaptrMenuBarView` wiring in `QaptrReviewApp.swift`; packaged smoke login-item probe | Passed. Bundle contains the review/helper menu-bar architecture and `qaptr_login_item_status` returned documented code `0`. |
+| Privacy and local-only guarantees | `AnalysisConsentPresentationTests`, `ReviewSessionStateDecoderTests`, packaged smoke `provider_requests=0` | Passed. Fixture run observed zero provider requests before explicit consent and valid local review outputs. |
+| Persistence and integrations | Full review/helper Swift suites, Rust workspace tests, packaged fixture smoke | Passed. 196 review tests, 37 helper tests, Rust workspace tests, and the real shipped-bundle smoke all passed. |
+| Release packaging and signatures | `apps/review/build_app.sh release` and `bench/scripts/packaged_fixture_smoke.sh` | Passed. Outer `Qaptr.app` and nested helper validate on disk and satisfy designated requirements. |
+| Visual fidelity at exact dimensions | Figma screenshot/context for `11:113`, native screenshot of onboarding frame | Partially passed. Exact 845x737 framing was observed for the primary composition; complete all-state screenshot/diff coverage remains blocked by runtime state injection. |
+
+The remaining gap is therefore explicitly visual and state-fixture related. Public behavior, privacy boundaries, persistence/integration paths, packaging, and test-backed state resolution were exercised through the repository's real interfaces.
