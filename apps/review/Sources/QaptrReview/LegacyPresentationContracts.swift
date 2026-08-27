@@ -4,33 +4,6 @@ import QaptrReviewCore
 // replaced by WorkflowSuggestionsView, FindingDetailView, and WelcomeView. Keep
 // only the pure presentation decisions that still have direct contract tests.
 
-enum ReviewContentState: Equatable {
-  case error
-  case empty
-  case observations
-
-  static func resolve(hasLoadError: Bool, observationCount: Int) -> ReviewContentState {
-    if hasLoadError { return .error }
-    return observationCount == 0 ? .empty : .observations
-  }
-
-  var headerTitle: String {
-    switch self {
-    case .error: return "Review setup"
-    case .empty: return "Review"
-    case .observations: return "What Qaptr found"
-    }
-  }
-
-  var probeName: String {
-    switch self {
-    case .error: return "error"
-    case .empty: return "empty"
-    case .observations: return "observations"
-    }
-  }
-}
-
 enum AnalysisConsentPresentation {
   static func privacyTitle(_ summary: ReviewConsentSummary) -> String {
     if summary.imageCount == 0 {
